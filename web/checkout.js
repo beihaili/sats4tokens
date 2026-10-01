@@ -3,6 +3,7 @@ const id = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 let shownInvoice = '';
+let payError = '';
 let redirectTimer = 0;
 
 function render(o) {
@@ -36,8 +37,9 @@ function render(o) {
     $('#ln-link').href = 'lightning:' + o.invoice;
     $('#invoice').value = o.invoice;
   }
-  $('#err').hidden = !o.lastError;
-  $('#err').textContent = o.lastError ?? '';
+  const err = o.lastError ?? payError; // payError: the last pasted token's rejection, kept across polls
+  $('#err').hidden = !err;
+  $('#err').textContent = err ?? '';
   const left = Math.max(0, Math.round((o.expiresAt - Date.now()) / 1000));
   $('#countdown').textContent = o.state === 'SETTLING' ? '(settling with the mint…)' : `(${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} left)`;
 }
@@ -73,10 +75,12 @@ $('#copy').addEventListener('click', () => {
   box.select();
   document.execCommand('copy');
 });
-$('#paytoken').addEventListener('click', async () => {
+async function payWithToken() {
   const btn = $('#paytoken');
+  if (btn.disabled) return; // a payment is already in flight
   btn.disabled = true;
   btn.textContent = 'Paying…';
+  payError = '';
   try {
     const r = await fetch(`/api/order/${id}/token`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -86,11 +90,22 @@ $('#paytoken').addEventListener('click', async () => {
     if (!r.ok) throw new Error(j.error);
     render(j);
   } catch (e) {
+    payError = e.message;
     $('#err').hidden = false;
-    $('#err').textContent = e.message;
+    $('#err').textContent = payError;
   } finally {
     btn.disabled = false;
     btn.textContent = 'Pay with token';
+  }
+}
+$('#paytoken').addEventListener('click', payWithToken);
+// Pasting a whole token pays right away (one step less on stage). Typing never matches, so no surprise submits.
+let autoPaid = '';
+$('#token').addEventListener('input', () => {
+  const v = $('#token').value.trim().replace(/^cashu:/i, '');
+  if (/^cashu[AB][A-Za-z0-9_\-+/=]{40,}$/.test(v) && v !== autoPaid) {
+    autoPaid = v; // the same token is auto-submitted once; after an error the button still works
+    payWithToken();
   }
 });
 

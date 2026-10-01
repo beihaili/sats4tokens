@@ -11,14 +11,18 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
 - `src/gateway.ts` — the engine: one deterministic (seed-backed) cashu-ts wallet. Lightning = mint
   quote → mint when PAID; Cashu = swap the pasted token. Write-ahead of the counter range before every
   mint call; `recover()` uses NUT-09 restore after crashes. `CRASH_AT=after-writeahead|after-mint`
-  kills the process for the crash demo.
+  kills the process for the crash demo. On startup `mintProblems()` checks the mint's NUT-06 info and
+  refuses to start without bolt11 sat minting (NUT-04), state checks (NUT-07) and restore (NUT-09).
+  Pasted tokens may carry a `cashu:` URI prefix.
 - `src/server.ts` — node:http: `/submit.php` (from new-api), `/pay/:id` checkout, `/api/order/:id[...]`,
   `/admin?key=`, `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`, never sent
   over HTTP), notify loop (GET notify_url until it answers `success`).
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
 - `src/price.ts` — fiat→BTC (CoinGecko, 60s cache, or `BTC_PRICE`).
-- `web/` — mobile checkout page (Lightning invoice created lazily when the ⚡ tab is opened).
-- `test/` — `node:test` units: go-epay signature vectors, submit idempotency, write-ahead settle, `decideSettle`, notify.
+- `web/` — mobile checkout page (Lightning invoice created lazily when the ⚡ tab is opened; opening tab
+  from `CHECKOUT_TAB` or `#ln`/`#cashu`; pasting a whole token pays at once; token errors stay visible across polls).
+- `test/` — `node:test` units (18): go-epay signature vectors, submit idempotency, write-ahead settle,
+  `decideSettle`, notify (`ledger`/`epay` tests), mint capability check (`gateway.test.ts`).
 - `scripts/` — `crash-demo.ts` (kill -9 mid-payment → restart → credited once), `edge-checks.ts` (unhappy paths +
   withdraw), `harness.ts` (shared by those two), `fake-merchant.ts` (stands in for new-api),
   `customer-wallet.ts mint <sats>`, `smoke.ts` (raw NUT-09 idea). All local against testnut, ports 8095/3995.

@@ -14,6 +14,7 @@ import {
   serializeProofs,
   deserializeProofs,
   getEncodedToken,
+  type MintInfo,
   type Proof,
   type Token,
 } from '@cashu/cashu-ts';
@@ -53,6 +54,21 @@ export function loadSeed(dataDir: string): Uint8Array {
   return Buffer.from(fs.readFileSync(file, 'utf8').trim(), 'hex');
 }
 
+/**
+ * What this gateway needs from a mint, per its NUT-06 info. Empty list = OK.
+ * Without NUT-09 restore (and NUT-07 state checks) a crash mid-payment can't be recovered,
+ * so the gateway refuses to start rather than silently losing its exactly-once guarantee.
+ */
+export function mintProblems(info: Pick<MintInfo, 'isSupported'>): string[] {
+  const problems: string[] = [];
+  const mint = info.isSupported(4);
+  if (mint.disabled || !mint.params.some((m) => m.method === 'bolt11' && m.unit === 'sat'))
+    problems.push('no bolt11 minting in sat (NUT-04)');
+  if (!info.isSupported(7).supported) problems.push('no proof state check (NUT-07)');
+  if (!info.isSupported(9).supported) problems.push('no restore (NUT-09), crash recovery impossible');
+  return problems;
+}
+
 export class Gateway {
   ledger: Ledger;
   wallet: Wallet;
@@ -68,6 +84,8 @@ export class Gateway {
   static async open(ledger: Ledger, mintUrl: string, seed: Uint8Array): Promise<Gateway> {
     const wallet = new Wallet(mintUrl, { unit: 'sat', bip39seed: seed });
     await wallet.loadMint();
+    const problems = mintProblems(wallet.getMintInfo());
+    if (problems.length) throw new Error(`mint ${mintUrl} can't be used: ${problems.join('; ')}`);
     return new Gateway(ledger, wallet, normUrl(mintUrl));
   }
 
@@ -163,13 +181,14 @@ export class Gateway {
 
   /** Customer pasted a token: swap it into our wallet. Overpayment is kept (tokens can't be split here). */
   payWithToken(orderId: string, token: string): Promise<Order> {
+    token = token.trim().replace(/^cashu:/i, ''); // some wallets share a cashu: URI
     return this.serial(async () => {
       const order = this.ledger.order(orderId);
       if (!order) throw new Error('unknown order');
       const t = this.checkToken(order, token);
       const states = await this.wallet.checkProofsStates(t.proofs);
       if (states.some((s) => s.state !== 'UNSPENT')) throw new Error('token already spent');
-      await this.swapForOrder(order, t, this.ledger.data.nextCounter, true, token.trim());
+      await this.swapForOrder(order, t, this.ledger.data.nextCounter, true, token);
       return order;
     });
   }
