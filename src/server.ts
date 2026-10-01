@@ -24,6 +24,9 @@ const KEY = process.env.EPAY_KEY ?? '';
 const MINT_URL = process.env.MINT_URL ?? 'https://testnut.cashu.space';
 const DATA_DIR = process.env.DATA_DIR ?? 'data';
 const TTL_MS = Number(process.env.ORDER_TTL_MIN ?? 30) * 60_000;
+// Tab the checkout opens on. Opening ⚡ creates an invoice, and testnut pays its own invoices after ~2s,
+// so on testnut use 'cashu' or every order is paid "by lightning" before anyone can paste a token.
+const CHECKOUT_TAB = process.env.CHECKOUT_TAB === 'cashu' ? 'cashu' : 'ln';
 if (!KEY) throw new Error('EPAY_KEY is required (the same merchant key you put into new-api)');
 
 const root = path.resolve(import.meta.dirname, '..', 'web');
@@ -70,6 +73,7 @@ function publicOrder(o: Order) {
     state: o.state,
     invoice: o.state === 'PENDING' || o.state === 'SETTLING' ? o.quote?.request : undefined,
     mint: gw.mintUrl,
+    tab: CHECKOUT_TAB,
     expiresAt: o.expiresAt,
     lastError: o.lastError,
     paid: o.paid,

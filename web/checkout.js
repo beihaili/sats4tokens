@@ -27,6 +27,8 @@ function render(o) {
     return;
   }
   $('#pay').hidden = false;
+  // first render picks the tab: #cashu / #ln in the URL wins, else the gateway's CHECKOUT_TAB
+  if (!tabShown) showTab(location.hash === '#cashu' ? 'cashu' : location.hash === '#ln' ? 'ln' : o.tab);
   $('#tab-ln').classList.toggle('loading', !o.invoice);
   if (o.invoice && o.invoice !== shownInvoice) {
     shownInvoice = o.invoice;
@@ -52,7 +54,9 @@ async function poll() {
 
 // The invoice is created only when the Lightning tab is shown (cashu payers never get one).
 let invoiceAsked = false;
+let tabShown = false;
 function showTab(tab) {
+  tabShown = true;
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab));
   $('#tab-ln').hidden = tab !== 'ln';
   $('#tab-cashu').hidden = tab !== 'cashu';
@@ -90,6 +94,5 @@ $('#paytoken').addEventListener('click', async () => {
   }
 });
 
-showTab(location.hash === '#cashu' ? 'cashu' : 'ln');
 poll();
 setInterval(poll, 1500);

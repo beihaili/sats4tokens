@@ -91,6 +91,7 @@ services:
       MINT_URL: "${MINT_URL:-https://testnut.cashu.space}"
       FIAT: "cny"
       ORDER_TTL_MIN: "30"
+      CHECKOUT_TAB: "${CHECKOUT_TAB:-cashu}" # testnut pays its own invoices, so don't open on ⚡ (set ln for a real mint)
       TZ: "Europe/Berlin"
     networks: [demo]
 

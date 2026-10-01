@@ -27,7 +27,7 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
 ## Run
 
 ```sh
-EPAY_KEY=demo-key PORT=8091 npm run gateway         # env: EPAY_PID MINT_URL DATA_DIR ORDER_TTL_MIN FIAT BTC_PRICE SEED
+EPAY_KEY=demo-key PORT=8091 npm run gateway         # env: EPAY_PID MINT_URL DATA_DIR ORDER_TTL_MIN FIAT BTC_PRICE SEED CHECKOUT_TAB=ln|cashu
 EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 node scripts/fake-merchant.ts
 EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance   # or: withdraw
 npm test && npm run typecheck                         # units (offline)
