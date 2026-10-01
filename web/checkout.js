@@ -62,7 +62,13 @@ function showTab(tab) {
   }
 }
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
-$('#copy').addEventListener('click', () => navigator.clipboard.writeText($('#invoice').value));
+// navigator.clipboard only exists on https/localhost; the demo runs on plain http, so fall back to execCommand.
+$('#copy').addEventListener('click', () => {
+  const box = $('#invoice');
+  if (navigator.clipboard) return navigator.clipboard.writeText(box.value);
+  box.select();
+  document.execCommand('copy');
+});
 $('#paytoken').addEventListener('click', async () => {
   const btn = $('#paytoken');
   btn.disabled = true;
