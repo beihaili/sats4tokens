@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Pay with Bitcoin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="checkout">
+    <header>
+      <h1>⚡ Pay with Bitcoin</h1>
+      <p class="tag">No account. No KYC. No card. · 无需注册，无需实名</p>
+    </header>
+    <section id="order" class="card">loading…</section>
+    <section id="pay" class="card" hidden>
+      <nav class="tabs">
+        <button data-tab="ln" class="on">⚡ Lightning</button>
+        <button data-tab="cashu">🥜 Cashu ecash</button>
+      </nav>
+      <div id="tab-ln">
+        <a id="ln-link"><img id="qr" alt="lightning invoice QR"></a>
+        <div class="row"><input id="invoice" readonly><button id="copy">Copy</button></div>
+        <p class="hint">Scan with any Lightning wallet. 任意闪电钱包扫码支付。</p>
+      </div>
+      <div id="tab-cashu" hidden>
+        <textarea id="token" rows="5" placeholder="cashuB…"></textarea>
+        <button id="paytoken" class="primary">Pay with token</button>
+        <p class="hint">Paste an ecash token from <span id="mint" class="mono"></span>.
+          The mint can't see who pays whom — blind signatures. 粘贴 ecash token。</p>
+      </div>
+      <p id="err" class="bad" hidden></p>
+      <p id="status" class="hint">Waiting for payment… <span id="countdown"></span></p>
+    </section>
+    <section id="done" class="card ok" hidden>
+      <div class="big">✅ Paid</div>
+      <p id="done-detail"></p>
+      <a id="back" class="button primary">Back to merchant →</a>
+    </section>
+  </main>
+  <script type="module" src="/checkout.js"></script>
+</body>
+</html>

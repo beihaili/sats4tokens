@@ -1,0 +1,22 @@
+:root { --fg: #1b1b1f; --muted: #6b6b76; --bg: #f6f5f2; --card: #fff; --accent: #f7931a; --ok: #1f9d55; --bad: #c62828; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 17px/1.5 system-ui, -apple-system, "PingFang SC", sans-serif; color: var(--fg); background: var(--bg); }
+.checkout { max-width: 460px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { margin: 0; font-size: 28px; }
+.tag { margin: 4px 0 20px; color: var(--muted); }
+.card { background: var(--card); border-radius: 14px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px #0001; }
+.card.ok { border: 2px solid var(--ok); text-align: center; }
+.amount { font-size: 40px; font-weight: 700; margin: 6px 0; }
+.amount small { font-size: 20px; color: var(--muted); }
+.big { font-size: 32px; font-weight: 700; color: var(--ok); }
+.muted, .hint { color: var(--muted); font-size: 14px; }
+.mono { font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+.bad { color: var(--bad); }
+.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.tabs button { flex: 1; padding: 10px; border: 1px solid #ddd; background: #fafafa; border-radius: 10px; font-size: 16px; cursor: pointer; }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+#qr { display: block; width: 100%; max-width: 320px; margin: 0 auto 12px; }
+.row { display: flex; gap: 8px; }
+input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10px; font: 13px ui-monospace, Menlo, monospace; }
+button, .button { padding: 10px 16px; border: 1px solid #ddd; border-radius: 10px; background: #fff; cursor: pointer; font-size: 16px; text-decoration: none; color: inherit; display: inline-block; }
+.primary { background: var(--accent); color: #fff; border-color: var(--accent); width: 100%; margin-top: 10px; text-align: center; }

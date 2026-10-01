@@ -1,0 +1,11 @@
+node_modules/
+data/
+*.tmp
+.DS_Store
+.env
+# demo stack runtime files (only exist on the server, listed here so they can never be committed)
+secrets/
+seed/
+logs/
+*.bak-*
+withdrawals/

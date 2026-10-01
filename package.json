@@ -1,0 +1,26 @@
+{
+  "name": "cashu-epay",
+  "version": "1.0.0",
+  "description": "EPay-compatible Bitcoin (Cashu + Lightning) payment gateway for new-api",
+  "scripts": {
+    "test": "node --test --disable-warning=ExperimentalWarning test/*.test.ts",
+    "gateway": "node --disable-warning=ExperimentalWarning src/server.ts",
+    "cli": "node --disable-warning=ExperimentalWarning src/cli.ts",
+    "crash-demo": "node --disable-warning=ExperimentalWarning scripts/crash-demo.ts",
+    "edge-checks": "node --disable-warning=ExperimentalWarning scripts/edge-checks.ts",
+    "smoke": "node --disable-warning=ExperimentalWarning scripts/smoke.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@cashu/cashu-ts": "^4.11.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/qrcode": "^1.5.6",
+    "typescript": "^7.0.2"
+  },
+  "type": "module",
+  "private": true
+}
