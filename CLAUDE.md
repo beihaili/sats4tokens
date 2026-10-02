@@ -24,6 +24,14 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
   `/admin?key=ADMIN_KEY` (JSON; ADMIN_KEY falls back to EPAY_KEY, keep them different in deployments), `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`,
   written before the proofs leave the ledger; the token is also returned only if `WITHDRAW_TOKEN_OVER_HTTP=1`),
   notify loop (GET notify_url until it answers `success`). The watcher skips a beat while a tick is still running.
+- **Key shop** (`src/keyshop.ts` + server): `GET /` buy page (web/index.html), `GET /api/shop` `{enabled, amounts, fiat}`,
+  `POST /api/buy {money: 1|2|5|10}` → key order (`kind:'key'`, id `CK`+32 hex = 128-bit capability, no merchant).
+  On PAID the notify loop runs `makeKeyOnce` instead of a merchant notify: `KeyShop.createKey` finds-or-creates new-api
+  token `btc-<orderId>` (`remain_quota = money × quota_per_unit`, never expires) for the pool user, then
+  `POST /api/token/:id/key` → `o.apiKey {key, baseUrl, tokenId}` (bearer; shown on `/pay/:id`, masked in admin).
+  Errors retry with notify backoff (`keyError` shown on the page). Env `NEWAPI_URL NEWAPI_USER_ID NEWAPI_TOKEN
+  [KEY_BASE_URL]`, needs `FIAT=usd`. new-api auth = user's personal access token (`GET /api/user/token`) as
+  `Authorization` + `New-Api-User`.
 - `README.md` — public overview (no secrets, no tunnel URLs).
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
 - `src/price.ts` — fiat→BTC spot price (CoinGecko → Coinbase → mempool.space fallback, 60s cache, reuses a
@@ -67,7 +75,11 @@ firewalled the VPS IP for polling too hard — `Connection refused` from the VPS
 `~/.config/cashu-epay/`. Compose sets `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000`
 because the VPS→Minibits RTT (~265ms) exceeds Node's 250ms happy-eyeballs attempt timeout (ETIMEDOUT otherwise).
 Production `/opt/new-api-relay/AGENTS.md` has a one-line note about this stack (top of 项目说明).
-Plan/pitch: `../dev-plan.md`, `../pitch.md`.
+Key shop on the demo: pool user `keyshop` (id 3, $1000 quota set via `POST /api/user/manage add_quota`), its PAT in
+`.env` (`NEWAPI_USER_ID`/`NEWAPI_TOKEN`, mode 600, password in `secrets/demo-accounts.txt`); buy page = pay tunnel `/`,
+key endpoint = shop tunnel `/v1` (follows ServerAddress). Verified 2026-10-02 locally (testnut + demo new-api): buy $1 →
+key → real chat call, crash-resume found the same token.
+Plan/pitch/video: `../dev-plan.md`, `../pitch.md`, `../recording-script.md`.
 
 ## Rules
 

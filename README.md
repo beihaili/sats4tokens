@@ -19,6 +19,22 @@ purchase is tied to an ID card.
 cashu-epay is a drop-in EPay payment provider. The shop changes **three settings** and gets a Bitcoin
 checkout. **Zero code change** in the shop.
 
+## Key shop: pay, get a key
+
+An AI API relay pools accounts at OpenAI / Anthropic / Google upstream and resells access downstream
+through one OpenAI-compatible endpoint. The AI companies see the relay, not the user — but signup and
+real-name payment still tie every key to a person.
+
+So the gateway can also sell keys **directly**: open `/`, pick $1 / $2 / $5 / $10, pay with ⚡ or 🥜, and
+the checkout page shows an API key **with its endpoint**, capped at exactly what you paid. No signup, no
+email, no password — **the key is the account**.
+
+- The key is a new-api token of one pool user, with its own hard quota (`$1` → `$1` of quota).
+  The gateway holds only that user's personal access token, not an admin key.
+- Exactly once: the token name comes from the order id; the gateway looks it up before creating, so a
+  crash between "created" and "saved" finds the same key instead of making a second one.
+- The order id is 128 random bits and is the receipt: whoever has the `/pay/…` link can see the key.
+
 ## How it works
 
 ```
@@ -102,6 +118,7 @@ EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance             
 | `FIAT`, `BTC_PRICE` | currency of the shop's `money` field (default `cny`); fixed price for offline demos |
 | `ADMIN_KEY` | operator page key — keep it different from `EPAY_KEY` (that one can sign "paid" notifies) |
 | `DATA_DIR`, `ORDER_TTL_MIN`, `CHECKOUT_TAB=ln\|cashu`, `WITHDRAW_TOKEN_OVER_HTTP=1` | storage, order lifetime, default tab, show withdrawn token on the page (https only) |
+| `NEWAPI_URL`, `NEWAPI_USER_ID`, `NEWAPI_TOKEN`, `KEY_BASE_URL` | turn on the key shop: new-api URL, pool user id + its personal access token, endpoint shown with the key (default new-api's ServerAddress + `/v1`). Needs `FIAT=usd` |
 
 **new-api side** — 支付设置: `PayAddress` = gateway URL, `EpayId` = `EPAY_PID`, `EpayKey` = `EPAY_KEY`,
 `PayMethods` = `[{"name":"Bitcoin","color":"#f7931a","type":"bitcoin"}]`.
@@ -123,13 +140,14 @@ npm run crash-demo -- lightning after-mint   # or: cashu | after-writeahead
 src/epay.ts      EPay MD5 sign / verify
 src/ledger.ts    orders, durable JSON ledger, pure decision logic (no network)
 src/gateway.ts   the engine: seed-backed cashu-ts wallet, write-ahead settle, NUT-09 recovery, NUT-17 push
-src/server.ts    HTTP: /submit.php, checkout, order API, operator API, notify loop
+src/server.ts    HTTP: /submit.php, key shop (/ , /api/buy), checkout, order API, operator API, notify loop
+src/keyshop.ts   paid key order → capped new-api token (find-or-create by name)
 src/price.ts     fiat → BTC with fallbacks
 web/             mobile checkout page + operator page
 deploy/demo/     the live demo stack (a private copy of the relay, isolated from production)
 ```
 
-About 1,300 lines for the gateway and pages, 600 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`.
+About 1,500 lines for the gateway and pages, 600 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`.
 
 ## Limits and next steps
 

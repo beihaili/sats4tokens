@@ -58,5 +58,12 @@ signed them. The gateway refuses mints without NUT-04 bolt11 sat / NUT-07 / NUT-
 (set in compose): Minibits is ~265ms RTT from this VPS, above Node's 250ms happy-eyeballs default.
 With testnut, invoices are paid automatically by the mint's fake wallet ~2s after creation.
 
+Key shop (pay → capped API key, no signup): create a normal user in new-api (demo: `keyshop`, id 3), give it
+a pool quota as root (`POST /api/user/manage {"id":3,"action":"add_quota","mode":"override","value":<quota>}`),
+log in as it and get its personal access token (`GET /api/user/token`). Put `NEWAPI_USER_ID=3` and
+`NEWAPI_TOKEN=<token>` in `.env` (chmod 600), then `docker compose up -d gateway`. The log line ends with
+`keyshop=http://new-api:3000`; the buy page is the pay tunnel's `/`. Keys use new-api's ServerAddress + `/v1`.
+Revoke a key: `DELETE /api/token/<id>` with the same token headers (`Authorization`, `New-Api-User`).
+
 Tear down: `docker compose down` (keeps data/), `rm -rf /opt/cashu-epay-demo` to remove everything.
 Nothing in production needs undoing.
