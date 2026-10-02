@@ -1,4 +1,5 @@
 // Checkout page: polls /api/order/:id, shows the lightning invoice or takes a pasted cashu token.
+import { renderModels } from '/models.js';
 const id = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -24,6 +25,12 @@ function render(o) {
     if (o.apiKey && $('#key').hidden) {
       $('#key').hidden = false;
       startUsage();
+      // Claude Code speaks the Anthropic API: root URL (it adds /v1/messages). new-api reserves quota for
+      // max_tokens up front, so cap the output or a $1 key is refused before the first call.
+      const root = o.apiKey.baseUrl.replace(/\/v1$/, '');
+      $('#claude').value = `ANTHROPIC_BASE_URL=${root} \\\n  ANTHROPIC_AUTH_TOKEN=${o.apiKey.key} \\\n  ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6 \\\n  CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\\n  claude`;
+      $('#prices').hidden = false;
+      renderModels($('#models'));
       $('#env').value = `OPENAI_BASE_URL=${o.apiKey.baseUrl}\nOPENAI_API_KEY=${o.apiKey.key}`;
       $('#curl').value = `curl ${o.apiKey.baseUrl}/chat/completions \\\n  -H "Authorization: Bearer ${o.apiKey.key}" \\\n  -H "content-type: application/json" \\\n  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hi"}]}'`;
     }
@@ -95,6 +102,7 @@ async function copyBox(box) {
   }
 }
 $('#copyenv').addEventListener('click', () => copyBox($('#env')));
+$('#copyclaude').addEventListener('click', () => copyBox($('#claude')));
 
 // key shop: what the key has spent (balance + latest calls), refreshed every 10s while the key is shown
 const usd = (x) => '$' + Number(x.toFixed(6)); // $0.997648, $0.002352, $0 — small calls stay visible

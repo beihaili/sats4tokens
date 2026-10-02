@@ -32,6 +32,10 @@ endpoint**, capped at exactly what you paid. No signup, no email, no password �
   crash between "created" and "saved" finds the same key instead of making a second one.
 - The order id is 128 random bits and is the receipt: whoever has the `/pay/…` link can see the key —
   and its usage: balance left and the latest calls (time, model, tokens, cost), straight from new-api.
+- Both pages list every model the key can call with its price (USD per 1M tokens, from new-api's pricing).
+- **Claude Code works too**: the key page has a copy-paste command that points Claude Code at the relay
+  (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`). It caps the output tokens because new-api reserves quota for
+  `max_tokens` up front, and Claude Code's default would need more than a $1 key holds.
 
 Users who already have a relay account can also **top up** through the same checkout (see *Top-ups* below).
 

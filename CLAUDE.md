@@ -40,6 +40,13 @@ keep the old name on purpose (deployment unchanged).
   (no IP/channel/content); the checkout page shows it under the key, refreshed every 10s. Env `NEWAPI_URL NEWAPI_USER_ID NEWAPI_TOKEN
   [KEY_BASE_URL]`, needs `FIAT=usd`. new-api auth = user's personal access token (`GET /api/user/token`) as
   `Authorization` + `New-Api-User`.
+  `GET /api/models` → `KeyShop.models()` (5-min cache): new-api `/api/pricing` filtered to the pool user's group;
+  prices are the base-tier coefficients of `billing_expr` (`p`/`c`/`cr` = $ per 1M input/output/cached tokens; verified
+  against a real charge), `quota_type 1` = per call. `web/models.js` renders it (grouped by vendor) at the bottom of `/`
+  and of the key page. The key page also has a **Claude Code** one-liner: `ANTHROPIC_BASE_URL=<root, no /v1>
+  ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
+  CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 … claude`. The output cap is required: new-api pre-reserves quota for
+  max_tokens, and Claude Code's default asked for $1.26 → 403 on a $1 key. One Claude Code turn ≈ $0.10 (cache write).
 - `README.md` — public overview (no secrets, no tunnel URLs).
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
 - `src/price.ts` — fiat→BTC spot price (CoinGecko → Coinbase → mempool.space fallback, 60s cache, reuses a

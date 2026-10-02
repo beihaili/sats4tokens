@@ -13,14 +13,21 @@
       <p class="tag">Pay → get a key. No signup, no email, no KYC. · 付款即得 key，无需注册</p>
     </header>
     <section class="card">
-      <p>One key works with GPT, Claude, Gemini … through one OpenAI-compatible endpoint.
+      <p>One key works with Claude, GPT, DeepSeek, GLM, Kimi … through one OpenAI-compatible endpoint (and the Anthropic API for Claude Code).
         The key is limited to exactly what you pay.</p>
       <div id="amounts" class="amounts"></div>
       <p id="err" class="bad" hidden></p>
       <p class="hint">Pay with ⚡ Lightning or 🥜 Cashu ecash. Keep the next page — it is your receipt and shows your key.</p>
     </section>
+    <section class="card">
+      <h2>Models &amp; prices</h2>
+      <p class="hint">USD per 1M tokens. One key works for every model below. <span class="badge anthropic">Claude Code</span> = also speaks the Anthropic API. "fast ×2": service_tier fast/priority costs double.</p>
+      <div id="models"><p class="hint">Loading…</p></div>
+    </section>
   </main>
   <script type="module">
+    import { renderModels } from '/models.js';
+    renderModels(document.querySelector('#models'));
     const $ = (s) => document.querySelector(s);
     const shop = await (await fetch('/api/shop')).json();
     if (!shop.enabled) {

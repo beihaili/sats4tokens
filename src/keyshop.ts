@@ -26,6 +26,20 @@ export interface KeyUsage {
   totalCalls: number;
 }
 
+export interface ModelPrice {
+  model: string;
+  vendor: string;
+  input?: number; // $ per 1M input tokens
+  output?: number; // $ per 1M output tokens
+  cacheRead?: number; // $ per 1M cached input tokens
+  perCall?: number; // $ per call (image models)
+  fastTier: boolean; // service_tier fast/priority costs more
+  endpoints: string[]; // 'openai' | 'anthropic'
+}
+
+// new-api's vendor names are the operator's labels (some in Chinese); the page is English
+const VENDOR_NAMES: Record<string, string> = { 智谱: 'Zhipu GLM', 字节跳动: 'ByteDance' };
+
 export class KeyShop {
   url: string;
   headers: Record<string, string>;
@@ -67,6 +81,47 @@ export class KeyShop {
     const items: Array<{ id: number; name: string }> = Array.isArray(d) ? d : (d?.items ?? []);
     return items.find((t) => t.name === name)?.id;
   }
+
+  /**
+   * Models a sold key can call, with prices in USD per 1M tokens (per call for image models). new-api's
+   * public /api/pricing gives a billing expression like `tier("base", p * 3.9 + c * 19.5 + cr * 0.39 + …)`
+   * whose coefficients are $/1M tokens; we read the base tier (fast/priority tiers cost more, noted on the page).
+   */
+  async models(): Promise<ModelPrice[]> {
+    const now = Date.now();
+    if (this.modelsCache && now - this.modelsCache.at < 5 * 60_000) return this.modelsCache.list;
+    const r = await fetch(this.url + '/api/pricing', { signal: AbortSignal.timeout(10_000) });
+    const j = (await r.json()) as { data: any[]; vendors?: Array<{ id: number; name: string }>; group_ratio?: Record<string, number> };
+    const self = await this.api('GET', '/api/user/self');
+    const group = String(self?.group || 'default');
+    const ratio = Number(j.group_ratio?.[group] ?? 1);
+    const vendors = new Map((j.vendors ?? []).map((v) => [v.id, VENDOR_NAMES[v.name] ?? v.name]));
+    const coef = (expr: string, v: string) => {
+      const m = expr.match(new RegExp(`\\b${v} \\* ([0-9.]+)`));
+      return m ? Number(m[1]) * ratio : undefined;
+    };
+    const list: ModelPrice[] = j.data
+      .filter((m) => (m.enable_groups ?? []).includes(group))
+      .map((m) => {
+        const expr = String(m.billing_expr ?? '');
+        const base = expr.slice(Math.max(0, expr.indexOf('tier("base"'))); // skip the fast tier of a ternary
+        const perCall = m.quota_type === 1 ? Number(m.model_price) * ratio : undefined;
+        return {
+          model: String(m.model_name),
+          vendor: vendors.get(m.vendor_id) ?? 'Other',
+          input: perCall ? undefined : (coef(base, 'p') ?? Number(m.model_ratio) * 2 * ratio),
+          output: perCall ? undefined : (coef(base, 'c') ?? Number(m.model_ratio) * 2 * Number(m.completion_ratio) * ratio),
+          cacheRead: perCall ? undefined : coef(base, 'cr'),
+          perCall,
+          fastTier: expr.includes('"fast"'),
+          endpoints: (m.supported_endpoint_types ?? []) as string[],
+        };
+      })
+      .sort((a, b) => a.vendor.localeCompare(b.vendor) || (a.input ?? 0) - (b.input ?? 0) || a.model.localeCompare(b.model));
+    this.modelsCache = { at: now, list };
+    return list;
+  }
+  private modelsCache?: { at: number; list: ModelPrice[] };
 
   /** What a sold key has spent: balance in USD + its latest calls (only fields safe to show the key holder). */
   async usage(o: Order): Promise<KeyUsage> {

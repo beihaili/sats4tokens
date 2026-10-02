@@ -33,3 +33,14 @@ button:disabled { opacity: .45; cursor: default; }
 .usage-head .link { margin-left: auto; background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; padding: 0; width: auto; }
 .calls { width: 100%; border-collapse: collapse; font-size: .85em; margin-top: .4em; }
 .calls th, .calls td { text-align: left; padding: .3em .4em; border-bottom: 1px solid #8883; }
+
+/* models & prices */
+.scroll { overflow-x: auto; }
+.prices { font-size: .8em; }
+.prices td { vertical-align: top; }
+.prices tr.vendor td { font-weight: 600; padding-top: .9em; border-bottom: 2px solid #8885; }
+.prices code { font-size: .9em; white-space: nowrap; }
+.prices td:not(:first-child), .prices th:not(:first-child) { text-align: right; white-space: nowrap; }
+.card h2 { margin: 0 0 .3em; font-size: 1.2em; }
+.badge { display: inline-block; font-size: .7em; padding: 0 .45em; margin-left: .35em; border-radius: 6px; border: 1px solid #8886; opacity: .8; }
+.badge.anthropic { border-color: #d97757; color: #d97757; }

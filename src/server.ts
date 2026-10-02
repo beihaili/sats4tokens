@@ -4,6 +4,7 @@
 //   GET      /                       key shop: buy an AI API key with bitcoin, no account (web/index.html)
 //   GET      /api/shop               key shop settings {enabled, amounts}
 //   POST     /api/buy                {money} → new key order {id}; once paid, its page shows the key
+//   GET      /api/models             key shop: models a key can call + prices ($/1M tokens, from new-api)
 //   GET      /pay/:id                checkout page (web/checkout.html)
 //   GET      /api/order/:id          order status for the checkout page (polled)
 //   POST     /api/order/:id/invoice  create the lightning invoice (lazily, when the customer picks ⚡)
@@ -151,6 +152,14 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (p === '/submit.php') return submit(req, res, url);
   if (p === '/api/buy') return buy(req, res);
   if (p === '/api/shop') return send(res, 200, { enabled: !!shop, amounts: KEY_AMOUNTS, fiat: fiat() });
+  if (p === '/api/models') {
+    if (!shop) return send(res, 404, { error: 'key shop not enabled' });
+    try {
+      return send(res, 200, await shop.models());
+    } catch (e) {
+      return send(res, 502, { error: (e as Error).message });
+    }
+  }
 
   let m = p.match(/^\/api\/order\/(\w+)(\/qr\.svg|\/token|\/invoice|\/usage)?$/);
   if (m) {
