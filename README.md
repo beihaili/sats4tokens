@@ -9,6 +9,10 @@ Built at [bitcoin++ Berlin 2026](https://btcpp.dev) (payments edition) for a rea
 
 **Live demo (mainnet, real sats):** <https://sats4tokens.bhbtc.xyz/>
 
+**Slides:** [docs/slides.pdf](docs/slides.pdf)
+
+![Pick an amount, pay with Lightning or Cashu, get a key](docs/images/2-flow.png)
+
 > **Real money, verified.** 2026-10-02, mainnet (Coinos mint), paid from a phone wallet:
 > - **Key shop:** $1 (1161 sat) → API key → a real model call.
 > - **Top-up:** $1 (1158 sat) → credited to a relay account → withdrawn from the gateway as one Cashu
@@ -154,6 +158,7 @@ src/epay.ts      MD5 sign / verify for the top-up form and callback
 src/price.ts     fiat → BTC with fallbacks
 web/             key shop, mobile checkout page, operator page
 deploy/demo/     the live demo stack (a private copy of the relay, isolated from production)
+docs/            slides (PDF) and screenshots (mock orders: the key is masked, the QR is fake)
 ```
 
 About 1,750 lines for the gateway and pages, 600 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`.
