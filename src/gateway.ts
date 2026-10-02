@@ -14,6 +14,7 @@ import {
   serializeProofs,
   deserializeProofs,
   getEncodedToken,
+  getTokenMetadata,
   type MintInfo,
   type Proof,
   type Token,
@@ -188,6 +189,17 @@ export class Gateway {
   private checkToken(order: Order, token: string): Token {
     if (order.state !== 'PENDING') throw new Error(`order is ${order.state.toLowerCase()}`);
     if (Date.now() > order.expiresAt) throw new Error('order expired — go back and create a new one');
+    // Mint first: decodeToken needs the issuing mint's keysets, so a token from another mint would only
+    // fail with "not a valid cashu token". getTokenMetadata reads the mint URL without them.
+    let meta: ReturnType<typeof getTokenMetadata>;
+    try {
+      meta = getTokenMetadata(token.trim());
+    } catch {
+      throw new Error('not a valid cashu token');
+    }
+    if (normUrl(meta.mint) !== this.mintUrl) {
+      throw new Error(`this token is from ${meta.mint} — ecash only works at the mint that issued it; send one from ${this.mintUrl}, or pay with ⚡ instead (any wallet, including yours, can pay the invoice)`);
+    }
     let t: Token;
     try {
       t = this.wallet.decodeToken(token.trim());
