@@ -33,7 +33,8 @@ email, no password — **the key is the account**.
   The gateway holds only that user's personal access token, not an admin key.
 - Exactly once: the token name comes from the order id; the gateway looks it up before creating, so a
   crash between "created" and "saved" finds the same key instead of making a second one.
-- The order id is 128 random bits and is the receipt: whoever has the `/pay/…` link can see the key.
+- The order id is 128 random bits and is the receipt: whoever has the `/pay/…` link can see the key —
+  and its usage: balance left and the latest calls (time, model, tokens, cost), straight from new-api.
 
 ## How it works
 

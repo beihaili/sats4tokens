@@ -29,7 +29,9 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
   On PAID the notify loop runs `makeKeyOnce` instead of a merchant notify: `KeyShop.createKey` finds-or-creates new-api
   token `btc-<orderId>` (`remain_quota = money × quota_per_unit`, never expires) for the pool user, then
   `POST /api/token/:id/key` → `o.apiKey {key, baseUrl, tokenId}` (bearer; shown on `/pay/:id`, masked in admin).
-  Errors retry with notify backoff (`keyError` shown on the page). Env `NEWAPI_URL NEWAPI_USER_ID NEWAPI_TOKEN
+  Errors retry with notify backoff (`keyError` shown on the page). `GET /api/order/:id/usage` → `KeyShop.usage`: token
+  balance (`GET /api/token/:id`) + last 20 consume logs (`/api/log/self?type=2&token_name=`), only time/model/tokens/cost
+  (no IP/channel/content); the checkout page shows it under the key, refreshed every 10s. Env `NEWAPI_URL NEWAPI_USER_ID NEWAPI_TOKEN
   [KEY_BASE_URL]`, needs `FIAT=usd`. new-api auth = user's personal access token (`GET /api/user/token`) as
   `Authorization` + `New-Api-User`.
 - `README.md` — public overview (no secrets, no tunnel URLs).

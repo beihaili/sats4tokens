@@ -23,6 +23,7 @@ function render(o) {
       : `${o.paid.sats} sat received via ${o.paid.via}. Creating your key…${o.keyError ? ' (retrying: ' + o.keyError + ')' : ''}`;
     if (o.apiKey && $('#key').hidden) {
       $('#key').hidden = false;
+      startUsage();
       $('#env').value = `OPENAI_BASE_URL=${o.apiKey.baseUrl}\nOPENAI_API_KEY=${o.apiKey.key}`;
       $('#curl').value = `curl ${o.apiKey.baseUrl}/chat/completions \\\n  -H "Authorization: Bearer ${o.apiKey.key}" \\\n  -H "content-type: application/json" \\\n  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hi"}]}'`;
     }
@@ -94,6 +95,35 @@ async function copyBox(box) {
   }
 }
 $('#copyenv').addEventListener('click', () => copyBox($('#env')));
+
+// key shop: what the key has spent (balance + latest calls), refreshed every 10s while the key is shown
+const usd = (x) => '$' + Number(x.toFixed(6)); // $0.997648, $0.002352, $0 — small calls stay visible
+let usageTimer;
+async function loadUsage() {
+  const r = await fetch(`/api/order/${id}/usage`);
+  const u = await r.json();
+  if (!r.ok) {
+    $('#balance').textContent = `(${u.error})`;
+    return;
+  }
+  $('#balance').textContent = `${usd(u.remainingUsd)} left · ${usd(u.usedUsd)} used · ${u.totalCalls} call${u.totalCalls === 1 ? '' : 's'}`;
+  $('#nocalls').hidden = u.calls.length > 0;
+  $('#calls').hidden = u.calls.length === 0;
+  $('#calls tbody').replaceChildren(
+    ...u.calls.map((c) => {
+      const tr = document.createElement('tr');
+      const cells = [new Date(c.time * 1000).toLocaleTimeString(), c.model, `${c.promptTokens} / ${c.completionTokens}`, usd(c.costUsd)];
+      for (const v of cells) tr.append(Object.assign(document.createElement('td'), { textContent: v }));
+      return tr;
+    }),
+  );
+}
+function startUsage() {
+  if (usageTimer) return;
+  loadUsage();
+  usageTimer = setInterval(loadUsage, 10_000);
+}
+$('#refresh').addEventListener('click', loadUsage);
 $('#copy').addEventListener('click', async () => {
   const box = $('#invoice');
   try {

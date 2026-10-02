@@ -19,6 +19,13 @@ export interface ApiKey {
   tokenId: number;
 }
 
+export interface KeyUsage {
+  usedUsd: number;
+  remainingUsd: number;
+  calls: Array<{ time: number; model: string; promptTokens: number; completionTokens: number; costUsd: number; seconds: number }>;
+  totalCalls: number;
+}
+
 export class KeyShop {
   url: string;
   headers: Record<string, string>;
@@ -59,6 +66,30 @@ export class KeyShop {
     const d = await this.api('GET', `/api/token/search?keyword=${encodeURIComponent(name)}`);
     const items: Array<{ id: number; name: string }> = Array.isArray(d) ? d : (d?.items ?? []);
     return items.find((t) => t.name === name)?.id;
+  }
+
+  /** What a sold key has spent: balance in USD + its latest calls (only fields safe to show the key holder). */
+  async usage(o: Order): Promise<KeyUsage> {
+    const id = o.apiKey!.tokenId;
+    const { quotaPerUnit } = await this.status();
+    const usd = (q: number) => Number(q) / quotaPerUnit;
+    const t = await this.api('GET', `/api/token/${id}`);
+    // type=2: consume logs. new-api filters by token name; we re-check the id in case two names ever collide
+    const d = await this.api('GET', `/api/log/self?p=1&page_size=20&type=2&token_name=${encodeURIComponent(`btc-${o.id}`)}`);
+    const items: any[] = (Array.isArray(d) ? d : (d?.items ?? [])).filter((l: any) => l.token_id === id);
+    return {
+      usedUsd: usd(t.used_quota),
+      remainingUsd: usd(t.remain_quota),
+      calls: items.map((l) => ({
+        time: Number(l.created_at),
+        model: String(l.model_name),
+        promptTokens: Number(l.prompt_tokens),
+        completionTokens: Number(l.completion_tokens),
+        costUsd: usd(l.quota),
+        seconds: Number(l.use_time),
+      })),
+      totalCalls: Number(d?.total ?? items.length),
+    };
   }
 
   /** Create (or find again) the key for a paid order. `money` is USD — new-api's quota is priced in USD. */

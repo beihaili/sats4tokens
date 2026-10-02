@@ -27,3 +27,9 @@ button, .button { padding: 10px 16px; border: 1px solid #ddd; border-radius: 10p
 button:disabled { opacity: .45; cursor: default; }
 .amounts { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
 #key textarea { margin-top: 8px; }
+
+/* key shop usage */
+.usage-head { margin-top: 1.2em; display: flex; gap: .5em; align-items: baseline; flex-wrap: wrap; }
+.usage-head .link { margin-left: auto; background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; padding: 0; width: auto; }
+.calls { width: 100%; border-collapse: collapse; font-size: .85em; margin-top: .4em; }
+.calls th, .calls td { text-align: left; padding: .3em .4em; border-bottom: 1px solid #8883; }

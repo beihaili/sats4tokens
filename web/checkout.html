@@ -44,6 +44,13 @@
       <button id="copyenv" class="primary">Copy</button>
       <p class="hint">Works with any OpenAI-compatible app. Test it:</p>
       <textarea id="curl" rows="8" readonly></textarea>
+      <div class="usage-head"><b>Usage</b> <span id="balance" class="hint"></span>
+        <button id="refresh" class="link">↻ Refresh</button></div>
+      <table id="calls" class="calls">
+        <thead><tr><th>Time</th><th>Model</th><th>Tokens in / out</th><th>Cost</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p id="nocalls" class="hint">No calls yet.</p>
     </section>
   </main>
   <script type="module" src="/checkout.js"></script>

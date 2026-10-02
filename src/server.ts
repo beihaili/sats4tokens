@@ -9,6 +9,7 @@
 //   POST     /api/order/:id/invoice  create the lightning invoice (lazily, when the customer picks ⚡)
 //   GET      /api/order/:id/qr.svg   QR of the lightning invoice
 //   POST     /api/order/:id/token    customer pastes a cashu token  {token}
+//   GET      /api/order/:id/usage    key shop: the sold key's balance + latest calls (from new-api)
 //   GET      /admin?key=ADMIN_KEY    operator data: orders + balance (JSON; the page is /admin.html#key=…)
 //   POST     /admin/withdraw?key=…   move the whole balance into a token file under DATA_DIR/withdrawals/
 //                                    (+ the token itself in the reply if WITHDRAW_TOKEN_OVER_HTTP=1)
@@ -151,7 +152,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (p === '/api/buy') return buy(req, res);
   if (p === '/api/shop') return send(res, 200, { enabled: !!shop, amounts: KEY_AMOUNTS, fiat: fiat() });
 
-  let m = p.match(/^\/api\/order\/(\w+)(\/qr\.svg|\/token|\/invoice)?$/);
+  let m = p.match(/^\/api\/order\/(\w+)(\/qr\.svg|\/token|\/invoice|\/usage)?$/);
   if (m) {
     const o = ledger.order(m[1]);
     if (!o) return send(res, 404, { error: 'unknown order' });
@@ -163,6 +164,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       if (!o.quote) return send(res, 404, { error: 'no invoice' });
       const svg = await QRCode.toString('lightning:' + o.quote.request.toUpperCase(), { type: 'svg', margin: 1 });
       return send(res, 200, svg, 'image/svg+xml');
+    }
+    if (m[2] === '/usage') {
+      // the order id is the capability: whoever may see the key may see what it spent
+      if (!shop || !o.apiKey) return send(res, 404, { error: 'no key yet' });
+      try {
+        return send(res, 200, await shop.usage(o));
+      } catch (e) {
+        return send(res, 502, { error: (e as Error).message });
+      }
     }
     if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
     if (m[2] === '/invoice') {
