@@ -1,4 +1,9 @@
-# Sats4Tokens
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark-mode.png">
+    <img src="docs/images/logo.png" alt="Sats4Tokens" width="520">
+  </picture>
+</h1>
 
 **Pay sats, get an AI API key.** Customers pay with **Lightning** or **Cashu ecash** — no account, no
 KYC, no card — and the key is capped at exactly what they paid. Every payment is credited **exactly
