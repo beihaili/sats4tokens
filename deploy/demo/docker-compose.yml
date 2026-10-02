@@ -51,7 +51,7 @@ services:
     logging: *default-logging
     command: --log-dir /app/logs
     ports:
-      - "0.0.0.0:8530:3000"
+      - "127.0.0.1:8530:3000" # public access is https via tunnel-shop; ssh -L for root
     volumes:
       - ./data/new-api:/data
       - ./logs/new-api:/app/logs
@@ -82,7 +82,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      - "0.0.0.0:8531:8090"
+      - "127.0.0.1:8531:8090" # public access is https via tunnel-pay
     volumes:
       - ./data/${GATEWAY_DATA:-gateway}:/data # gateway = testnut wallet, gateway-mainnet = real mint (switch-mint.sh)
     environment:
@@ -98,6 +98,22 @@ services:
       TZ: "Europe/Berlin"
       # Node's happy-eyeballs gives each connect attempt 250ms; Minibits is ~265ms RTT from this VPS → ETIMEDOUT
       NODE_OPTIONS: "--network-family-autoselection-attempt-timeout=2000"
+    networks: [demo]
+
+  # HTTPS without touching the production Caddy (its admin is off, a change means restarting it for
+  # all relay users): Cloudflare quick tunnels, outbound only. Random *.trycloudflare.com URL per start;
+  # https-tunnel.sh reads them and points new-api's ServerAddress/PayAddress at them.
+  tunnel-shop:
+    image: cloudflare/cloudflared:2026.9.3
+    container_name: cashu-demo-tunnel-shop
+    command: tunnel --no-autoupdate --url http://new-api:3000
+    restart: unless-stopped
+    networks: [demo]
+  tunnel-pay:
+    image: cloudflare/cloudflared:2026.9.3
+    container_name: cashu-demo-tunnel-pay
+    command: tunnel --no-autoupdate --url http://gateway:8090
+    restart: unless-stopped
     networks: [demo]
 
 networks:

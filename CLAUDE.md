@@ -63,7 +63,9 @@ Plan/pitch: `../dev-plan.md`, `../pitch.md`.
 
 - `data/` (seed, ledger proofs, withdrawals) is bearer money: never commit, never print.
 - Never touch production containers/DB/Redis on api-relay; the demo stack is separate on purpose.
-- The demo is plain http: never send EPAY_KEY (signs "paid" notifies) or the new-api root password over venue
-  wifi. Use the ssh tunnel (localhost:18530/18531) for root login and the operator page.
+- Public access is **https only**, through two Cloudflare quick tunnels (`tunnel-shop`, `tunnel-pay` in the demo
+  compose; `./https-tunnel.sh` prints the random `*.trycloudflare.com` URLs and sets new-api `ServerAddress`/`PayAddress`;
+  re-run it whenever those containers restart). Host ports 8530/8531 are bound to 127.0.0.1 (ssh -L only).
+  The production Caddy is not involved (admin off → any change restarts it for all relay users).
 - Demo new-api shows English (root/demo have `language: en` in their user setting) and USD
   (`general_setting.quota_display_type=USD`, gateway `FIAT=usd`, Price=1 → money is USD).

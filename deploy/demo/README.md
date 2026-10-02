@@ -10,14 +10,15 @@ Production is only ever *read* (one `mysqldump --single-transaction` in `sync-ch
 
 | what | where |
 |---|---|
-| new-api demo | http://<server-ip>:8530 (container `cashu-demo-newapi`) |
-| Bitcoin gateway | http://<server-ip>:8531 (container `cashu-demo-gateway`), operator page `/admin.html#key=$ADMIN_KEY` — open it only through the ssh tunnel (below) |
+| public https | `./https-tunnel.sh` prints the shop + gateway `*.trycloudflare.com` URLs (Cloudflare quick tunnels, new on every tunnel restart) |
+| new-api demo | 127.0.0.1:8530 on the host (container `cashu-demo-newapi`) |
+| Bitcoin gateway | 127.0.0.1:8531 on the host (container `cashu-demo-gateway`), operator page `/admin.html#key=$ADMIN_KEY` — open it only through the ssh tunnel (below) |
 | MySQL | `cashu-demo-mysql`, not published |
 | accounts | `secrets/demo-accounts.txt` (root admin + `demo` user) |
 | secrets | `.env` (0600): DB password, session secrets, EPay key, `ADMIN_KEY`, `MINT_URL`, `GATEWAY_DATA` |
 | gateway wallet | `data/gateway/` (testnut), `data/gateway-mainnet/` (real mint) — seed + ecash proofs = **bearer money** |
 
-new-api's EPay settings point at the gateway: `PayAddress=http://<server-ip>:8531`,
+new-api's EPay settings point at the gateway: `PayAddress=<gateway tunnel URL>` (set by https-tunnel.sh, as is `ServerAddress`),
 `CustomCallbackAddress=http://new-api:3000` (notify goes over the private network), `EpayId=1001`,
 `PayMethods=[{type:"bitcoin"}]`, `Price=1`, gateway `FIAT=usd` → a $1 top-up costs $1 in sats.
 Display is English + USD: `general_setting.quota_display_type=USD`, root/demo have `language: en`.
@@ -38,7 +39,7 @@ curl -s -XPOST "127.0.0.1:8531/admin/withdraw?key=$K"       # balance → data/$
 ./switch-mint.sh testnut             # back to the test mint (its wallet dir is kept)
 ```
 
-From the laptop (plain http, so root login and the operator page go through ssh, never venue wifi):
+Without the https tunnels (fallback), from the laptop:
 
 ```sh
 ssh -N -L 18530:127.0.0.1:8530 -L 18531:127.0.0.1:8531 api-relay
