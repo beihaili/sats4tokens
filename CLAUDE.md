@@ -52,6 +52,10 @@ PayMethods `[{"name":"Bitcoin","color":"#f7931a","type":"bitcoin"}]`, payment co
 `api-relay:/opt/cashu-epay-demo` — new-api demo on :8530, gateway on :8531, channels copied
 read-only from production. Verified end to end 2026-10-01: cashu token and lightning top-ups credited
 in new-api (`topup` status success), a real model call works through the copied channels.
+Since 2026-10-02 the demo gateway runs on **mainnet Minibits** (`./switch-mint.sh mainnet|testnut`,
+one wallet dir per mint: `data/gateway-mainnet/` vs `data/gateway/`; seed backup on the laptop at
+`~/.config/cashu-epay/`). Compose sets `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000`
+because the VPS→Minibits RTT (~265ms) exceeds Node's 250ms happy-eyeballs attempt timeout (ETIMEDOUT otherwise).
 Production `/opt/new-api-relay/AGENTS.md` has a one-line note about this stack (top of 项目说明).
 Plan/pitch: `../dev-plan.md`, `../pitch.md`.
 

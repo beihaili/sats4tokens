@@ -84,7 +84,7 @@ services:
     ports:
       - "0.0.0.0:8531:8090"
     volumes:
-      - ./data/gateway:/data
+      - ./data/${GATEWAY_DATA:-gateway}:/data # gateway = testnut wallet, gateway-mainnet = real mint (switch-mint.sh)
     environment:
       EPAY_PID: "1001"
       EPAY_KEY: "${EPAY_KEY}"
@@ -92,10 +92,12 @@ services:
       MINT_URL: "${MINT_URL:-https://testnut.cashu.space}"
       FIAT: "${FIAT:-usd}" # new-api money = top-up amount × Price; Price=1 → money is USD
       ORDER_TTL_MIN: "30"
-      CHECKOUT_TAB: "${CHECKOUT_TAB:-cashu}" # testnut pays its own invoices, so don't open on ⚡ (set ln for a real mint)
+      CHECKOUT_TAB: "${CHECKOUT_TAB:-cashu}" # testnut pays its own invoices, so don't open on ⚡ (switch-mint.sh sets ln for a real mint)
       # admin page shows the withdrawn token so it can be copied; fine for testnut, set 0 for a real mint on plain http
       WITHDRAW_TOKEN_OVER_HTTP: "${WITHDRAW_TOKEN_OVER_HTTP:-1}"
       TZ: "Europe/Berlin"
+      # Node's happy-eyeballs gives each connect attempt 250ms; Minibits is ~265ms RTT from this VPS → ETIMEDOUT
+      NODE_OPTIONS: "--network-family-autoselection-attempt-timeout=2000"
     networks: [demo]
 
 networks:

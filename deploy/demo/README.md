@@ -11,15 +11,16 @@ Production is only ever *read* (one `mysqldump --single-transaction` in `sync-ch
 | what | where |
 |---|---|
 | new-api demo | http://<server-ip>:8530 (container `cashu-demo-newapi`) |
-| Bitcoin gateway | http://<server-ip>:8531 (container `cashu-demo-gateway`), admin view `/admin?key=$EPAY_KEY` |
+| Bitcoin gateway | http://<server-ip>:8531 (container `cashu-demo-gateway`), operator page `/admin.html#key=$ADMIN_KEY` — open it only through the ssh tunnel (below) |
 | MySQL | `cashu-demo-mysql`, not published |
 | accounts | `secrets/demo-accounts.txt` (root admin + `demo` user) |
-| secrets | `.env` (0600): DB password, session secrets, EPay key, `MINT_URL` |
-| gateway wallet | `data/gateway/` — seed + ecash proofs = **bearer money** |
+| secrets | `.env` (0600): DB password, session secrets, EPay key, `ADMIN_KEY`, `MINT_URL`, `GATEWAY_DATA` |
+| gateway wallet | `data/gateway/` (testnut), `data/gateway-mainnet/` (real mint) — seed + ecash proofs = **bearer money** |
 
 new-api's EPay settings point at the gateway: `PayAddress=http://<server-ip>:8531`,
 `CustomCallbackAddress=http://new-api:3000` (notify goes over the private network), `EpayId=1001`,
-`PayMethods=[{type:"bitcoin"}]`, `Price=1` (¥1 = 500000 quota, like production's recharge).
+`PayMethods=[{type:"bitcoin"}]`, `Price=1`, gateway `FIAT=usd` → a $1 top-up costs $1 in sats.
+Display is English + USD: `general_setting.quota_display_type=USD`, root/demo have `language: en`.
 
 ## Commands
 
@@ -30,18 +31,29 @@ cd /opt/cashu-epay-demo
 docker compose logs -f gateway      # watch ⚡ / 🥜 / 📨 events live during the demo
 docker compose ps
 cat secrets/demo-accounts.txt
-K=$(grep ^EPAY_KEY .env | cut -d= -f2)
+K=$(grep ^ADMIN_KEY .env | cut -d= -f2)
 curl -s "127.0.0.1:8531/admin?key=$K"                       # orders + balance
-curl -s -XPOST "127.0.0.1:8531/admin/withdraw?key=$K"       # balance → data/gateway/withdrawals/withdraw-*.txt
+curl -s -XPOST "127.0.0.1:8531/admin/withdraw?key=$K"       # balance → data/$GATEWAY_DATA/withdrawals/withdraw-*.txt
+./switch-mint.sh mainnet [MINT_URL]  # real mint (default Minibits), own wallet dir, checkout opens on ⚡
+./switch-mint.sh testnut             # back to the test mint (its wallet dir is kept)
+```
+
+From the laptop (plain http, so root login and the operator page go through ssh, never venue wifi):
+
+```sh
+ssh -N -L 18530:127.0.0.1:8530 -L 18531:127.0.0.1:8531 api-relay
+# http://localhost:18530 (new-api root)   http://localhost:18531/admin.html#key=<ADMIN_KEY>
 ```
 
 Update the gateway code: from the laptop
 `rsync -a --exclude node_modules --exclude data --exclude deploy --exclude .git ./ api-relay:/opt/cashu-epay-demo/gateway/`,
 then `docker compose up -d --build gateway`.
 
-Switch to a real mint (real sats over Lightning): set `MINT_URL` in `.env`, **move `data/gateway`
-aside first** (its proofs belong to the old mint), `docker compose up -d gateway`.
-With testnut (default) invoices are paid automatically by the mint's fake wallet ~2s after creation.
+Real mint: `switch-mint.sh` keeps one wallet dir per side, because proofs belong to the mint that
+signed them. The gateway refuses mints without NUT-04 bolt11 sat / NUT-07 / NUT-09. Back up the new
+`data/gateway-mainnet/seed.hex` off the server. Node needs `--network-family-autoselection-attempt-timeout=2000`
+(set in compose): Minibits is ~265ms RTT from this VPS, above Node's 250ms happy-eyeballs default.
+With testnut, invoices are paid automatically by the mint's fake wallet ~2s after creation.
 
 Tear down: `docker compose down` (keeps data/), `rm -rf /opt/cashu-epay-demo` to remove everything.
 Nothing in production needs undoing.
