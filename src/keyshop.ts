@@ -147,6 +147,21 @@ export class KeyShop {
     };
   }
 
+  /**
+   * Latest calls of every key in the pool, for the /network page: which channel served which model when.
+   * new-api's user log keeps the channel id (it only blanks the channel name); nothing else leaves here.
+   */
+  async recentCalls(n: number): Promise<Array<{ requestId: string; time: number; model: string; channel: number }>> {
+    const d = await this.api('GET', `/api/log/self?p=1&page_size=${n}&type=2`);
+    const items: any[] = Array.isArray(d) ? d : (d?.items ?? []);
+    return items.map((l) => ({
+      requestId: String(l.request_id || `${l.id}-${l.created_at}`),
+      time: Number(l.created_at),
+      model: String(l.model_name),
+      channel: Number(l.channel),
+    }));
+  }
+
   /** Create (or find again) the key for a paid order. `money` is USD — new-api's quota is priced in USD. */
   async createKey(o: Order): Promise<ApiKey> {
     const name = `btc-${o.id}`;

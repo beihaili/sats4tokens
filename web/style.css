@@ -65,3 +65,79 @@ button:disabled { opacity: .45; cursor: default; }
 #scanmsg { margin: 6px 0 0; }
 .primary.scan { background: #fff; color: var(--accent); }
 #cam.mirror { transform: scaleX(-1); }
+
+/* upstream network (/network) */
+.checkout.wide { max-width: 1000px; }
+h1 .home { color: inherit; text-decoration: none; }
+h1 .sub { font-size: 18px; font-weight: 500; color: var(--muted); margin-left: .2em; }
+.nav { margin: -12px 0 18px; font-size: 15px; display: flex; gap: 16px; }
+.nav a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 4px; }
+.stat { background: var(--bg); border-radius: 10px; padding: 8px 12px; }
+.stat b { display: block; font-size: 26px; line-height: 1.2; }
+.stat span { color: var(--muted); font-size: 13px; }
+.net-graph { position: relative; min-height: 200px; }
+.net-graph svg { display: block; width: 100%; height: auto; user-select: none; }
+.net-graph .edge { stroke: var(--fg); stroke-opacity: .13; stroke-width: 1.5; transition: stroke .25s, stroke-opacity .25s; }
+.net-graph .edge.trunk { stroke-width: 2.5; }
+.net-graph .edge.hot { stroke: var(--accent); stroke-opacity: .85; }
+.net-graph .edge.dim { stroke-opacity: .04; }
+.net-graph text { font-family: system-ui, -apple-system, sans-serif; }
+.net-graph .lbl { font-size: 15px; font-weight: 600; fill: var(--fg); }
+.net-graph .lbl.big { font-size: 20px; font-weight: 700; }
+.net-graph .lbl.small { font-size: 12.5px; font-weight: 400; fill: var(--muted); }
+.net-graph .hub circle { fill: #141417; filter: drop-shadow(0 2px 8px #f7931a55); }
+.net-graph .you circle { fill: #fff; stroke: var(--fg); stroke-width: 2; }
+.net-graph .prov circle { fill: var(--fg); }
+.net-graph .prov text { fill: #fff; font-size: 18px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+.net-graph .node { cursor: pointer; outline: none; }
+.net-graph .node circle { fill: #fff; stroke: var(--accent); stroke-width: 2; transition: fill .2s; }
+.net-graph .node text { font-size: 9.5px; font-weight: 600; text-anchor: middle; dominant-baseline: central; fill: var(--fg); pointer-events: none; }
+.net-graph .node.idle circle { stroke: #b9b9c0; }
+.net-graph .node.off circle { fill: #efeee9; stroke: #c4c4ca; stroke-dasharray: 3 2; }
+.net-graph .node.idle text, .net-graph .node.off text { fill: var(--muted); }
+.net-graph .node.primary circle, .net-graph .node.hit circle { fill: var(--accent); }
+.net-graph .node.primary text, .net-graph .node.hit text { fill: #fff; }
+.net-graph .node.failover circle { stroke-width: 3; stroke-dasharray: 4 2; }
+.net-graph .node.failed circle { fill: var(--bad); stroke: var(--bad); }
+.net-graph .node.failed text { fill: #fff; }
+.net-graph .node:hover circle, .net-graph .node:focus circle { stroke-width: 3.5; }
+.net-graph .prov, .net-graph .node { transition: opacity .3s; }
+.net-graph .dim { opacity: .18; }
+.net-graph .pkt { fill: var(--accent); }
+.net-graph .pkt.preview { opacity: .55; }
+.net-graph .pkt.real { filter: drop-shadow(0 0 5px #f7931a); }
+.net-graph .pkt.back { fill: var(--ok); }
+.net-graph .pkt.back.preview { opacity: .4; }
+.net-graph .ping { fill: none; stroke: var(--accent); stroke-width: 2.5; transform-box: fill-box; transform-origin: center; animation: ping .9s ease-out forwards; pointer-events: none; }
+.net-graph .ping.fail { stroke: var(--bad); }
+@keyframes ping { from { transform: scale(1); opacity: .9; } to { transform: scale(2.8); opacity: 0; } }
+.net-graph .callout { font-size: 12px; font-weight: 600; text-anchor: middle; fill: var(--fg); paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; pointer-events: none; animation: fadeout 2.6s forwards; }
+@keyframes fadeout { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+.tip { position: absolute; z-index: 2; width: 260px; background: #fff; border-radius: 10px; box-shadow: 0 4px 18px #0002; padding: 10px 12px; font-size: 13px; line-height: 1.45; pointer-events: none; }
+.tip code { font-size: 11.5px; background: var(--bg); border-radius: 4px; padding: 0 3px; white-space: nowrap; }
+.net-controls { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-top: 6px; font-size: 15px; }
+.net-controls select { width: auto; margin-left: 6px; padding: 7px 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 15px; background: #fff; max-width: 60vw; }
+.net-controls .check input { width: auto; margin: 0 4px 0 0; vertical-align: -1px; }
+#live { color: var(--ok); font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; font-size: 13px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.legend .dot.real { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+.legend .dot.preview { background: var(--accent); opacity: .5; }
+.legend .dot.back { background: var(--ok); }
+.legend .ring { border: 2px solid var(--accent); background: #fff; width: 12px; height: 12px; }
+.legend .ring.off { border: 2px dashed #c4c4ca; background: #efeee9; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+.tiers { margin: .2em 0 .6em; padding-left: 0; list-style: none; }
+.tiers li { padding: .35em 0; border-bottom: 1px solid #8882; font-size: 15px; }
+.tiers li .muted { font-size: 13px; }
+.recent { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.recent li { padding: .3em 0; border-bottom: 1px solid #8882; }
+.recent li .muted { display: inline-block; min-width: 6.5em; font-size: 13px; }
+.recent code { font-size: .92em; }
+.why p { margin: .5em 0 .8em; }
+@media (max-width: 720px) {
+  .stats { grid-template-columns: 1fr 1fr; }
+  .cols { grid-template-columns: 1fr; }
+  .stat b { font-size: 22px; }
+}

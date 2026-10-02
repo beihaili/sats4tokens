@@ -11,6 +11,8 @@
 //   GET      /api/order/:id/qr.svg   QR of the lightning invoice
 //   POST     /api/order/:id/token    customer pastes a cashu token  {token}
 //   GET      /api/order/:id/usage    key shop: the sold key's balance + latest calls (from new-api)
+//   GET      /network                upstream network page (web/network.html)
+//   GET      /api/network            anonymized upstreams + routing (UPSTREAMS_FILE) + latest calls' nodes
 //   GET      /admin?key=ADMIN_KEY    operator data: orders + balance (JSON; the page is /admin.html#key=…)
 //   POST     /admin/withdraw?key=…   move the whole balance into a token file under DATA_DIR/withdrawals/
 //                                    (+ the token itself in the reply if WITHDRAW_TOKEN_OVER_HTTP=1)
@@ -26,6 +28,7 @@ import { Ledger, checkSubmit, makeOrder, makeKeyOrder, notifyParams, dueForNotif
 import { Gateway, loadSeed } from './gateway.ts';
 import { btcPrice, fiat } from './price.ts';
 import { KeyShop } from './keyshop.ts';
+import { Network } from './upstreams.ts';
 
 const PORT = Number(process.env.PORT ?? 8090);
 const PID = process.env.EPAY_PID ?? '1001';
@@ -47,6 +50,8 @@ const ADMIN_KEY = process.env.ADMIN_KEY || KEY;
 const shop = KeyShop.fromEnv();
 const KEY_AMOUNTS = ['1', '2', '5', '10'];
 if (shop && fiat() !== 'usd') throw new Error('the key shop needs FIAT=usd (new-api quota is priced in USD)');
+// /network page (optional): UPSTREAMS_FILE from scripts/export-upstreams.ts; live calls come from the key shop pool
+const network = Network.fromEnv(shop);
 
 const root = path.resolve(import.meta.dirname, '..', 'web');
 const ledger = new Ledger(path.join(DATA_DIR, 'ledger.json'));
@@ -161,6 +166,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     }
   }
 
+  if (p === '/api/network') {
+    if (!network) return send(res, 404, { error: 'network view not enabled' });
+    try {
+      return send(res, 200, await network.view());
+    } catch (e) {
+      return send(res, 502, { error: (e as Error).message });
+    }
+  }
+
   let m = p.match(/^\/api\/order\/(\w+)(\/qr\.svg|\/token|\/invoice|\/usage)?$/);
   if (m) {
     const o = ledger.order(m[1]);
@@ -225,7 +239,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
 
   // static files; /pay/:id is the checkout page
   m = p.match(/^\/pay\/\w+$/);
-  const file = path.join(root, m ? 'checkout.html' : p === '/' ? 'index.html' : p);
+  const file = path.join(root, m ? 'checkout.html' : p === '/' ? 'index.html' : p === '/network' ? 'network.html' : p);
   if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     return send(res, 404, 'not found', 'text/plain');
   }
@@ -313,5 +327,5 @@ http
     });
   })
   .listen(PORT, () => {
-    console.log(`gateway on http://127.0.0.1:${PORT}  pid=${PID}  mint=${gw.mintUrl}  balance=${gw.balance()} sat  keyshop=${shop ? shop.url : 'off'}`);
+    console.log(`gateway on http://127.0.0.1:${PORT}  pid=${PID}  mint=${gw.mintUrl}  balance=${gw.balance()} sat  keyshop=${shop ? shop.url : 'off'}  network=${network ? network.file : 'off'}`);
   });

@@ -51,6 +51,20 @@ keep the old name on purpose (deployment unchanged).
   ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
   CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 … claude`. The output cap is required: new-api pre-reserves quota for
   max_tokens, and Claude Code's default asked for $1.26 → 403 on a $1 key. One Claude Code turn ≈ $0.10 (cache write).
+- **Upstream network** (`src/upstreams.ts`, `web/network.html|js`): `GET /network` page + `GET /api/network`.
+  Sats4Tokens as one node, upstream providers (letters A, B, … = one per registrable domain, ordered by first channel
+  id) and their channels (A1, A2, …) fanned out above it. `anonymize()` builds the snapshot from new-api channels +
+  abilities of the pool user's group: routes per model = new-api's rule (enabled abilities of enabled channels,
+  tiers by priority high→low, share = weight/sum or equal if all 0; retry = next tier). No names, hosts or keys in it
+  (domains not even hashed: a dictionary would reverse them). Built **on the server** by `deploy/demo/export-upstreams.sh`
+  (demo DB → stdin → `scripts/export-upstreams.ts` in the gateway container → `public/upstreams.json`, mounted
+  read-only as `UPSTREAMS_FILE`, re-read on mtime change; `sync-channels.sh` runs it at the end). The file keeps
+  numeric channel ids to map call logs; `/api/network` strips them. Live calls: `KeyShop.recentCalls(30)` (pool user
+  `/api/log/self?type=2`: `channel` id + request_id), cached 5s for all visitors, served as {sha256(request_id)[:10],
+  time, model, node}. The page polls every 5s and animates each new real call (you → hub → provider → node → back);
+  between them a lighter, labelled "route preview" samples the routing table (12% simulated failover to the next tier).
+  The "why" copy computes its numbers from the routes (busiest provider, models with a cross-provider fallback).
+  Local preview: `../gallery/mock-server.mjs` serves `/api/network` from `/tmp/upstreams.json` with fake calls.
 - `README.md` — public overview (no secrets, no tunnel URLs).
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
 - `src/price.ts` — fiat→BTC spot price (CoinGecko → Coinbase → mempool.space fallback, 60s cache, reuses a
@@ -71,7 +85,7 @@ keep the old name on purpose (deployment unchanged).
   The camera stops on tab switch, PAID/EXPIRED and pagehide. All page copy is English only.
   Testing tip: on testnut, opening the ⚡ tab auto-pays the invoice, so a local keyshop run creates a real key on
   the demo new-api — delete it afterwards (`DELETE /api/token/:id`).
-- `test/` — `node:test` units (18): go-epay signature vectors, submit idempotency, write-ahead settle,
+- `test/` — `node:test` units (22; `upstreams.test.ts` = anonymize/no host leak/tiers): go-epay signature vectors, submit idempotency, write-ahead settle,
   `decideSettle`, notify (`ledger`/`epay` tests), mint capability check (`gateway.test.ts`).
 - `scripts/` — `crash-demo.ts` (kill -9 mid-payment → restart → credited once), `edge-checks.ts` (unhappy paths +
   withdraw), `harness.ts` (shared by those two), `fake-merchant.ts` (stands in for new-api),

@@ -62,3 +62,4 @@ docker start cashu-demo-newapi >/dev/null
 
 docker exec "$DEMO" sh -c 'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD" newapi -N -e "select concat(count(*), \" channels (\", sum(status=1), \" enabled)\") from channels; select concat(count(*), \" abilities\") from abilities;"' 2>/dev/null
 rm -f seed/channels.sql # holds upstream keys; the demo DB has them now
+./export-upstreams.sh # refresh the anonymized /network snapshot

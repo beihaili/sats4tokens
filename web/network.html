@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <title>Sats4Tokens — upstream network</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css?v=5">
+</head>
+<body>
+  <main class="checkout wide">
+    <header>
+      <h1><a class="home" href="/">🔑 Sats4Tokens</a> <span class="sub">upstream network</span></h1>
+      <p class="tag">One key, many upstreams. None of them knows who you are, and none of them sees all the traffic.</p>
+      <nav class="nav"><a href="/">← Buy a key</a></nav>
+    </header>
+
+    <section class="card">
+      <div id="stats" class="stats"></div>
+      <div id="graph" class="net-graph"><p class="hint">Loading the routing table…</p></div>
+      <div class="net-controls">
+        <label>Model <select id="model"><option value="">All models</option></select></label>
+        <label class="check"><input type="checkbox" id="preview" checked> Route preview</label>
+        <span id="live" class="hint"></span>
+      </div>
+      <div class="legend hint">
+        <span><i class="dot real"></i>real request</span>
+        <span><i class="dot preview"></i>route preview (sampled from the real routing table)</span>
+        <span><i class="dot back"></i>response</span>
+        <span><i class="ring"></i>upstream channel</span>
+        <span><i class="ring off"></i>switched off</span>
+      </div>
+    </section>
+
+    <div class="cols">
+      <section class="card">
+        <h2 id="route-title">Where a request goes</h2>
+        <div id="route"></div>
+      </section>
+      <section class="card">
+        <h2>Latest real requests</h2>
+        <p class="hint">Calls made with Sats4Tokens keys, and the upstream that served each one. Only time, model and node — no key, no content.</p>
+        <ul id="recent" class="recent"></ul>
+      </section>
+    </div>
+
+    <section class="card why">
+      <h2>Why many upstreams?</h2>
+      <div id="why"></div>
+      <p class="hint">Providers are shown as letters (A, B, …), their channels as A1, A2, …: we publish how requests are routed, not who our upstreams are.
+        The routing table is the one the relay really uses — highest priority first, by weight inside a tier, the next tier on failure.</p>
+    </section>
+  </main>
+  <script type="module" src="/network.js?v=1"></script>
+</body>
+</html>

@@ -29,6 +29,7 @@ Display is English + USD: `general_setting.quota_display_type=USD`, root/demo ha
 cd /opt/cashu-epay-demo
 ./bootstrap.sh                      # first-time setup (idempotent)
 ./sync-channels.sh                  # re-copy channels + pricing from production (restarts demo new-api only)
+./export-upstreams.sh               # refresh public/upstreams.json for /network (anonymized; sync-channels.sh runs it too)
 docker compose logs -f gateway      # watch ⚡ / 🥜 / 📨 events live during the demo
 docker compose ps
 cat secrets/demo-accounts.txt

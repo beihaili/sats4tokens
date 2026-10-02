@@ -9,3 +9,4 @@ seed/
 logs/
 *.bak-*
 withdrawals/
+public/

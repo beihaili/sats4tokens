@@ -85,6 +85,7 @@ services:
       - "127.0.0.1:8531:8090" # public access is https via tunnel-pay
     volumes:
       - ./data/${GATEWAY_DATA:-gateway}:/data # gateway = testnut wallet, gateway-mainnet = real mint (switch-mint.sh)
+      - ./public:/public:ro # upstreams.json from export-upstreams.sh (anonymized, no hosts)
     environment:
       EPAY_PID: "1001"
       EPAY_KEY: "${EPAY_KEY}"
@@ -103,6 +104,8 @@ services:
       NEWAPI_TOKEN: "${NEWAPI_TOKEN:-}"
       # endpoint shown with a sold key; set when the named tunnel below is on (e.g. https://<domain>/v1)
       KEY_BASE_URL: "${KEY_BASE_URL:-}"
+      # /network page: anonymized upstream routing table (re-read when the file changes)
+      UPSTREAMS_FILE: "/public/upstreams.json"
       # Node's happy-eyeballs gives each connect attempt 250ms; Minibits is ~265ms RTT from this VPS → ETIMEDOUT
       NODE_OPTIONS: "--network-family-autoselection-attempt-timeout=2000"
     networks: [demo]
