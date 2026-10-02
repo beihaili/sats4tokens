@@ -1,5 +1,5 @@
 // Checkout page: polls /api/order/:id, shows the lightning invoice or takes a pasted cashu token.
-import { renderModels } from '/models.js?v=2';
+import { renderModels } from '/models.js?v=3';
 const id = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -8,6 +8,7 @@ let payError = '';
 let redirectTimer = 0;
 
 function render(o) {
+  if (o.state === 'PAID' || o.state === 'EXPIRED') stopScan(); // the pay card is hidden from here on
   $('#order').innerHTML = `
     <div class="muted">${esc(o.name)} · order <span class="mono">${esc(o.kind === 'key' ? o.id.slice(0, 10) + '…' : o.id)}</span></div>
     <div class="amount">${o.sats.toLocaleString()} <small>sat</small></div>
@@ -85,6 +86,7 @@ function showTab(tab) {
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab));
   $('#tab-ln').hidden = tab !== 'ln';
   $('#tab-cashu').hidden = tab !== 'cashu';
+  if (tab !== 'cashu') stopScan();
   if (tab === 'ln' && !invoiceAsked) {
     invoiceAsked = true;
     fetch(`/api/order/${id}/invoice`, { method: 'POST' }).then(poll);
@@ -174,6 +176,109 @@ $('#token').addEventListener('input', () => {
     payWithToken();
   }
 });
+
+// ---- camera QR scan (cashu tab). BarcodeDetector where the browser has it (Chrome on Android/macOS), else the
+// vendored jsQR (Safari, Firefox), loaded only when the camera is first opened. getUserMedia needs https.
+const TOKEN_RE = /cashu[AB][A-Za-z0-9_\-+/=]{40,}/; // also finds it inside "cashu:…" or a wallet link
+let cam = null; // { stream, timer } while scanning
+function scanMsg(text) {
+  $('#scanmsg').hidden = !text;
+  $('#scanmsg').textContent = text ?? '';
+}
+function stopScan() {
+  if (!cam) return;
+  clearTimeout(cam.timer);
+  cam.stream.getTracks().forEach((t) => t.stop());
+  cam = null;
+  $('#cam').hidden = true;
+  $('#cam').srcObject = null;
+  $('#scan').textContent = '📷 Scan QR';
+  scanMsg('');
+}
+function loadJsQR() {
+  if (window.jsQR) return Promise.resolve(window.jsQR);
+  return new Promise((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = '/vendor/jsQR.js';
+    s.onload = () => ok(window.jsQR);
+    s.onerror = () => fail(new Error('QR decoder failed to load'));
+    document.head.append(s);
+  });
+}
+/** Returns an async (video) => string|null that reads one QR from the current frame. */
+async function makeDecoder() {
+  if ('BarcodeDetector' in window && (await BarcodeDetector.getSupportedFormats()).includes('qr_code')) {
+    const d = new BarcodeDetector({ formats: ['qr_code'] });
+    return async (v) => (await d.detect(v))[0]?.rawValue ?? null;
+  }
+  const jsQR = await loadJsQR();
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  return async (v) => {
+    // downscale to ≤800px: jsQR is pure JS, full HD frames take too long; a token QR still decodes at this size
+    const k = Math.min(1, 800 / Math.max(v.videoWidth, v.videoHeight));
+    canvas.width = Math.round(v.videoWidth * k);
+    canvas.height = Math.round(v.videoHeight * k);
+    ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' })?.data ?? null;
+  };
+}
+/** What to do with a decoded QR: pay if it holds a token, else say why not and keep scanning. */
+function onScanned(text) {
+  let t = text.trim();
+  try { t = decodeURIComponent(t); } catch { /* not URI-encoded */ }
+  const m = t.match(TOKEN_RE);
+  if (m) {
+    stopScan();
+    $('#token').value = m[0];
+    autoPaid = m[0];
+    payWithToken();
+    return true;
+  }
+  // animated (multi-part UR) QRs need every frame plus a fountain decoder; not supported here
+  if (/^ur:/i.test(t)) scanMsg('This is an animated QR, which isn’t supported. Copy the token in your wallet and paste it above.');
+  else if (/^(lightning:)?ln(bc|tb)/i.test(t)) scanMsg('That is a Lightning invoice. Show the QR of a Cashu token (cashuA…/cashuB…).');
+  else scanMsg('Not a Cashu token. Show the QR of a cashuA…/cashuB… token.');
+  return false;
+}
+async function startScan() {
+  if (!navigator.mediaDevices?.getUserMedia) return scanMsg('The camera needs https. Paste the token instead.');
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+  } catch (e) {
+    return scanMsg(e.name === 'NotAllowedError' ? 'Camera permission denied. Paste the token instead.'
+      : e.name === 'NotFoundError' ? 'No camera found. Paste the token instead.' : `Camera error: ${e.message}`);
+  }
+  if ($('#pay').hidden || $('#tab-cashu').hidden) return stream.getTracks().forEach((t) => t.stop()); // left the tab meanwhile
+  cam = { stream, timer: 0 };
+  const v = $('#cam');
+  v.srcObject = stream;
+  v.hidden = false;
+  $('#scan').textContent = 'Stop camera';
+  scanMsg('Hold the token’s QR in front of the camera.');
+  await v.play().catch(() => {});
+  let decode;
+  try {
+    decode = await makeDecoder();
+  } catch (e) {
+    stopScan();
+    return scanMsg(`${e.message}. Paste the token instead.`);
+  }
+  const mine = cam;
+  const tick = async () => {
+    if (cam !== mine) return; // stopped (or restarted) while decoding
+    let text = null;
+    if (v.readyState >= 2) text = await decode(v).catch(() => null);
+    if (cam !== mine) return;
+    if (text && onScanned(text)) return;
+    cam.timer = setTimeout(tick, 150);
+  };
+  tick();
+}
+$('#scan').addEventListener('click', () => (cam ? stopScan() : startScan()));
+window.addEventListener('pagehide', stopScan);
 
 poll();
 setInterval(poll, 1500);

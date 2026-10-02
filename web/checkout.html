@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <title>Pay with Bitcoin · Sats4Tokens</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css?v=2">
+  <link rel="stylesheet" href="/style.css?v=3">
 </head>
 <body>
   <main class="checkout">
     <header>
       <h1>⚡ Pay with Bitcoin</h1>
-      <p class="tag">No account. No KYC. No card. · 无需注册，无需实名</p>
+      <p class="tag">No account. No KYC. No card.</p>
     </header>
     <section id="order" class="card">loading…</section>
     <section id="pay" class="card" hidden>
@@ -21,13 +21,18 @@
       <div id="tab-ln">
         <a id="ln-link"><img id="qr" alt="lightning invoice QR"></a>
         <div class="row"><input id="invoice" readonly><button id="copy">Copy</button></div>
-        <p class="hint">Scan with any Lightning wallet. 任意闪电钱包扫码支付。</p>
+        <p class="hint">Scan with any Lightning wallet.</p>
       </div>
       <div id="tab-cashu" hidden>
         <textarea id="token" rows="5" placeholder="cashuB…"></textarea>
-        <button id="paytoken" class="primary">Pay with token</button>
-        <p class="hint">Paste an ecash token from <span id="mint" class="mono"></span>.
-          The mint can't see who pays whom — blind signatures. 粘贴 ecash token。</p>
+        <video id="cam" playsinline muted hidden></video>
+        <p id="scanmsg" class="hint" hidden></p>
+        <div class="row">
+          <button id="paytoken" class="primary">Pay with token</button>
+          <button id="scan" class="primary scan">📷 Scan QR</button>
+        </div>
+        <p class="hint">Paste an ecash token from <span id="mint" class="mono"></span>, or scan its QR.
+          The mint can't see who pays whom — blind signatures.</p>
       </div>
       <p id="err" class="bad" hidden></p>
       <p id="status" class="hint">Waiting for payment… <span id="countdown"></span></p>
@@ -61,6 +66,6 @@
       <div id="models"></div>
     </section>
   </main>
-  <script type="module" src="/checkout.js?v=2"></script>
+  <script type="module" src="/checkout.js?v=3"></script>
 </body>
 </html>

@@ -59,6 +59,12 @@ keep the old name on purpose (deployment unchanged).
   balance, orders, one-click withdraw with a Copy button for the token (when the gateway returns it).
 - `web/` — mobile checkout page (Lightning invoice created lazily when the ⚡ tab is opened; opening tab
   from `CHECKOUT_TAB` or `#ln`/`#cashu`; pasting a whole token pays at once; token errors stay visible across polls).
+  The 🥜 tab has **📷 Scan QR**: camera (needs https) → `BarcodeDetector` where supported, else vendored
+  `web/vendor/jsQR.js` (jsQR 1.4.0, Apache-2.0, lazy-loaded); a decoded `cashuA/B…` (also inside `cashu:` or a link)
+  pays at once. Animated multi-part UR QRs (`ur:…`, e.g. cashu.me for long tokens) are not supported → "paste it".
+  The camera stops on tab switch, PAID/EXPIRED and pagehide. All page copy is English only.
+  Testing tip: on testnut, opening the ⚡ tab auto-pays the invoice, so a local keyshop run creates a real key on
+  the demo new-api — delete it afterwards (`DELETE /api/token/:id`).
 - `test/` — `node:test` units (18): go-epay signature vectors, submit idempotency, write-ahead settle,
   `decideSettle`, notify (`ledger`/`epay` tests), mint capability check (`gateway.test.ts`).
 - `scripts/` — `crash-demo.ts` (kill -9 mid-payment → restart → credited once), `edge-checks.ts` (unhappy paths +

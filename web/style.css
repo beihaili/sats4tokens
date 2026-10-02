@@ -59,3 +59,8 @@ button:disabled { opacity: .45; cursor: default; }
 .badge.anthropic { border-color: #d97757; color: #d97757; }
 /* phones: drop the cached-price column so model + input + output fit without scrolling */
 @media (max-width: 480px) { .prices .cached { display: none; } .prices code { font-size: .85em; } }
+
+/* cashu tab: camera QR scan */
+#cam { display: block; width: 100%; max-height: 360px; margin-top: 8px; border-radius: 10px; background: #000; object-fit: cover; }
+#scanmsg { margin: 6px 0 0; }
+.primary.scan { background: #fff; color: var(--accent); }
