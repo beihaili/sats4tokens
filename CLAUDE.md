@@ -24,6 +24,7 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
   `/admin?key=ADMIN_KEY` (JSON; ADMIN_KEY falls back to EPAY_KEY, keep them different in deployments), `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`,
   written before the proofs leave the ledger; the token is also returned only if `WITHDRAW_TOKEN_OVER_HTTP=1`),
   notify loop (GET notify_url until it answers `success`). The watcher skips a beat while a tick is still running.
+- `README.md` — public overview (no secrets, no tunnel URLs).
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
 - `src/price.ts` — fiat→BTC spot price (CoinGecko → Coinbase → mempool.space fallback, 60s cache, reuses a
   ≤10 min old price if all fail; or fixed `BTC_PRICE`). Locked into the order; sats rounded up.
