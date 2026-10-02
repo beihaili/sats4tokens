@@ -1,38 +1,30 @@
-# cashu-epay
+# Sats4Tokens
 
-**Pay with bitcoin, get an AI API key.** Customers pay with **Lightning** or **Cashu ecash** — no account,
-no KYC, no card — and get a key capped at what they paid. Shops that already have accounts plug the same
-gateway in through **EPay**, with zero code change. Every payment is credited **exactly once**, even if
-the gateway is killed mid-payment.
+**Pay sats, get an AI API key.** Customers pay with **Lightning** or **Cashu ecash** — no account, no
+KYC, no card — and the key is capped at exactly what they paid. Every payment is credited **exactly
+once**, even if the gateway is killed mid-payment.
 
 Built at [bitcoin++ Berlin 2026](https://btcpp.dev) (payments edition) for a real shop: my AI API relay
 (310 users, ~12 billion tokens a month), which runs [new-api](https://github.com/QuantumNous/new-api).
 
 > **Real money, verified.** 2026-10-02, mainnet (Coinos mint), paid from a phone wallet:
-> - **EPay top-up:** $1 (1158 sat of ecash) → credited in new-api → withdrawn from the gateway as one Cashu
->   token → received back in a phone wallet.
 > - **Key shop:** $1 (1161 sat) → API key → a real model call.
+> - **Top-up:** $1 (1158 sat) → credited to a relay account → withdrawn from the gateway as one Cashu
+>   token → received back in a phone wallet.
 >
 > No Lightning node on our side at any point.
 
 ## Why
 
-Chinese shops — including AI API relays like new-api — take payments through **EPay (易支付)**, a simple
-signed-redirect protocol in front of Alipay / WeChat Pay. Both need a real-name account, so every
-purchase is tied to an ID card.
-
-cashu-epay is a drop-in EPay payment provider. The shop changes **three settings** and gets a Bitcoin
-checkout. **Zero code change** in the shop.
+An AI API relay pools accounts at OpenAI / Anthropic / Google upstream and resells access downstream
+through one OpenAI-compatible endpoint. The AI companies see the relay, not the user — so a relay is
+already a privacy layer. Payment breaks it: relays in China take Alipay / WeChat Pay, both need a
+real-name account, and every API call ends up tied to an ID card.
 
 ## Key shop: pay, get a key
 
-An AI API relay pools accounts at OpenAI / Anthropic / Google upstream and resells access downstream
-through one OpenAI-compatible endpoint. The AI companies see the relay, not the user — but signup and
-real-name payment still tie every key to a person.
-
-So the gateway can also sell keys **directly**: open `/`, pick $1 / $2 / $5 / $10, pay with ⚡ or 🥜, and
-the checkout page shows an API key **with its endpoint**, capped at exactly what you paid. No signup, no
-email, no password — **the key is the account**.
+Open `/`, pick $1 / $2 / $5 / $10, pay with ⚡ or 🥜, and the checkout page shows an API key **with its
+endpoint**, capped at exactly what you paid. No signup, no email, no password — **the key is the account**.
 
 - The key is a new-api token of one pool user, with its own hard quota (`$1` → `$1` of quota).
   The gateway holds only that user's personal access token, not an admin key.
@@ -41,27 +33,27 @@ email, no password — **the key is the account**.
 - The order id is 128 random bits and is the receipt: whoever has the `/pay/…` link can see the key —
   and its usage: balance left and the latest calls (time, model, tokens, cost), straight from new-api.
 
+Users who already have a relay account can also **top up** through the same checkout (see *Top-ups* below).
+
 ## How it works
 
 ```
- customer            new-api (shop)                cashu-epay gateway                    Cashu mint
-    │  top up $1  ──►  signed EPay form ──► /submit.php ── order, BTC price locked
-    │ ◄──────────────────────────────────── /pay/:id checkout page
-    │                                          │
-    │  ⚡ pay invoice ─────────────────────────┼──── mint quote (bolt11) ─────────────►  receives the sats
-    │  🥜 or paste token ──────────────────────┼──── swap (NUT-03) ───────────────────►  blind-signs new proofs
-    │                                          │ ◄── "quote PAID" push (NUT-17) ───────
-    │                                          │ ──► mint proofs to our seed (NUT-04/13)
-    │                       ◄── signed notify ─┤     (retried until the shop says "success")
-    │  balance +$1                              │
-                                    operator: one click → whole balance as one Cashu token
+ customer                       gateway                                   Cashu mint
+    │  buy a $1 key  ──────►  order, BTC price locked
+    │ ◄───────────────────── /pay/:id checkout page
+    │                            │
+    │  ⚡ pay invoice ───────────┼──── mint quote (bolt11) ─────────────►  receives the sats
+    │  🥜 or paste token ────────┼──── swap (NUT-03) ───────────────────►  blind-signs new proofs
+    │                            │ ◄── "quote PAID" push (NUT-17) ───────
+    │                            │ ──► mint proofs to our seed (NUT-04/13)
+    │                            │ ──► new-api: create the capped key (find-or-create)
+    │  🔑 key + endpoint  ◄──────┤
+                operator: one click → whole balance as one Cashu token
 ```
 
 - **The mint is my Lightning node.** For ⚡ the gateway asks the mint for an invoice; when it's paid
   the mint signs ecash for us. For 🥜 the customer pastes a token and we swap it for proofs of our own.
 - **Private.** The mint signs blinded messages; it can't link the payer to the shop.
-- **EPay both ways.** The incoming form and the outgoing notify are MD5-signed exactly like
-  [go-epay](https://github.com/Calcium-Ion/go-epay), the library new-api uses (tested against its vectors).
 - **Price.** Fiat → BTC is locked when the order is created (CoinGecko → Coinbase → mempool.space
   fallback, a ≤10-min-old price if all three are down). Sats are rounded up.
 
@@ -88,7 +80,8 @@ exists, but nobody holds it — or worse, a naive retry credits the order twice.
 `npm run crash-demo` kills the gateway with `kill -9` at both crash points, for both payment paths.
 All four cases end the same way: credited once, replaying the token is rejected.
 
-The notify to the shop is at-least-once with backoff; new-api credits each order once on its side.
+Crediting is idempotent too: a key is find-or-create by order id, and a top-up is retried with backoff
+until new-api confirms it, which credits each order once on its side.
 
 ## Polite to public mints
 
@@ -112,44 +105,48 @@ Node ≥ 22 (runs TypeScript directly, no build step).
 
 ```sh
 npm install
-EPAY_KEY=demo-key PORT=8091 npm run gateway          # testnut by default
-EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 node scripts/fake-merchant.ts   # stands in for new-api
-EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance              # or: withdraw
+EPAY_KEY=demo-key PORT=8091 npm run gateway                          # testnut by default
+EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance  # or: withdraw
 ```
 
 | env | meaning |
 |---|---|
-| `EPAY_KEY` (required), `EPAY_PID` | merchant key / id — the same values go into new-api |
-| `MINT_URL` | Cashu mint (default `https://testnut.cashu.space`) |
-| `FIAT`, `BTC_PRICE` | currency of the shop's `money` field (default `cny`); fixed price for offline demos |
-| `ADMIN_KEY` | operator page key — keep it different from `EPAY_KEY` (that one can sign "paid" notifies) |
-| `DATA_DIR`, `ORDER_TTL_MIN`, `CHECKOUT_TAB=ln\|cashu`, `WITHDRAW_TOKEN_OVER_HTTP=1` | storage, order lifetime, default tab, show withdrawn token on the page (https only) |
 | `NEWAPI_URL`, `NEWAPI_USER_ID`, `NEWAPI_TOKEN`, `KEY_BASE_URL` | turn on the key shop: new-api URL, pool user id + its personal access token, endpoint shown with the key (default new-api's ServerAddress + `/v1`). Needs `FIAT=usd` |
-
-**new-api side** — 支付设置: `PayAddress` = gateway URL, `EpayId` = `EPAY_PID`, `EpayKey` = `EPAY_KEY`,
-`PayMethods` = `[{"name":"Bitcoin","color":"#f7931a","type":"bitcoin"}]`.
+| `MINT_URL` | Cashu mint (default `https://testnut.cashu.space`) |
+| `FIAT`, `BTC_PRICE` | order currency (default `cny`; `usd` for the key shop); fixed price for offline demos |
+| `ADMIN_KEY` | operator page key |
+| `EPAY_KEY` (required), `EPAY_PID` | signing key / merchant id shared with new-api for top-ups (see below). Keep `ADMIN_KEY` different: this one can sign "paid" callbacks |
+| `DATA_DIR`, `ORDER_TTL_MIN`, `CHECKOUT_TAB=ln\|cashu`, `WITHDRAW_TOKEN_OVER_HTTP=1` | storage, order lifetime, default tab, show withdrawn token on the page (https only) |
 
 **Operator** — `/admin.html#key=ADMIN_KEY`: balance, orders, one-click withdraw of the whole balance as
 one Cashu token (always written to `DATA_DIR/withdrawals/` before the proofs leave the ledger).
 
+### Top-ups
+
+The gateway also plugs into new-api's built-in online-payment settings, so existing users get a Bitcoin
+button on the top-up page. In new-api → 支付设置: `PayAddress` = gateway URL, `EpayId` = `EPAY_PID`,
+`EpayKey` = `EPAY_KEY`, `PayMethods` = `[{"name":"Bitcoin","color":"#f7931a","type":"bitcoin"}]`.
+new-api redirects the customer to `/submit.php` with a signed form; after payment the gateway sends a
+signed callback, retried until new-api confirms. `scripts/fake-merchant.ts` stands in for new-api locally.
+
 ## Tests
 
 ```sh
-npm test && npm run typecheck      # 18 unit tests, offline: go-epay vectors, idempotent submit, write-ahead, decideSettle, notify, mint checks
-npm run edge-checks                # 15 end-to-end checks against testnut (~40 s): bad signatures, underpaid / spent tokens, notify retries, withdraw
+npm test && npm run typecheck      # 18 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks
+npm run edge-checks                # 15 end-to-end checks against testnut (~40 s): bad signatures, underpaid / spent tokens, callback retries, withdraw
 npm run crash-demo -- lightning after-mint   # or: cashu | after-writeahead
 ```
 
 ## Layout
 
 ```
-src/epay.ts      EPay MD5 sign / verify
-src/ledger.ts    orders, durable JSON ledger, pure decision logic (no network)
+src/server.ts    HTTP: key shop (/ , /api/buy), checkout, order API, top-up form (/submit.php), operator API, callback loop
+src/keyshop.ts   paid key order → capped new-api token (find-or-create by name), usage
 src/gateway.ts   the engine: seed-backed cashu-ts wallet, write-ahead settle, NUT-09 recovery, NUT-17 push
-src/server.ts    HTTP: /submit.php, key shop (/ , /api/buy), checkout, order API, operator API, notify loop
-src/keyshop.ts   paid key order → capped new-api token (find-or-create by name)
+src/ledger.ts    orders, durable JSON ledger, pure decision logic (no network)
+src/epay.ts      MD5 sign / verify for the top-up form and callback
 src/price.ts     fiat → BTC with fallbacks
-web/             mobile checkout page + operator page
+web/             key shop, mobile checkout page, operator page
 deploy/demo/     the live demo stack (a private copy of the relay, isolated from production)
 ```
 
@@ -161,8 +158,8 @@ About 1,600 lines for the gateway and pages, 600 for tests and scripts. Dependen
   Next: a list of trusted mints, or melting foreign tokens to pay our invoice.
 - **Overpayment is kept** (a pasted token can't be split here; the page shows the exact amount).
 - **The mint is custodial** until you withdraw — so withdraw often, or run your own mint.
-- Next: NUT-18 payment requests (scan instead of paste), automatic melt to the operator's Lightning
-  wallet, pay-per-request with Cashu tokens in the API header.
+- Next: topping up an existing key, NUT-18 payment requests (scan instead of paste), automatic melt to the
+  operator's Lightning wallet, pay-per-request with Cashu tokens in the API header.
 
 ## Safety
 

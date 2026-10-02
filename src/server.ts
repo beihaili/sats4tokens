@@ -302,5 +302,5 @@ http
     });
   })
   .listen(PORT, () => {
-    console.log(`cashu-epay on http://127.0.0.1:${PORT}  pid=${PID}  mint=${gw.mintUrl}  balance=${gw.balance()} sat  keyshop=${shop ? shop.url : 'off'}`);
+    console.log(`gateway on http://127.0.0.1:${PORT}  pid=${PID}  mint=${gw.mintUrl}  balance=${gw.balance()} sat  keyshop=${shop ? shop.url : 'off'}`);
   });

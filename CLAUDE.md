@@ -1,7 +1,13 @@
-# cashu-epay
+# Sats4Tokens (repo: beihaili/sats4tokens)
 
-EPay (易支付)-compatible Bitcoin payment gateway for new-api: customers top up with Lightning or
-Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition) hackathon project.
+Bitcoin checkout for AI APIs: customers pay with Lightning or Cashu ecash and get a capped new-api key
+(key shop), or top up an existing new-api account. No account details, no KYC, exactly-once settlement.
+bitcoin++ Berlin 2026 (payments edition) hackathon project.
+
+Naming: the GitHub repo was renamed from `cashu-epay` on 2026-10-02 (old URL redirects) and public copy (README, submission)
+no longer mentions EPay. Internally the top-up path still speaks the EPay protocol (`/submit.php`,
+`src/epay.ts`, `EPAY_KEY`/`EPAY_PID`); the local directory, `/opt/cashu-epay-demo` and container names
+keep the old name on purpose (deployment unchanged).
 
 ## Layout
 

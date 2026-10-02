@@ -1,7 +1,7 @@
 {
-  "name": "cashu-epay",
+  "name": "sats4tokens",
   "version": "1.0.0",
-  "description": "EPay-compatible Bitcoin (Cashu + Lightning) payment gateway for new-api",
+  "description": "Sats4Tokens: pay sats (Lightning or Cashu ecash), get a capped AI API key, exactly-once settlement",
   "scripts": {
     "test": "node --test --disable-warning=ExperimentalWarning test/*.test.ts",
     "gateway": "node --disable-warning=ExperimentalWarning src/server.ts",
