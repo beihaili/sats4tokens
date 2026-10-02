@@ -68,12 +68,16 @@ function showTab(tab) {
   }
 }
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
-// navigator.clipboard only exists on https/localhost; the demo runs on plain http, so fall back to execCommand.
-$('#copy').addEventListener('click', () => {
+// navigator.clipboard only exists on https/localhost (and may be denied); the demo runs on plain http,
+// so fall back to execCommand.
+$('#copy').addEventListener('click', async () => {
   const box = $('#invoice');
-  if (navigator.clipboard) return navigator.clipboard.writeText(box.value);
-  box.select();
-  document.execCommand('copy');
+  try {
+    await navigator.clipboard.writeText(box.value);
+  } catch {
+    box.select();
+    document.execCommand('copy');
+  }
 });
 async function payWithToken() {
   const btn = $('#paytoken');

@@ -92,6 +92,8 @@ services:
       FIAT: "cny"
       ORDER_TTL_MIN: "30"
       CHECKOUT_TAB: "${CHECKOUT_TAB:-cashu}" # testnut pays its own invoices, so don't open on ⚡ (set ln for a real mint)
+      # admin page shows the withdrawn token so it can be copied; fine for testnut, set 0 for a real mint on plain http
+      WITHDRAW_TOKEN_OVER_HTTP: "${WITHDRAW_TOKEN_OVER_HTTP:-1}"
       TZ: "Europe/Berlin"
     networks: [demo]
 

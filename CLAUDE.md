@@ -15,10 +15,13 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
   refuses to start without bolt11 sat minting (NUT-04), state checks (NUT-07) and restore (NUT-09).
   Pasted tokens may carry a `cashu:` URI prefix.
 - `src/server.ts` — node:http: `/submit.php` (from new-api), `/pay/:id` checkout, `/api/order/:id[...]`,
-  `/admin?key=`, `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`, never sent
-  over HTTP), notify loop (GET notify_url until it answers `success`).
+  `/admin?key=` (JSON), `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`,
+  written before the proofs leave the ledger; the token is also returned only if `WITHDRAW_TOKEN_OVER_HTTP=1`),
+  notify loop (GET notify_url until it answers `success`).
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
 - `src/price.ts` — fiat→BTC (CoinGecko, 60s cache, or `BTC_PRICE`).
+- `web/admin.html` — operator page, `/admin.html#key=EPAY_KEY` (key stays in the hash, out of access logs):
+  balance, orders, one-click withdraw with a Copy button for the token (when the gateway returns it).
 - `web/` — mobile checkout page (Lightning invoice created lazily when the ⚡ tab is opened; opening tab
   from `CHECKOUT_TAB` or `#ln`/`#cashu`; pasting a whole token pays at once; token errors stay visible across polls).
 - `test/` — `node:test` units (18): go-epay signature vectors, submit idempotency, write-ahead settle,
@@ -31,7 +34,7 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
 ## Run
 
 ```sh
-EPAY_KEY=demo-key PORT=8091 npm run gateway         # env: EPAY_PID MINT_URL DATA_DIR ORDER_TTL_MIN FIAT BTC_PRICE SEED CHECKOUT_TAB=ln|cashu
+EPAY_KEY=demo-key PORT=8091 npm run gateway         # env: EPAY_PID MINT_URL DATA_DIR ORDER_TTL_MIN FIAT BTC_PRICE SEED CHECKOUT_TAB=ln|cashu WITHDRAW_TOKEN_OVER_HTTP=1
 EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 node scripts/fake-merchant.ts
 EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance   # or: withdraw
 npm test && npm run typecheck                         # units (offline)

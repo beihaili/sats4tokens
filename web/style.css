@@ -20,3 +20,7 @@ h1 { margin: 0; font-size: 28px; }
 input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10px; font: 13px ui-monospace, Menlo, monospace; }
 button, .button { padding: 10px 16px; border: 1px solid #ddd; border-radius: 10px; background: #fff; cursor: pointer; font-size: 16px; text-decoration: none; color: inherit; display: inline-block; }
 .primary { background: var(--accent); color: #fff; border-color: var(--accent); width: 100%; margin-top: 10px; text-align: center; }
+.admin table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
+.admin td { padding: 6px 4px; border-top: 1px solid #eee; }
+.admin td.ok { color: var(--ok); }
+button:disabled { opacity: .45; cursor: default; }

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>cashu-epay · operator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="checkout admin">
+    <header>
+      <h1>🥜 Operator</h1>
+      <p class="tag">Merchant view of the gateway's ecash · 运营视图</p>
+    </header>
+    <section id="login" class="card" hidden>
+      <div class="row"><input id="key" type="password" placeholder="EPAY_KEY"><button id="go">Open</button></div>
+    </section>
+    <section id="wallet" class="card" hidden>
+      <div class="muted">Balance at <span id="mint" class="mono"></span></div>
+      <div class="amount"><span id="balance">–</span> <small>sat</small></div>
+      <button id="withdraw" class="primary">Withdraw all as ecash token</button>
+      <p id="err" class="bad" hidden></p>
+    </section>
+    <section id="out" class="card ok" hidden>
+      <div class="big">✅ <span id="out-sats"></span> sat withdrawn</div>
+      <div id="out-token" hidden>
+        <textarea id="token" rows="5" readonly></textarea>
+        <button id="copy" class="primary">Copy token</button>
+        <p class="hint">Paste it into any Cashu wallet (e.g. cashu.me → Receive → Ecash). 粘贴到任意 Cashu 钱包即可收款。</p>
+      </div>
+      <p id="out-file" class="hint" hidden></p>
+    </section>
+    <section class="card">
+      <div class="muted">Orders (newest first)</div>
+      <table id="orders"></table>
+    </section>
+  </main>
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>
