@@ -9,8 +9,8 @@
 //   GET      /admin?key=ADMIN_KEY    operator data: orders + balance (JSON; the page is /admin.html#key=…)
 //   POST     /admin/withdraw?key=…   move the whole balance into a token file under DATA_DIR/withdrawals/
 //                                    (+ the token itself in the reply if WITHDRAW_TOKEN_OVER_HTTP=1)
-// Background: watcher every 2s (crash recovery; each open quote checked every 5s, expired ones every 60s,
-// all paused with backoff while the mint is unreachable), notify loop every 2s.
+// Background: watcher every 2s (crash recovery; at most one quote check per 8s across all orders — open
+// checkout pages first — paused with backoff on network errors / 429), notify loop every 2s.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -128,7 +128,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (m) {
     const o = ledger.order(m[1]);
     if (!o) return send(res, 404, { error: 'unknown order' });
-    if (!m[2]) return send(res, 200, publicOrder(o));
+    if (!m[2]) {
+      gw.watch(o.id); // the checkout page polls this; its quote gets checked first
+      return send(res, 200, publicOrder(o));
+    }
     if (m[2] === '/qr.svg') {
       if (!o.quote) return send(res, 404, { error: 'no invoice' });
       const svg = await QRCode.toString('lightning:' + o.quote.request.toUpperCase(), { type: 'svg', margin: 1 });

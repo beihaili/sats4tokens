@@ -13,10 +13,14 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
   mint call; `recover()` uses NUT-09 restore after crashes. `CRASH_AT=after-writeahead|after-mint`
   kills the process for the crash demo. On startup `mintProblems()` checks the mint's NUT-06 info and
   refuses to start without bolt11 sat minting (NUT-04), state checks (NUT-07) and restore (NUT-09).
-  Pasted tokens may carry a `cashu:` URI prefix. `tick()` rate-limits quote checks (each open quote every 5s,
-  expired ones every 60s, SETTLING recovery every tick) and pauses all polling with backoff (5s→60s) after a
-  network-level failure — public mints ban IPs that poll hard.
-- `src/server.ts` — node:http: `/submit.php` (from new-api; own lock, never waits on the mint), `/pay/:id` checkout, `/api/order/:id[...]`,
+  Pasted tokens may carry a `cashu:` URI prefix. Paid invoices are detected by **NUT-17 push**
+  (`wallet.on.mintQuoteUpdates`, one WebSocket; a PAID push makes the order due, then the normal HTTP check →
+  write-ahead → mint runs). HTTP polling is only the safety net and is budgeted: ≤1 quote check per 8s across all
+  orders, each order every 60s while subscribed (8s/30s if not, open checkout pages first; expired 120s), and all
+  polling pauses with backoff 5s→60s on network errors or 429. Public mints ban IPs that poll hard: Minibits
+  firewalled the VPS after 4 quotes × 2s for hours; Coinos answers 429 above ~20 quote calls/min.
+- `src/server.ts` — node:http: `/submit.php` (from new-api; own lock, never waits on the mint), `GET /api/order/:id`
+  also marks the order as watched (checkout open), `/pay/:id` checkout, `/api/order/:id[...]`,
   `/admin?key=ADMIN_KEY` (JSON; ADMIN_KEY falls back to EPAY_KEY, keep them different in deployments), `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`,
   written before the proofs leave the ledger; the token is also returned only if `WITHDRAW_TOKEN_OVER_HTTP=1`),
   notify loop (GET notify_url until it answers `success`). The watcher skips a beat while a tick is still running.
