@@ -20,8 +20,7 @@ Production is only ever *read* (one `mysqldump --single-transaction` in `sync-ch
 
 new-api's EPay settings point at the gateway: `PayAddress=<gateway tunnel URL>` (set by https-tunnel.sh, as is `ServerAddress`),
 `CustomCallbackAddress=http://new-api:3000` (notify goes over the private network), `EpayId=1001`,
-`PayMethods=[{type:"bitcoin"}]`, `Price=0.1`, gateway `FIAT=usd` → a $1 credit costs $0.10 in sats (demo discount: new-api amounts are whole
-credit dollars, so this is how a test payment stays small; set `Price=1` for real pricing).
+`PayMethods=[{type:"bitcoin"}]`, `Price=1`, gateway `FIAT=usd` → a $1 top-up costs $1 in sats (whole dollars only; presets 1/2/5/10/20/50).
 Display is English + USD: `general_setting.quota_display_type=USD`, root/demo have `language: en`.
 
 ## Commands

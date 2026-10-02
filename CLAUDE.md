@@ -69,6 +69,5 @@ Plan/pitch: `../dev-plan.md`, `../pitch.md`.
   re-run it whenever those containers restart). Host ports 8530/8531 are bound to 127.0.0.1 (ssh -L only).
   The production Caddy is not involved (admin off → any change restarts it for all relay users).
 - Demo new-api shows English (root/demo have `language: en` in their user setting) and USD
-  (`general_setting.quota_display_type=USD`, gateway `FIAT=usd`). new-api top-up amounts are whole credit dollars
-  (decimals → 参数错误), so the demo sets `Price=0.1`: $1 credit costs $0.10 ≈ 117 sat (demo discount; Price=1 to undo).
-  `payment_setting.amount_options=[1,2,5,10,20,50]`.
+  (`general_setting.quota_display_type=USD`, gateway `FIAT=usd`, Price=1 → money is USD). new-api top-up amounts
+  are whole dollars (decimals → 参数错误), so $1 (~1160 sat) is the minimum. Presets `payment_setting.amount_options=[1,2,5,10,20,50]`.
