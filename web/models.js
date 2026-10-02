@@ -1,44 +1,126 @@
 // Models & prices table (key shop): GET /api/models, grouped by vendor. Used by the buy page and the key page.
+// The buy page also gets a calculator: tick models, pick an amount, see how many tokens that key buys.
 const fmt = (x) => (x === undefined ? '—' : '$' + Number(x.toFixed(x < 1 ? 3 : 2)));
+const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumSignificantDigits: 3 });
+const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 
-export async function renderModels(el) {
+// ticked on first load (when they exist): one of each kind, from strongest to cheapest
+const DEFAULT_PICKS = ['claude-opus-4-8', 'gpt-6.1-sol', 'deepseek-v4-flash', 'glm-5.3-flash'];
+// a "typical chat call" for the calls column: 2K tokens in (question + context), 500 out (answer)
+const CHAT_IN = 2000;
+const CHAT_OUT = 500;
+
+/**
+ * Render the price table into `box`. With `calc: {amounts}` (buy page) each row gets a checkbox and a
+ * calculator above the table shows, for every ticked model, what one key of the chosen amount buys.
+ */
+export async function renderModels(box, { calc } = {}) {
   const r = await fetch('/api/models');
   if (!r.ok) {
-    el.closest('section').hidden = true;
+    box.closest('section').hidden = true;
     return;
   }
   const list = await r.json();
-  const vendors = [...new Set(list.map((m) => m.vendor))];
-  const table = document.createElement('table');
-  table.className = 'calls prices';
-  table.innerHTML = '<thead><tr><th>Model</th><th>Input</th><th>Output</th><th>Cached</th></tr></thead>';
-  const tbody = document.createElement('tbody');
-  for (const v of vendors) {
-    const head = document.createElement('tr');
-    head.className = 'vendor';
-    const cell = Object.assign(document.createElement('td'), { colSpan: 4, textContent: v });
+  const picked = new Set(DEFAULT_PICKS.filter((n) => list.some((m) => m.model === n)));
+  let amount = Number(calc?.amounts?.[0] ?? 1);
+
+  const calcBox = el('div', { className: 'calc' });
+  const draw = () => drawCalc(calcBox, list, picked, amount, calc.amounts, (a) => ((amount = a), draw()));
+
+  const table = el('table', { className: 'calls prices' });
+  const cols = calc ? 5 : 4;
+  table.innerHTML = `<thead><tr>${calc ? '<th class="pick"></th>' : ''}<th class="name">Model</th><th>Input</th><th>Output</th><th class="cached">Cached</th></tr></thead>`;
+  const tbody = el('tbody');
+  for (const v of [...new Set(list.map((m) => m.vendor))]) {
+    const head = el('tr', { className: 'vendor' });
+    const cell = el('td', { colSpan: cols, textContent: v });
     // every model speaks the OpenAI API; mark vendors whose models also speak Anthropic's (= Claude Code works)
     if (list.some((m) => m.vendor === v && m.endpoints.includes('anthropic'))) {
-      cell.append(Object.assign(document.createElement('span'), { className: 'badge anthropic', textContent: 'Claude Code' }));
+      cell.append(el('span', { className: 'badge anthropic', textContent: 'Claude Code' }));
     }
     head.append(cell);
     tbody.append(head);
     for (const m of list.filter((x) => x.vendor === v)) {
-      const tr = document.createElement('tr');
-      const name = document.createElement('td');
-      name.append(Object.assign(document.createElement('code'), { textContent: m.model }));
-      if (m.fastTier) name.append(Object.assign(document.createElement('span'), { className: 'badge', textContent: 'fast ×2' }));
+      const tr = el('tr');
+      if (calc) {
+        const cb = el('input', { type: 'checkbox', checked: picked.has(m.model), ariaLabel: `compare ${m.model}` });
+        cb.onchange = () => {
+          cb.checked ? picked.add(m.model) : picked.delete(m.model);
+          tr.classList.toggle('picked', cb.checked);
+          draw();
+        };
+        tr.classList.toggle('picked', cb.checked);
+        // the whole row toggles, easier on a phone. (Block body: an onclick returning false would cancel the tick.)
+        tr.onclick = (e) => {
+          if (e.target !== cb) cb.click();
+        };
+        const td = el('td', { className: 'pick' });
+        td.append(cb);
+        tr.append(td);
+      }
+      const name = el('td', { className: 'name' });
+      name.append(el('code', { textContent: m.model }));
+      if (m.fastTier) name.append(el('span', { className: 'badge', textContent: 'fast ×2' }));
       tr.append(name);
       if (m.perCall !== undefined) {
-        tr.append(Object.assign(document.createElement('td'), { colSpan: 3, textContent: `${fmt(m.perCall)} per image` }));
+        tr.append(el('td', { colSpan: 3, textContent: `${fmt(m.perCall)} per image` }));
       } else {
-        for (const x of [m.input, m.output, m.cacheRead]) tr.append(Object.assign(document.createElement('td'), { textContent: fmt(x) }));
+        for (const x of [m.input, m.output]) tr.append(el('td', { textContent: fmt(x) }));
+        tr.append(el('td', { className: 'cached', textContent: fmt(m.cacheRead) }));
       }
       tbody.append(tr);
     }
   }
   table.append(tbody);
-  const wrap = Object.assign(document.createElement('div'), { className: 'scroll' });
+  const wrap = el('div', { className: 'scroll' });
   wrap.append(table);
-  el.replaceChildren(wrap);
+  if (calc) {
+    draw();
+    box.replaceChildren(calcBox, wrap);
+  } else {
+    box.replaceChildren(wrap);
+  }
+}
+
+/** The calculator: amount buttons + one row per ticked model (all-input, all-output, typical chat calls). */
+function drawCalc(box, list, picked, amount, amounts, setAmount) {
+  const tabs = el('div', { className: 'tabs' });
+  for (const a of amounts) {
+    const b = el('button', { textContent: `$${a}`, className: Number(a) === amount ? 'on' : '' });
+    b.onclick = () => setAmount(Number(a));
+    tabs.append(b);
+  }
+  const rows = list.filter((m) => picked.has(m.model));
+  const out = el('div', { className: 'scroll' });
+  if (!rows.length) {
+    out.append(el('p', { className: 'hint', textContent: 'Tick models in the list below to compare them.' }));
+  } else {
+    const t = el('table', { className: 'calls prices' });
+    t.innerHTML = '<thead><tr><th class="name">Model</th><th>All input</th><th>All output</th><th>Chats*</th></tr></thead>';
+    const tb = el('tbody');
+    for (const m of rows) {
+      const tr = el('tr');
+      const name = el('td', { className: 'name' });
+      name.append(el('code', { textContent: m.model }));
+      tr.append(name);
+      if (m.perCall !== undefined) {
+        tr.append(el('td', { colSpan: 3, textContent: `${Math.floor(amount / m.perCall)} images` }));
+      } else {
+        // prices are $ per 1M tokens, so $amount buys amount / price million tokens
+        const chat = (CHAT_IN * m.input + CHAT_OUT * m.output) / 1e6;
+        for (const s of [compact.format((amount / m.input) * 1e6), compact.format((amount / m.output) * 1e6), compact.format(Math.floor(amount / chat))]) {
+          tr.append(el('td', { textContent: s }));
+        }
+      }
+      tb.append(tr);
+    }
+    t.append(tb);
+    out.append(t);
+  }
+  const head = el('p', { className: 'calc-head', textContent: 'What one key buys:' });
+  const note = el('p', {
+    className: 'hint',
+    textContent: `Tokens if the whole $${amount} goes to input, or to output. *Chat call = ${CHAT_IN / 1000}K tokens in + ${CHAT_OUT} out. Cached input is cheaper, so real use usually stretches further.`,
+  });
+  box.replaceChildren(head, tabs, out, note);
 }

@@ -43,7 +43,9 @@ keep the old name on purpose (deployment unchanged).
   `GET /api/models` → `KeyShop.models()` (5-min cache): new-api `/api/pricing` filtered to the pool user's group;
   prices are the base-tier coefficients of `billing_expr` (`p`/`c`/`cr` = $ per 1M input/output/cached tokens; verified
   against a real charge), `quota_type 1` = per call. `web/models.js` renders it (grouped by vendor) at the bottom of `/`
-  and of the key page. The key page also has a **Claude Code** one-liner: `ANTHROPIC_BASE_URL=<root, no /v1>
+  and of the key page. On `/` (`renderModels(el, {calc: {amounts}})`) rows have checkboxes and a calculator shows, per ticked
+  model, tokens for $1/2/5/10 if all input / all output, and chat calls (2K in + 500 out); images per call for per-call models.
+  Phones (<480px) hide the cached column. The key page also has a **Claude Code** one-liner: `ANTHROPIC_BASE_URL=<root, no /v1>
   ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
   CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 … claude`. The output cap is required: new-api pre-reserves quota for
   max_tokens, and Claude Code's default asked for $1.26 → 403 on a $1 key. One Claude Code turn ≈ $0.10 (cache write).
