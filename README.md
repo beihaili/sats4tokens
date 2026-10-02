@@ -1,14 +1,19 @@
 # cashu-epay
 
-**A Bitcoin checkout that speaks EPay.** Customers pay with **Lightning** or **Cashu ecash** — no account,
-no KYC, no card — and the shop credits them **exactly once**, even if the gateway is killed mid-payment.
+**Pay with bitcoin, get an AI API key.** Customers pay with **Lightning** or **Cashu ecash** — no account,
+no KYC, no card — and get a key capped at what they paid. Shops that already have accounts plug the same
+gateway in through **EPay**, with zero code change. Every payment is credited **exactly once**, even if
+the gateway is killed mid-payment.
 
 Built at [bitcoin++ Berlin 2026](https://btcpp.dev) (payments edition) for a real shop: my AI API relay
 (310 users, ~12 billion tokens a month), which runs [new-api](https://github.com/QuantumNous/new-api).
 
-> **Real money, verified.** 2026-10-02: a $1 top-up paid from a phone wallet on mainnet
-> (1158 sat of Coinos ecash) → credited in new-api → withdrawn from the gateway as one Cashu token →
-> received back in a phone wallet. No Lightning node on our side at any point.
+> **Real money, verified.** 2026-10-02, mainnet (Coinos mint), paid from a phone wallet:
+> - **EPay top-up:** $1 (1158 sat of ecash) → credited in new-api → withdrawn from the gateway as one Cashu
+>   token → received back in a phone wallet.
+> - **Key shop:** $1 (1161 sat) → API key → a real model call.
+>
+> No Lightning node on our side at any point.
 
 ## Why
 
@@ -148,7 +153,7 @@ web/             mobile checkout page + operator page
 deploy/demo/     the live demo stack (a private copy of the relay, isolated from production)
 ```
 
-About 1,500 lines for the gateway and pages, 600 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`.
+About 1,600 lines for the gateway and pages, 600 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`.
 
 ## Limits and next steps
 
