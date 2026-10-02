@@ -230,7 +230,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return send(res, 404, 'not found', 'text/plain');
   }
   const types: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
-  res.writeHead(200, { 'content-type': (types[path.extname(file)] ?? 'application/octet-stream') + '; charset=utf-8' });
+  // no-cache: the demo sits behind Cloudflare, whose default edge TTL (4h) kept serving old JS after a deploy
+  res.writeHead(200, { 'content-type': (types[path.extname(file)] ?? 'application/octet-stream') + '; charset=utf-8', 'cache-control': 'no-cache' });
   fs.createReadStream(file).pipe(res);
 }
 

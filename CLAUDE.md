@@ -45,7 +45,9 @@ keep the old name on purpose (deployment unchanged).
   against a real charge), `quota_type 1` = per call. `web/models.js` renders it (grouped by vendor) at the bottom of `/`
   and of the key page. On `/` (`renderModels(el, {calc: {amounts}})`) rows have checkboxes and a calculator shows, per ticked
   model, tokens for $1/2/5/10 if all input / all output, and chat calls (2K in + 500 out); images per call for per-call models.
-  Phones (<480px) hide the cached column. The key page also has a **Claude Code** one-liner: `ANTHROPIC_BASE_URL=<root, no /v1>
+  Phones (<480px) hide the cached column.
+  Static files are sent `cache-control: no-cache`, but Cloudflare (stable URL) rewrites the browser TTL to 4h: after changing
+  `web/*.js|css`, bump the `?v=` in the HTML/`import` URLs or browsers keep the old file. The key page also has a **Claude Code** one-liner: `ANTHROPIC_BASE_URL=<root, no /v1>
   ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
   CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 … claude`. The output cap is required: new-api pre-reserves quota for
   max_tokens, and Claude Code's default asked for $1.26 → 403 on a $1 key. One Claude Code turn ≈ $0.10 (cache write).
