@@ -77,7 +77,9 @@ keep the old name on purpose (deployment unchanged).
   withdraw), `harness.ts` (shared by those two), `fake-merchant.ts` (stands in for new-api),
   `customer-wallet.ts mint <sats>`, `smoke.ts` (raw NUT-09 idea). All local against testnut, ports 8095/3995.
 - `Dockerfile`, `deploy/demo/` — demo stack on the relay server (see `deploy/demo/README.md`).
-- `docs/` — `slides.pdf` + `images/*.png` (hackathon gallery; `logo.png` / `logo-dark-mode.png` = README header,
+- `docs/` — documentation (`README.md` index, `user-guide.md` buyer guide, `self-hosting.md` deploy guide, `api.md` every
+  endpoint, `how-it-works.md` lifecycle/ledger/recovery; English, public: no EPay, no server IP/tunnel/secrets; keep in
+  sync when endpoints, env vars or polling limits change) + `slides.pdf` + `images/*.png` (hackathon gallery; `logo.png` / `logo-dark-mode.png` = README header,
   transparent, picked by GitHub's theme). Logo sources in `../gallery/logo/` (SVG; the wordmark is live text in the
   system font, so ship the PNGs). `web/favicon.svg` + `web/apple-touch-icon.png` come from there too. Built outside the repo in `../gallery/`
   (HTML sources + headless-Chrome `shoot.mjs`, `mock-server.mjs` serves `web/` with fake orders), so no real
