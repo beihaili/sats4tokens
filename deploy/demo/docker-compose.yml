@@ -88,8 +88,9 @@ services:
     environment:
       EPAY_PID: "1001"
       EPAY_KEY: "${EPAY_KEY}"
+      ADMIN_KEY: "${ADMIN_KEY}" # operator page key; not EPAY_KEY, which can sign "paid" notifies
       MINT_URL: "${MINT_URL:-https://testnut.cashu.space}"
-      FIAT: "cny"
+      FIAT: "${FIAT:-usd}" # new-api money = top-up amount × Price; Price=1 → money is USD
       ORDER_TTL_MIN: "30"
       CHECKOUT_TAB: "${CHECKOUT_TAB:-cashu}" # testnut pays its own invoices, so don't open on ⚡ (set ln for a real mint)
       # admin page shows the withdrawn token so it can be copied; fine for testnut, set 0 for a real mint on plain http

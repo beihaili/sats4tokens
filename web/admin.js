@@ -11,7 +11,7 @@ async function load() {
   if (r.status === 403) {
     key = ''; // stop polling with a wrong key
     $('#login').hidden = false;
-    $('#key').placeholder = 'wrong key — EPAY_KEY';
+    $('#key').placeholder = 'wrong key — ADMIN_KEY';
     return;
   }
   const a = await r.json();

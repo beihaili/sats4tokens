@@ -1,6 +1,6 @@
 // Fiat → BTC price. Locked into each order at creation time.
 //   BTC_PRICE=…   fixed price (demo / offline)
-//   FIAT=cny      currency of new-api's "money" field (new-api default pricing is CNY)
+//   FIAT=cny      currency of new-api's "money" field (new-api default pricing is CNY; the demo uses usd)
 // Otherwise CoinGecko's free endpoint, cached for 60s.
 const FIAT = (process.env.FIAT ?? 'cny').toLowerCase();
 let cache: { at: number; price: number } | undefined;

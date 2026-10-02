@@ -13,7 +13,7 @@ export const MINT = process.env.MINT_URL ?? 'https://testnut.cashu.space';
 export const KEY = 'local-test-key';
 export const GW = 'http://127.0.0.1:8095';
 export const MERCHANT = 'http://127.0.0.1:3995';
-const env = { ...process.env, EPAY_KEY: KEY, EPAY_PID: '1001', MINT_URL: MINT, BTC_PRICE: '800000' };
+const env = { ...process.env, EPAY_KEY: KEY, EPAY_PID: '1001', MINT_URL: MINT, FIAT: 'usd', BTC_PRICE: '100000' };
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export const step = (s: string) => console.log(`\n\x1b[1;33m▶ ${s}\x1b[0m`);

@@ -6,7 +6,7 @@
 //   POST     /api/order/:id/invoice  create the lightning invoice (lazily, when the customer picks ⚡)
 //   GET      /api/order/:id/qr.svg   QR of the lightning invoice
 //   POST     /api/order/:id/token    customer pastes a cashu token  {token}
-//   GET      /admin?key=EPAY_KEY     operator data: orders + balance (JSON; the page is /admin.html#key=…)
+//   GET      /admin?key=ADMIN_KEY    operator data: orders + balance (JSON; the page is /admin.html#key=…)
 //   POST     /admin/withdraw?key=…   move the whole balance into a token file under DATA_DIR/withdrawals/
 //                                    (+ the token itself in the reply if WITHDRAW_TOKEN_OVER_HTTP=1)
 // Background: watcher (quotes + crash recovery) every 2s, notify loop every 2s.
@@ -32,6 +32,9 @@ const CHECKOUT_TAB = process.env.CHECKOUT_TAB === 'cashu' ? 'cashu' : 'ln';
 // when the admin page is reached over https (or the mint is a test mint), so the page can show and copy it.
 const TOKEN_OVER_HTTP = process.env.WITHDRAW_TOKEN_OVER_HTTP === '1';
 if (!KEY) throw new Error('EPAY_KEY is required (the same merchant key you put into new-api)');
+// Operator key for /admin. Keep it different from EPAY_KEY: whoever holds EPAY_KEY can forge "paid" notifies
+// to new-api, and the admin page may be opened over plain http. Falls back to EPAY_KEY for local runs.
+const ADMIN_KEY = process.env.ADMIN_KEY || KEY;
 
 const root = path.resolve(import.meta.dirname, '..', 'web');
 const ledger = new Ledger(path.join(DATA_DIR, 'ledger.json'));
@@ -141,7 +144,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (p === '/admin/withdraw') {
     // the whole balance becomes one cashu token in DATA_DIR/withdrawals/ — always written to disk first,
     // so a reply lost on the way still leaves the money in the file
-    if (url.searchParams.get('key') !== KEY) return send(res, 403, 'forbidden', 'text/plain');
+    if (url.searchParams.get('key') !== ADMIN_KEY) return send(res, 403, 'forbidden', 'text/plain');
     if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
     try {
       const w = await gw.withdrawAsToken(path.join(DATA_DIR, 'withdrawals'));
@@ -152,7 +155,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
 
   if (p === '/admin') {
-    if (url.searchParams.get('key') !== KEY) return send(res, 403, 'forbidden', 'text/plain');
+    if (url.searchParams.get('key') !== ADMIN_KEY) return send(res, 403, 'forbidden', 'text/plain');
     const orders = ledger.data.orders.map(({ settle, ...o }) => ({ ...o, settle: settle && { ...settle, token: undefined } }));
     return send(res, 200, { balance: gw.balance(), nextCounter: ledger.data.nextCounter, mint: gw.mintUrl, tokenOverHttp: TOKEN_OVER_HTTP, orders });
   }

@@ -31,7 +31,7 @@ try {
   procs.push(gw.child);
   await Promise.all([up(`${MERCHANT}/paid`), up(`${GW}/admin`)]);
 
-  step('merchant creates a ¥1.00 top-up order (signed EPay submit, like new-api)');
+  step('merchant creates a $1.00 top-up order (signed EPay submit, like new-api)');
   const { id, outTradeNo, sats: due } = await submitOrder('1.00');
   console.log(`   order ${id}: ${due} sat due`);
 

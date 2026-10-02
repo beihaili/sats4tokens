@@ -1,12 +1,12 @@
 // Operator CLI. Talks to the running gateway over HTTP (never touches ledger.json itself, so it
 // can't race the server's in-memory ledger).
-//   EPAY_KEY=… [GATEWAY=http://127.0.0.1:8090] npm run cli balance
-//   EPAY_KEY=… [GATEWAY=…]                     npm run cli withdraw   → token file on the gateway's disk
+//   ADMIN_KEY=… [GATEWAY=http://127.0.0.1:8090] npm run cli balance   (EPAY_KEY works if no ADMIN_KEY is set)
+//   ADMIN_KEY=… [GATEWAY=…]                     npm run cli withdraw   → token file on the gateway's disk
 const GATEWAY = process.env.GATEWAY ?? 'http://127.0.0.1:8090';
-const KEY = process.env.EPAY_KEY ?? '';
+const KEY = process.env.ADMIN_KEY || process.env.EPAY_KEY || '';
 const cmd = process.argv[2];
 if (!KEY || !['balance', 'withdraw'].includes(cmd ?? '')) {
-  console.error('usage: EPAY_KEY=… [GATEWAY=…] cli.ts balance|withdraw');
+  console.error('usage: ADMIN_KEY=… [GATEWAY=…] cli.ts balance|withdraw');
   process.exit(1);
 }
 const q = `key=${encodeURIComponent(KEY)}`;

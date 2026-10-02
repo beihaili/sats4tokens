@@ -15,12 +15,12 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
   refuses to start without bolt11 sat minting (NUT-04), state checks (NUT-07) and restore (NUT-09).
   Pasted tokens may carry a `cashu:` URI prefix.
 - `src/server.ts` — node:http: `/submit.php` (from new-api), `/pay/:id` checkout, `/api/order/:id[...]`,
-  `/admin?key=` (JSON), `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`,
+  `/admin?key=ADMIN_KEY` (JSON; ADMIN_KEY falls back to EPAY_KEY, keep them different in deployments), `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`,
   written before the proofs leave the ledger; the token is also returned only if `WITHDRAW_TOKEN_OVER_HTTP=1`),
   notify loop (GET notify_url until it answers `success`).
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
 - `src/price.ts` — fiat→BTC (CoinGecko, 60s cache, or `BTC_PRICE`).
-- `web/admin.html` — operator page, `/admin.html#key=EPAY_KEY` (key stays in the hash, out of access logs):
+- `web/admin.html` — operator page, `/admin.html#key=ADMIN_KEY` (key stays in the hash, out of access logs):
   balance, orders, one-click withdraw with a Copy button for the token (when the gateway returns it).
 - `web/` — mobile checkout page (Lightning invoice created lazily when the ⚡ tab is opened; opening tab
   from `CHECKOUT_TAB` or `#ln`/`#cashu`; pasting a whole token pays at once; token errors stay visible across polls).
@@ -34,9 +34,9 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
 ## Run
 
 ```sh
-EPAY_KEY=demo-key PORT=8091 npm run gateway         # env: EPAY_PID MINT_URL DATA_DIR ORDER_TTL_MIN FIAT BTC_PRICE SEED CHECKOUT_TAB=ln|cashu WITHDRAW_TOKEN_OVER_HTTP=1
+EPAY_KEY=demo-key PORT=8091 npm run gateway         # env: EPAY_PID MINT_URL DATA_DIR ORDER_TTL_MIN FIAT BTC_PRICE SEED ADMIN_KEY CHECKOUT_TAB=ln|cashu WITHDRAW_TOKEN_OVER_HTTP=1
 EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 node scripts/fake-merchant.ts
-EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance   # or: withdraw
+EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance   # or: withdraw (ADMIN_KEY=… if set)
 npm test && npm run typecheck                         # units (offline)
 npm run edge-checks                                   # 15 e2e checks against testnut (~40s)
 npm run crash-demo -- cashu after-mint                # or lightning / after-writeahead; all 4 verified
@@ -59,3 +59,7 @@ Plan/pitch: `../dev-plan.md`, `../pitch.md`.
 
 - `data/` (seed, ledger proofs, withdrawals) is bearer money: never commit, never print.
 - Never touch production containers/DB/Redis on api-relay; the demo stack is separate on purpose.
+- The demo is plain http: never send EPAY_KEY (signs "paid" notifies) or the new-api root password over venue
+  wifi. Use the ssh tunnel (localhost:18530/18531) for root login and the operator page.
+- Demo new-api shows English (root/demo have `language: en` in their user setting) and USD
+  (`general_setting.quota_display_type=USD`, gateway `FIAT=usd`, Price=1 → money is USD).
