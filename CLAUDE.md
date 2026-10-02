@@ -19,7 +19,8 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
   written before the proofs leave the ledger; the token is also returned only if `WITHDRAW_TOKEN_OVER_HTTP=1`),
   notify loop (GET notify_url until it answers `success`).
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
-- `src/price.ts` — fiat→BTC (CoinGecko, 60s cache, or `BTC_PRICE`).
+- `src/price.ts` — fiat→BTC spot price (CoinGecko → Coinbase → mempool.space fallback, 60s cache, reuses a
+  ≤10 min old price if all fail; or fixed `BTC_PRICE`). Locked into the order; sats rounded up.
 - `web/admin.html` — operator page, `/admin.html#key=ADMIN_KEY` (key stays in the hash, out of access logs):
   balance, orders, one-click withdraw with a Copy button for the token (when the gateway returns it).
 - `web/` — mobile checkout page (Lightning invoice created lazily when the ⚡ tab is opened; opening tab
@@ -68,4 +69,6 @@ Plan/pitch: `../dev-plan.md`, `../pitch.md`.
   re-run it whenever those containers restart). Host ports 8530/8531 are bound to 127.0.0.1 (ssh -L only).
   The production Caddy is not involved (admin off → any change restarts it for all relay users).
 - Demo new-api shows English (root/demo have `language: en` in their user setting) and USD
-  (`general_setting.quota_display_type=USD`, gateway `FIAT=usd`, Price=1 → money is USD).
+  (`general_setting.quota_display_type=USD`, gateway `FIAT=usd`). new-api top-up amounts are whole credit dollars
+  (decimals → 参数错误), so the demo sets `Price=0.1`: $1 credit costs $0.10 ≈ 117 sat (demo discount; Price=1 to undo).
+  `payment_setting.amount_options=[1,2,5,10,20,50]`.
