@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 :root { --fg: #1b1b1f; --muted: #6b6b76; --bg: #f6f5f2; --card: #fff; --accent: #f7931a; --ok: #1f9d55; --bad: #c62828; }
 * { box-sizing: border-box; }
 body { margin: 0; font: 17px/1.5 system-ui, -apple-system, "PingFang SC", sans-serif; color: var(--fg); background: var(--bg); }
@@ -24,3 +25,5 @@ button, .button { padding: 10px 16px; border: 1px solid #ddd; border-radius: 10p
 .admin td { padding: 6px 4px; border-top: 1px solid #eee; }
 .admin td.ok { color: var(--ok); }
 button:disabled { opacity: .45; cursor: default; }
+.amounts { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+#key textarea { margin-top: 8px; }

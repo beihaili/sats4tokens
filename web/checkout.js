@@ -8,11 +8,26 @@ let redirectTimer = 0;
 
 function render(o) {
   $('#order').innerHTML = `
-    <div class="muted">${esc(o.name)} · order <span class="mono">${esc(o.id)}</span></div>
+    <div class="muted">${esc(o.name)} · order <span class="mono">${esc(o.kind === 'key' ? o.id.slice(0, 10) + '…' : o.id)}</span></div>
     <div class="amount">${o.sats.toLocaleString()} <small>sat</small></div>
     <div class="muted">= ${esc(o.money)} ${esc(o.fiat.toUpperCase())} · 1 BTC = ${o.btcPrice.toLocaleString()} ${esc(o.fiat.toUpperCase())}</div>`;
   $('#mint').textContent = o.mint;
 
+  if (o.state === 'PAID' && o.kind === 'key') {
+    // key shop: no merchant to go back to — the key itself is the product
+    $('#pay').hidden = true;
+    $('#done').hidden = false;
+    $('#back').hidden = true;
+    $('#done-detail').textContent = o.apiKey
+      ? `${o.paid.sats} sat received via ${o.paid.via}.`
+      : `${o.paid.sats} sat received via ${o.paid.via}. Creating your key…${o.keyError ? ' (retrying: ' + o.keyError + ')' : ''}`;
+    if (o.apiKey && $('#key').hidden) {
+      $('#key').hidden = false;
+      $('#env').value = `OPENAI_BASE_URL=${o.apiKey.baseUrl}\nOPENAI_API_KEY=${o.apiKey.key}`;
+      $('#curl').value = `curl ${o.apiKey.baseUrl}/chat/completions \\\n  -H "Authorization: Bearer ${o.apiKey.key}" \\\n  -H "content-type: application/json" \\\n  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hi"}]}'`;
+    }
+    return;
+  }
   if (o.state === 'PAID') {
     $('#pay').hidden = true;
     $('#done').hidden = false;
@@ -70,6 +85,15 @@ function showTab(tab) {
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 // navigator.clipboard only exists on https/localhost (and may be denied); the demo runs on plain http,
 // so fall back to execCommand.
+async function copyBox(box) {
+  try {
+    await navigator.clipboard.writeText(box.value);
+  } catch {
+    box.select();
+    document.execCommand('copy');
+  }
+}
+$('#copyenv').addEventListener('click', () => copyBox($('#env')));
 $('#copy').addEventListener('click', async () => {
   const box = $('#invoice');
   try {

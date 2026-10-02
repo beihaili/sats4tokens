@@ -96,6 +96,11 @@ services:
       # admin page shows the withdrawn token so it can be copied; fine for testnut, set 0 for a real mint on plain http
       WITHDRAW_TOKEN_OVER_HTTP: "${WITHDRAW_TOKEN_OVER_HTTP:-1}"
       TZ: "Europe/Berlin"
+      # key shop (/ on the pay URL): pay → get a new-api key capped at what was paid, no signup.
+      # Keys belong to the demo pool user "keyshop"; NEWAPI_TOKEN is that user's access token (user-level only).
+      NEWAPI_URL: "http://new-api:3000"
+      NEWAPI_USER_ID: "${NEWAPI_USER_ID:-}"
+      NEWAPI_TOKEN: "${NEWAPI_TOKEN:-}"
       # Node's happy-eyeballs gives each connect attempt 250ms; Minibits is ~265ms RTT from this VPS → ETIMEDOUT
       NODE_OPTIONS: "--network-family-autoselection-attempt-timeout=2000"
     networks: [demo]

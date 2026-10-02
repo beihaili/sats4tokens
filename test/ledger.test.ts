@@ -43,6 +43,7 @@ test('checkSubmit: validation', () => {
 
 test('satsFor rounds up and never returns 0', () => {
   assert.equal(satsFor('10.00', 800_000), 1250); // exact
+  assert.equal(satsFor('1', 100_000), 1000); // exact despite float error
   assert.equal(satsFor('10.00', 700_000), 1429); // 1428.57… → up
   assert.equal(satsFor('0.01', 10_000_000), 1); // 0.1 sat → 1
 });

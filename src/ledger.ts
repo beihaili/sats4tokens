@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { Params } from './epay.ts';
+import type { ApiKey } from './keyshop.ts';
 
 export type OrderState = 'PENDING' | 'SETTLING' | 'PAID' | 'EXPIRED';
 export type Via = 'lightning' | 'cashu';
@@ -47,6 +48,9 @@ export interface Order {
   lastError?: string; // shown on the checkout page (e.g. "token already spent")
   paid?: { at: number; via: Via; sats: number; fee: number };
   notify: { done: boolean; attempts: number; nextAt: number; lastError?: string; doneAt?: number };
+  // Key shop orders (no merchant): "notify" is the step that creates the API key in new-api.
+  kind?: 'key';
+  apiKey?: ApiKey; // BEARER: whoever has it spends the quota; shown only to the order's own page
 }
 
 export interface LedgerData {
@@ -108,7 +112,8 @@ export function checkSubmit(data: LedgerData, p: Params, pid: string): SubmitChe
 
 /** Fiat → sats, rounded up so the merchant is never short. */
 export function satsFor(money: string, btcPrice: number): number {
-  return Math.max(1, Math.ceil((Number(money) / btcPrice) * 1e8));
+  // toFixed: 1/100000*1e8 is 1000.0000000000001 in floating point, which must not round up to 1001
+  return Math.max(1, Math.ceil(Number(((Number(money) / btcPrice) * 1e8).toFixed(6))));
 }
 
 export function newOrderId(now: number): string {
@@ -132,6 +137,32 @@ export function makeOrder(p: Params, o: { fiat: string; btcPrice: number; now: n
     expiresAt: o.now + o.ttlMs,
     state: 'PENDING',
     notify: { done: false, attempts: 0, nextAt: 0 },
+  };
+}
+
+/**
+ * A key shop order: the customer buys an API key directly, no merchant redirect. The id is 128 random bits
+ * because the checkout URL (/pay/:id) is the only thing that later shows the key.
+ */
+export function makeKeyOrder(money: string, o: { fiat: string; btcPrice: number; now: number; ttlMs: number }): Order {
+  const id = 'CK' + randomBytes(16).toString('hex').toUpperCase();
+  return {
+    id,
+    outTradeNo: id,
+    pid: '',
+    type: 'bitcoin',
+    name: `AI API key · $${money}`,
+    money,
+    notifyUrl: '',
+    returnUrl: '',
+    fiat: o.fiat,
+    btcPrice: o.btcPrice,
+    sats: satsFor(money, o.btcPrice),
+    createdAt: o.now,
+    expiresAt: o.now + o.ttlMs,
+    state: 'PENDING',
+    notify: { done: false, attempts: 0, nextAt: 0 },
+    kind: 'key',
   };
 }
 

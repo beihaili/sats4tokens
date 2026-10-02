@@ -37,6 +37,14 @@
       <p id="done-detail"></p>
       <a id="back" class="button primary">Back to merchant →</a>
     </section>
+    <section id="key" class="card" hidden>
+      <div class="big">🔑 Your API key</div>
+      <p class="hint">Limited to what you paid. No account — this key is the account. Save it (or keep this page's URL).</p>
+      <textarea id="env" rows="3" readonly></textarea>
+      <button id="copyenv" class="primary">Copy</button>
+      <p class="hint">Works with any OpenAI-compatible app. Test it:</p>
+      <textarea id="curl" rows="8" readonly></textarea>
+    </section>
   </main>
   <script type="module" src="/checkout.js"></script>
 </body>

@@ -1,6 +1,9 @@
 // HTTP side of the gateway. Speaks EPay to new-api, serves the checkout page to the customer.
 //
 //   GET|POST /submit.php             new-api redirects the customer here (signed EPay params)
+//   GET      /                       key shop: buy an AI API key with bitcoin, no account (web/index.html)
+//   GET      /api/shop               key shop settings {enabled, amounts}
+//   POST     /api/buy                {money} → new key order {id}; once paid, its page shows the key
 //   GET      /pay/:id                checkout page (web/checkout.html)
 //   GET      /api/order/:id          order status for the checkout page (polled)
 //   POST     /api/order/:id/invoice  create the lightning invoice (lazily, when the customer picks ⚡)
@@ -10,15 +13,17 @@
 //   POST     /admin/withdraw?key=…   move the whole balance into a token file under DATA_DIR/withdrawals/
 //                                    (+ the token itself in the reply if WITHDRAW_TOKEN_OVER_HTTP=1)
 // Background: watcher every 2s (crash recovery; at most one quote check per 8s across all orders — open
-// checkout pages first — paused with backoff on network errors / 429), notify loop every 2s.
+// checkout pages first — paused with backoff on network errors / 429), notify loop every 2s (for key shop
+// orders "notify" means: create the key in new-api, see keyshop.ts).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { verify, signed, type Params } from './epay.ts';
-import { Ledger, checkSubmit, makeOrder, notifyParams, dueForNotify, notifyBackoffMs, type Order } from './ledger.ts';
+import { Ledger, checkSubmit, makeOrder, makeKeyOrder, notifyParams, dueForNotify, notifyBackoffMs, type Order } from './ledger.ts';
 import { Gateway, loadSeed } from './gateway.ts';
 import { btcPrice, fiat } from './price.ts';
+import { KeyShop } from './keyshop.ts';
 
 const PORT = Number(process.env.PORT ?? 8090);
 const PID = process.env.EPAY_PID ?? '1001';
@@ -36,6 +41,10 @@ if (!KEY) throw new Error('EPAY_KEY is required (the same merchant key you put i
 // Operator key for /admin. Keep it different from EPAY_KEY: whoever holds EPAY_KEY can forge "paid" notifies
 // to new-api, and the admin page may be opened over plain http. Falls back to EPAY_KEY for local runs.
 const ADMIN_KEY = process.env.ADMIN_KEY || KEY;
+// Key shop (optional, needs NEWAPI_URL/NEWAPI_USER_ID/NEWAPI_TOKEN). new-api quota is priced in USD.
+const shop = KeyShop.fromEnv();
+const KEY_AMOUNTS = ['1', '2', '5', '10'];
+if (shop && fiat() !== 'usd') throw new Error('the key shop needs FIAT=usd (new-api quota is priced in USD)');
 
 const root = path.resolve(import.meta.dirname, '..', 'web');
 const ledger = new Ledger(path.join(DATA_DIR, 'ledger.json'));
@@ -86,6 +95,9 @@ function publicOrder(o: Order) {
     lastError: o.lastError,
     paid: o.paid,
     returnUrl,
+    kind: o.kind,
+    apiKey: o.state === 'PAID' ? o.apiKey : undefined, // the order id is the capability (128 random bits)
+    keyError: o.kind === 'key' && !o.apiKey ? o.notify.lastError : undefined,
   };
 }
 
@@ -119,10 +131,25 @@ async function submit(req: http.IncomingMessage, res: http.ServerResponse, url: 
   res.end();
 }
 
+/** Key shop: a new order for an API key worth `money` USD. Never talks to the mint (invoice comes later). */
+async function buy(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  if (!shop) return send(res, 404, { error: 'key shop not enabled' });
+  if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
+  const { money } = JSON.parse((await readBody(req)) || '{}') as { money?: unknown };
+  if (!KEY_AMOUNTS.includes(String(money))) return send(res, 400, { error: `amount must be one of ${KEY_AMOUNTS.join(', ')}` });
+  const order = makeKeyOrder(String(money), { fiat: fiat(), btcPrice: await btcPrice(), now: Date.now(), ttlMs: TTL_MS });
+  ledger.data.orders.push(order);
+  ledger.save();
+  console.log(`🔑 ${order.id.slice(0, 10)}…: key order ${order.money} ${order.fiat} = ${order.sats} sat`);
+  return send(res, 200, { id: order.id });
+}
+
 async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://x');
   const p = url.pathname;
   if (p === '/submit.php') return submit(req, res, url);
+  if (p === '/api/buy') return buy(req, res);
+  if (p === '/api/shop') return send(res, 200, { enabled: !!shop, amounts: KEY_AMOUNTS, fiat: fiat() });
 
   let m = p.match(/^\/api\/order\/(\w+)(\/qr\.svg|\/token|\/invoice)?$/);
   if (m) {
@@ -169,7 +196,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
 
   if (p === '/admin') {
     if (url.searchParams.get('key') !== ADMIN_KEY) return send(res, 403, 'forbidden', 'text/plain');
-    const orders = ledger.data.orders.map(({ settle, ...o }) => ({ ...o, settle: settle && { ...settle, token: undefined } }));
+    const orders = ledger.data.orders.map(({ settle, apiKey, ...o }) => ({
+      ...o,
+      settle: settle && { ...settle, token: undefined },
+      apiKey: apiKey && { ...apiKey, key: apiKey.key.slice(0, 7) + '…' }, // bearer; the operator doesn't need it
+    }));
     return send(res, 200, { balance: gw.balance(), nextCounter: ledger.data.nextCounter, mint: gw.mintUrl, tokenOverHttp: TOKEN_OVER_HTTP, orders });
   }
 
@@ -188,6 +219,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
 
 /** Tell new-api an order is paid. At-least-once: retried with backoff until it answers "success". */
 async function notifyOnce(o: Order): Promise<void> {
+  if (o.kind === 'key') return makeKeyOnce(o);
   const u = new URL(o.notifyUrl);
   for (const [k, v] of Object.entries(signed(notifyParams(o), KEY))) u.searchParams.set(k, v);
   let err = '';
@@ -209,6 +241,23 @@ async function notifyOnce(o: Order): Promise<void> {
   o.notify.lastError = err;
   ledger.save();
   console.warn(`📨 ${o.id} → merchant failed (#${o.notify.attempts}): ${err}`);
+}
+
+/** Key shop: turn a paid order into its API key. Same retry/backoff as a merchant notify. */
+async function makeKeyOnce(o: Order): Promise<void> {
+  try {
+    if (!shop) throw new Error('key shop not configured (NEWAPI_*)');
+    o.apiKey = await shop.createKey(o);
+    o.notify = { ...o.notify, done: true, doneAt: Date.now(), lastError: undefined };
+    ledger.save();
+    console.log(`🔑 ${o.id.slice(0, 10)}…: key created (new-api token #${o.apiKey.tokenId}, $${o.money})`);
+  } catch (e) {
+    o.notify.attempts++;
+    o.notify.nextAt = Date.now() + notifyBackoffMs(o.notify.attempts);
+    o.notify.lastError = (e as Error).message;
+    ledger.save();
+    console.warn(`🔑 ${o.id.slice(0, 10)}…: key failed (#${o.notify.attempts}): ${o.notify.lastError}`);
+  }
 }
 
 let notifying = false;
@@ -243,5 +292,5 @@ http
     });
   })
   .listen(PORT, () => {
-    console.log(`cashu-epay on http://127.0.0.1:${PORT}  pid=${PID}  mint=${gw.mintUrl}  balance=${gw.balance()} sat`);
+    console.log(`cashu-epay on http://127.0.0.1:${PORT}  pid=${PID}  mint=${gw.mintUrl}  balance=${gw.balance()} sat  keyshop=${shop ? shop.url : 'off'}`);
   });
