@@ -7,6 +7,8 @@ once**, even if the gateway is killed mid-payment.
 Built at [bitcoin++ Berlin 2026](https://btcpp.dev) (payments edition) for a real shop: my AI API relay
 (310 users, ~12 billion tokens a month), which runs [new-api](https://github.com/QuantumNous/new-api).
 
+**Live demo (mainnet, real sats):** <https://sats4tokens.bhbtc.xyz/>
+
 > **Real money, verified.** 2026-10-02, mainnet (Coinos mint), paid from a phone wallet:
 > - **Key shop:** $1 (1161 sat) → API key → a real model call.
 > - **Top-up:** $1 (1158 sat) → credited to a relay account → withdrawn from the gateway as one Cashu

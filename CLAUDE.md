@@ -91,8 +91,8 @@ firewalled the VPS IP for polling too hard — `Connection refused` from the VPS
 because the VPS→Minibits RTT (~265ms) exceeds Node's 250ms happy-eyeballs attempt timeout (ETIMEDOUT otherwise).
 Production `/opt/new-api-relay/AGENTS.md` has a one-line note about this stack (top of 项目说明).
 Key shop on the demo: pool user `keyshop` (id 3, $1000 quota set via `POST /api/user/manage add_quota`), its PAT in
-`.env` (`NEWAPI_USER_ID`/`NEWAPI_TOKEN`, mode 600, password in `secrets/demo-accounts.txt`); buy page = pay tunnel `/`,
-key endpoint = shop tunnel `/v1` (follows ServerAddress). Verified 2026-10-02 locally (testnut + demo new-api): buy $1 →
+`.env` (`NEWAPI_USER_ID`/`NEWAPI_TOKEN`, mode 600, password in `secrets/demo-accounts.txt`); buy page =
+**https://sats4tokens.bhbtc.xyz/** (named tunnel, see Rules), key endpoint = `KEY_BASE_URL=https://sats4tokens.bhbtc.xyz/v1`. Verified 2026-10-02 locally (testnut + demo new-api): buy $1 →
 key → real chat call, crash-resume found the same token.
 Plan/pitch/video: `../dev-plan.md`, `../pitch.md`, `../recording-script.md`.
 
@@ -103,6 +103,11 @@ Plan/pitch/video: `../dev-plan.md`, `../pitch.md`, `../recording-script.md`.
 - Public access is **https only**, through two Cloudflare quick tunnels (`tunnel-shop`, `tunnel-pay` in the demo
   compose; `./https-tunnel.sh` prints the random `*.trycloudflare.com` URLs and sets new-api `ServerAddress`/`PayAddress`;
   re-run it whenever those containers restart). Host ports 8530/8531 are bound to 127.0.0.1 (ssh -L only).
+  Plus the stable public URL `https://sats4tokens.bhbtc.xyz` = Cloudflare **named** tunnel `sats4tokens`
+  (service `tunnel-named`, compose profile `named-tunnel`; config + credentials server-only in
+  `secrets/cloudflared/`, owned by uid 65532; ingress `^/v1/` → new-api, rest → gateway). The tunnel credentials
+  (`~/.cloudflared/*.json`, `cert.pem` on the laptop) are secrets: never print or commit. Quick tunnels stay because
+  new-api's ServerAddress/PayAddress (top-up redirects + callbacks) point at them.
   The production Caddy is not involved (admin off → any change restarts it for all relay users).
 - Demo new-api shows English (root/demo have `language: en` in their user setting) and USD
   (`general_setting.quota_display_type=USD`, gateway `FIAT=usd`, Price=1 → money is USD). new-api top-up amounts

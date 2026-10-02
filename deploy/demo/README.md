@@ -10,7 +10,7 @@ Production is only ever *read* (one `mysqldump --single-transaction` in `sync-ch
 
 | what | where |
 |---|---|
-| public https | `./https-tunnel.sh` prints the shop + gateway `*.trycloudflare.com` URLs (Cloudflare quick tunnels, new on every tunnel restart) |
+| public https | stable: `https://sats4tokens.bhbtc.xyz` (Cloudflare named tunnel `tunnel-named`, below). Also `./https-tunnel.sh` prints the shop + gateway `*.trycloudflare.com` URLs (quick tunnels, new on every tunnel restart; new-api's `ServerAddress`/`PayAddress` use them) |
 | new-api demo | 127.0.0.1:8530 on the host (container `cashu-demo-newapi`) |
 | Bitcoin gateway | 127.0.0.1:8531 on the host (container `cashu-demo-gateway`), operator page `/admin.html#key=$ADMIN_KEY` — open it only through the ssh tunnel (below) |
 | MySQL | `cashu-demo-mysql`, not published |
@@ -64,6 +64,14 @@ log in as it and get its personal access token (`GET /api/user/token`). Put `NEW
 `NEWAPI_TOKEN=<token>` in `.env` (chmod 600), then `docker compose up -d gateway`. The log line ends with
 `keyshop=http://new-api:3000`; the buy page is the pay tunnel's `/`. Keys use new-api's ServerAddress + `/v1`.
 Revoke a key: `DELETE /api/token/<id>` with the same token headers (`Authorization`, `New-Api-User`).
+
+Stable URL (named tunnel, outbound only, server IP stays out of DNS): `cloudflared tunnel login` +
+`cloudflared tunnel create sats4tokens` + `cloudflared tunnel route dns sats4tokens sats4tokens.bhbtc.xyz` on the
+laptop, then on the server `secrets/cloudflared/credentials.json` (the tunnel's JSON) and `config.yml`
+(tunnel id, `credentials-file: /etc/cloudflared/credentials.json`, ingress `^/v1/` → `http://new-api:3000`, rest →
+`http://gateway:8090`, catch-all `http_status:404`), both owned by uid 65532 (cloudflared's user), mode 600.
+`.env`: `COMPOSE_PROFILES=named-tunnel`, `KEY_BASE_URL=https://sats4tokens.bhbtc.xyz/v1` (endpoint shown with keys),
+then `docker compose up -d gateway tunnel-named`. Keys sold before that keep the endpoint they were shown with.
 
 Tear down: `docker compose down` (keeps data/), `rm -rf /opt/cashu-epay-demo` to remove everything.
 Nothing in production needs undoing.
