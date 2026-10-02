@@ -1,5 +1,5 @@
 // Checkout page: polls /api/order/:id, shows the lightning invoice or takes a pasted cashu token.
-import { renderModels } from '/models.js?v=3';
+import { renderModels } from '/models.js?v=4';
 const id = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -178,9 +178,11 @@ $('#token').addEventListener('input', () => {
 });
 
 // ---- camera QR scan (cashu tab). BarcodeDetector where the browser has it (Chrome on Android/macOS), else the
-// vendored jsQR (Safari, Firefox), loaded only when the camera is first opened. getUserMedia needs https.
+// vendored jsQR (Safari, Firefox). Wallets show tokens with >2 proofs (any $1 key) as an animated NUT-16 QR
+// (ur:bytes/… fountain-coded frames, cashu.me: 150 bytes per frame, a new frame every 150ms); those frames go to
+// the vendored bc-ur decoder until the token is complete. Both vendor scripts load on first use. Needs https.
 const TOKEN_RE = /cashu[AB][A-Za-z0-9_\-+/=]{40,}/; // also finds it inside "cashu:…" or a wallet link
-let cam = null; // { stream, timer } while scanning
+let cam = null; // { stream, timer, ur } while scanning; ur = the animated-QR decoder once a ur: frame was seen
 function scanMsg(text) {
   $('#scanmsg').hidden = !text;
   $('#scanmsg').textContent = text ?? '';
@@ -195,50 +197,96 @@ function stopScan() {
   $('#scan').textContent = '📷 Scan QR';
   scanMsg('');
 }
-function loadJsQR() {
-  if (window.jsQR) return Promise.resolve(window.jsQR);
-  return new Promise((ok, fail) => {
+const loaded = {};
+/** Load a vendored classic script once; resolves to the global it defines. */
+function loadVendor(file, global) {
+  loaded[file] ??= new Promise((ok, fail) => {
     const s = document.createElement('script');
-    s.src = '/vendor/jsQR.js';
-    s.onload = () => ok(window.jsQR);
-    s.onerror = () => fail(new Error('QR decoder failed to load'));
+    s.src = `/vendor/${file}`;
+    s.onload = () => ok(window[global]);
+    s.onerror = () => {
+      delete loaded[file]; // allow a retry
+      fail(new Error(`${file} failed to load`));
+    };
     document.head.append(s);
   });
+  return loaded[file];
 }
-/** Returns an async (video) => string|null that reads one QR from the current frame. */
+/** Returns { name, decode: async (video) => string|null } reading one QR from the current frame. */
 async function makeDecoder() {
   if ('BarcodeDetector' in window && (await BarcodeDetector.getSupportedFormats()).includes('qr_code')) {
     const d = new BarcodeDetector({ formats: ['qr_code'] });
-    return async (v) => (await d.detect(v))[0]?.rawValue ?? null;
+    return { name: 'native', decode: async (v) => (await d.detect(v))[0]?.rawValue ?? null };
   }
-  const jsQR = await loadJsQR();
+  const jsQR = await loadVendor('jsQR.js', 'jsQR');
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  return async (v) => {
-    // downscale to ≤800px: jsQR is pure JS, full HD frames take too long; a token QR still decodes at this size
-    const k = Math.min(1, 800 / Math.max(v.videoWidth, v.videoHeight));
-    canvas.width = Math.round(v.videoWidth * k);
-    canvas.height = Math.round(v.videoHeight * k);
-    ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    return jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' })?.data ?? null;
+  let crop = false;
+  return {
+    name: 'jsQR',
+    decode: async (v) => {
+      // jsQR is pure JS, so frames are capped at 960px. Odd frames: the whole picture, downscaled. Even frames: the
+      // centre square at full resolution, where a phone held up to the camera usually is, so dense QRs keep their detail.
+      const w = v.videoWidth, h = v.videoHeight;
+      const side = Math.min(w, h) * 0.8;
+      const [sx, sy, sw, sh] = (crop = !crop) ? [(w - side) / 2, (h - side) / 2, side, side] : [0, 0, w, h];
+      const k = Math.min(1, 960 / Math.max(sw, sh));
+      canvas.width = Math.round(sw * k);
+      canvas.height = Math.round(sh * k);
+      ctx.drawImage(v, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      return jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' })?.data ?? null;
+    },
   };
 }
-/** What to do with a decoded QR: pay if it holds a token, else say why not and keep scanning. */
-function onScanned(text) {
+/** Pay with the token found in `text`. Returns true if there was one. */
+function payScanned(text) {
   let t = text.trim();
   try { t = decodeURIComponent(t); } catch { /* not URI-encoded */ }
   const m = t.match(TOKEN_RE);
-  if (m) {
-    stopScan();
-    $('#token').value = m[0];
-    autoPaid = m[0];
-    payWithToken();
-    return true;
+  if (!m) return false;
+  stopScan();
+  $('#token').value = m[0];
+  autoPaid = m[0];
+  payWithToken();
+  return true;
+}
+/** Handle one decoded QR. Returns true when scanning is done (a token was found and is being paid). */
+async function onScanned(text) {
+  if (/^ur:/i.test(text)) {
+    const scan = cam;
+    if (!scan.ur) {
+      scan.ur = 'loading';
+      try {
+        const BCUR = await loadVendor('bcur.js', 'BCUR');
+        if (cam === scan) scan.ur = BCUR.makeURDecoder();
+      } catch (e) {
+        if (cam === scan) scan.ur = null;
+        scanMsg(`${e.message}. Paste the token instead.`);
+        return false;
+      }
+    }
+    if (cam !== scan || scan.ur === 'loading') return false; // frames while the decoder loads are skipped
+    let out = null;
+    try {
+      out = scan.ur.receive(text);
+    } catch {
+      // all frames in but the result doesn't check out (misread frames are skipped inside): collect again
+      scan.ur = null;
+      scanMsg('Animated QR: decoding failed, starting over…');
+      return false;
+    }
+    if (out) {
+      if (payScanned(out)) return true;
+      scan.ur = null;
+      scanMsg('That animated QR is not a Cashu token.');
+      return false;
+    }
+    scanMsg(`Animated QR: ${Math.round(scan.ur.progress() * 100)}% · keep holding it steady…`);
+    return false;
   }
-  // animated (multi-part UR) QRs need every frame plus a fountain decoder; not supported here
-  if (/^ur:/i.test(t)) scanMsg('This is an animated QR, which isn’t supported. Copy the token in your wallet and paste it above.');
-  else if (/^(lightning:)?ln(bc|tb)/i.test(t)) scanMsg('That is a Lightning invoice. Show the QR of a Cashu token (cashuA…/cashuB…).');
+  if (payScanned(text)) return true;
+  if (/^(lightning:)?ln(bc|tb)/i.test(text)) scanMsg('That is a Lightning invoice. Show the QR of a Cashu token (cashuA…/cashuB…).');
   else scanMsg('Not a Cashu token. Show the QR of a cashuA…/cashuB… token.');
   return false;
 }
@@ -246,34 +294,41 @@ async function startScan() {
   if (!navigator.mediaDevices?.getUserMedia) return scanMsg('The camera needs https. Paste the token instead.');
   let stream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } });
   } catch (e) {
     return scanMsg(e.name === 'NotAllowedError' ? 'Camera permission denied. Paste the token instead.'
       : e.name === 'NotFoundError' ? 'No camera found. Paste the token instead.' : `Camera error: ${e.message}`);
   }
   if ($('#pay').hidden || $('#tab-cashu').hidden) return stream.getTracks().forEach((t) => t.stop()); // left the tab meanwhile
-  cam = { stream, timer: 0 };
+  const track = stream.getVideoTracks()[0];
+  track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}); // where supported (Android)
+  cam = { stream, timer: 0, ur: null };
   const v = $('#cam');
   v.srcObject = stream;
   v.hidden = false;
+  // a laptop or selfie camera: mirror the preview so moving the phone feels natural (decoding uses the raw frames)
+  v.classList.toggle('mirror', track.getSettings().facingMode !== 'environment');
   $('#scan').textContent = 'Stop camera';
   scanMsg('Hold the token’s QR in front of the camera.');
   await v.play().catch(() => {});
-  let decode;
+  let dec;
   try {
-    decode = await makeDecoder();
+    dec = await makeDecoder();
   } catch (e) {
     stopScan();
     return scanMsg(`${e.message}. Paste the token instead.`);
   }
   const mine = cam;
+  if (mine) scanMsg(`Hold the token’s QR in front of the camera. (${dec.name}, ${v.videoWidth}×${v.videoHeight})`);
   const tick = async () => {
     if (cam !== mine) return; // stopped (or restarted) while decoding
     let text = null;
-    if (v.readyState >= 2) text = await decode(v).catch(() => null);
+    if (v.readyState >= 2) text = await dec.decode(v).catch(() => null);
     if (cam !== mine) return;
-    if (text && onScanned(text)) return;
-    cam.timer = setTimeout(tick, 150);
+    if (text && (await onScanned(text))) return;
+    if (cam !== mine) return;
+    // animated QRs change frame every ~150ms, so read often; one decode is a few ms native, tens of ms in jsQR
+    cam.timer = setTimeout(tick, 40);
   };
   tick();
 }

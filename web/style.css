@@ -64,3 +64,4 @@ button:disabled { opacity: .45; cursor: default; }
 #cam { display: block; width: 100%; max-height: 360px; margin-top: 8px; border-radius: 10px; background: #000; object-fit: cover; }
 #scanmsg { margin: 6px 0 0; }
 .primary.scan { background: #fff; color: var(--accent); }
+#cam.mirror { transform: scaleX(-1); }

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <title>Sats4Tokens — AI API key for bitcoin</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css?v=3">
+  <link rel="stylesheet" href="/style.css?v=4">
 </head>
 <body>
   <main class="checkout">
@@ -26,7 +26,7 @@
     </section>
   </main>
   <script type="module">
-    import { renderModels } from '/models.js?v=3';
+    import { renderModels } from '/models.js?v=4';
     const $ = (s) => document.querySelector(s);
     const shop = await (await fetch('/api/shop')).json();
     renderModels($('#models'), { calc: { amounts: shop.amounts } }); // + calculator: amount × ticked models → tokens

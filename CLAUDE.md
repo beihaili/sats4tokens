@@ -61,7 +61,13 @@ keep the old name on purpose (deployment unchanged).
   from `CHECKOUT_TAB` or `#ln`/`#cashu`; pasting a whole token pays at once; token errors stay visible across polls).
   The 🥜 tab has **📷 Scan QR**: camera (needs https) → `BarcodeDetector` where supported, else vendored
   `web/vendor/jsQR.js` (jsQR 1.4.0, Apache-2.0, lazy-loaded); a decoded `cashuA/B…` (also inside `cashu:` or a link)
-  pays at once. Animated multi-part UR QRs (`ur:…`, e.g. cashu.me for long tokens) are not supported → "paste it".
+  pays at once. **Animated NUT-16 QRs** (`ur:bytes/n-m/…` fountain frames; cashu.me shows them for any token with
+  >2 proofs, i.e. every $1 key) go to `web/vendor/bcur.js` (bc-ur 1.1.12 bundle, lazy-loaded, progress "Animated QR: x%").
+  bc-ur's GPL-2.0 dep `@apocentre/alias-sampling` is replaced by our own sampler (`web/vendor/bcur-src/`, build +
+  licenses in `web/vendor/README.md`): never ship GPL code here. Scan loop: camera ideal 1920×1080 + continuous focus,
+  a decode every 40ms (frames change every 150ms); jsQR alternates full frame / centre 80% square (≤960px); a
+  non-rear camera preview is mirrored; the status line shows decoder + resolution (`native|jsQR, W×H`) for debugging
+  phones. Verified with a fake camera (canvas stream of real UR frames): both decoders ~2.3s from mid-animation.
   The camera stops on tab switch, PAID/EXPIRED and pagehide. All page copy is English only.
   Testing tip: on testnut, opening the ⚡ tab auto-pays the invoice, so a local keyshop run creates a real key on
   the demo new-api — delete it afterwards (`DELETE /api/token/:id`).
