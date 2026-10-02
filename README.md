@@ -89,7 +89,7 @@ until new-api confirms it, which credits each order once on its side.
 
 ## Polite to public mints
 
-Public mints rate-limit and firewall IPs that poll hard. (We learned this on demo day: one mint refused
+Public mints rate-limit and firewall IPs that poll hard. (We learned this during the hackathon: one mint refused
 our server after hours of polling 4 quotes every 2 s; another answered `429` at ~24 quote checks/min.)
 
 - **NUT-17 push** is the primary signal: one WebSocket, the mint pushes "quote PAID", then a single
@@ -154,7 +154,7 @@ web/             key shop, mobile checkout page, operator page
 deploy/demo/     the live demo stack (a private copy of the relay, isolated from production)
 ```
 
-About 1,600 lines for the gateway and pages, 600 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`.
+About 1,750 lines for the gateway and pages, 600 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`.
 
 ## Limits and next steps
 
