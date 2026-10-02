@@ -13,11 +13,13 @@ Cashu ecash, no account details, no KYC. bitcoin++ Berlin 2026 (payments edition
   mint call; `recover()` uses NUT-09 restore after crashes. `CRASH_AT=after-writeahead|after-mint`
   kills the process for the crash demo. On startup `mintProblems()` checks the mint's NUT-06 info and
   refuses to start without bolt11 sat minting (NUT-04), state checks (NUT-07) and restore (NUT-09).
-  Pasted tokens may carry a `cashu:` URI prefix.
-- `src/server.ts` — node:http: `/submit.php` (from new-api), `/pay/:id` checkout, `/api/order/:id[...]`,
+  Pasted tokens may carry a `cashu:` URI prefix. `tick()` rate-limits quote checks (each open quote every 5s,
+  expired ones every 60s, SETTLING recovery every tick) and pauses all polling with backoff (5s→60s) after a
+  network-level failure — public mints ban IPs that poll hard.
+- `src/server.ts` — node:http: `/submit.php` (from new-api; own lock, never waits on the mint), `/pay/:id` checkout, `/api/order/:id[...]`,
   `/admin?key=ADMIN_KEY` (JSON; ADMIN_KEY falls back to EPAY_KEY, keep them different in deployments), `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`,
   written before the proofs leave the ledger; the token is also returned only if `WITHDRAW_TOKEN_OVER_HTTP=1`),
-  notify loop (GET notify_url until it answers `success`).
+  notify loop (GET notify_url until it answers `success`). The watcher skips a beat while a tick is still running.
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
 - `src/price.ts` — fiat→BTC spot price (CoinGecko → Coinbase → mempool.space fallback, 60s cache, reuses a
   ≤10 min old price if all fail; or fixed `BTC_PRICE`). Locked into the order; sats rounded up.
@@ -53,9 +55,11 @@ PayMethods `[{"name":"Bitcoin","color":"#f7931a","type":"bitcoin"}]`, payment co
 `api-relay:/opt/cashu-epay-demo` — new-api demo on :8530, gateway on :8531, channels copied
 read-only from production. Verified end to end 2026-10-01: cashu token and lightning top-ups credited
 in new-api (`topup` status success), a real model call works through the copied channels.
-Since 2026-10-02 the demo gateway runs on **mainnet Minibits** (`./switch-mint.sh mainnet|testnut`,
-one wallet dir per mint: `data/gateway-mainnet/` vs `data/gateway/`; seed backup on the laptop at
-`~/.config/cashu-epay/`). Compose sets `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000`
+Since 2026-10-02 the demo gateway runs on a **mainnet mint**: first Minibits, then (10:15, after Minibits
+firewalled the VPS IP for polling too hard — `Connection refused` from the VPS only) **Coinos `https://mint.coinos.io`**.
+`./switch-mint.sh mainnet [URL]|testnut`, one wallet dir per mint: `data/gateway/` (testnut), `data/gateway-mainnet/`
+(Minibits), `data/gateway-<host>/` (others, e.g. `gateway-mint-coinos-io`); seed backups on the laptop in
+`~/.config/cashu-epay/`. Compose sets `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000`
 because the VPS→Minibits RTT (~265ms) exceeds Node's 250ms happy-eyeballs attempt timeout (ETIMEDOUT otherwise).
 Production `/opt/new-api-relay/AGENTS.md` has a one-line note about this stack (top of 项目说明).
 Plan/pitch: `../dev-plan.md`, `../pitch.md`.

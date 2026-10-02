@@ -9,7 +9,8 @@
 //   GET      /admin?key=ADMIN_KEY    operator data: orders + balance (JSON; the page is /admin.html#key=…)
 //   POST     /admin/withdraw?key=…   move the whole balance into a token file under DATA_DIR/withdrawals/
 //                                    (+ the token itself in the reply if WITHDRAW_TOKEN_OVER_HTTP=1)
-// Background: watcher (quotes + crash recovery) every 2s, notify loop every 2s.
+// Background: watcher every 2s (crash recovery; each open quote checked every 5s, expired ones every 60s,
+// all paused with backoff while the mint is unreachable), notify loop every 2s.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -90,11 +91,20 @@ function publicOrder(o: Order) {
 
 // ------------------------------------------------------------------ routes
 
+let submitQueue: Promise<unknown> = Promise.resolve();
+function submitSerial<T>(fn: () => Promise<T>): Promise<T> {
+  const run = submitQueue.then(fn, fn);
+  submitQueue = run.catch(() => {});
+  return run;
+}
+
 async function submit(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
   const p = await epayParams(req, url);
   if (!verify(p, KEY)) return send(res, 400, 'invalid sign', 'text/plain');
   // serialized so two concurrent submits of one out_trade_no can't both create an order
-  const r = await gw.serial(async (): Promise<Order | string> => {
+  // Own queue, not gw.serial: creating an order never talks to the mint, so a slow or unreachable mint
+  // (the watcher holds gw.serial) must not make new-api's redirect hang.
+  const r = await submitSerial(async (): Promise<Order | string> => {
     const c = checkSubmit(ledger.data, p, PID);
     if (c.kind === 'reject') return c.reason;
     if (c.kind === 'existing') return c.order; // idempotent: same order, same price, same invoice
@@ -212,7 +222,14 @@ async function notifyLoop(): Promise<void> {
 // ------------------------------------------------------------------ start
 
 await gw.tick(); // recover anything a crash left in SETTLING before taking new requests
-setInterval(() => void gw.tick(), 2000);
+// skip a beat while the previous pass is still running, so slow mint calls can't pile up ticks in gw.serial
+// (that backlog once blocked every other wallet call — invoice, token — for minutes)
+let ticking = false;
+setInterval(() => {
+  if (ticking) return;
+  ticking = true;
+  void gw.tick().finally(() => (ticking = false));
+}, 2000);
 setInterval(() => void notifyLoop(), 2000);
 
 http

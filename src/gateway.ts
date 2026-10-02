@@ -33,6 +33,11 @@ import {
 
 const sats = (proofs: Proof[]): number => sumProofs(proofs).toNumber();
 const LATE_PAYMENT_MS = 24 * 3600_000;
+// Be gentle with the mint: a public mint firewalls IPs that poll too hard (Minibits banned the demo VPS
+// after hours of 4 quotes × every 2s). Each open quote is checked at most this often:
+const POLL_PENDING_MS = 5_000; // customer is on the checkout page
+const POLL_LATE_MS = 60_000; // expired order, waiting for a late invoice payment
+const MINT_BACKOFF_MAX_MS = 60_000; // mint unreachable: pause all polling, doubling from 5s up to this
 const normUrl = (u: string): string => u.replace(/\/+$/, '');
 
 /** Fault injection for the crash demo: CRASH_AT=after-writeahead | after-mint */
@@ -74,6 +79,9 @@ export class Gateway {
   wallet: Wallet;
   mintUrl: string;
   private queue: Promise<unknown> = Promise.resolve();
+  private nextPoll = new Map<string, number>(); // order id → earliest next quote check
+  private mintDownUntil = 0;
+  private mintFailures = 0;
 
   private constructor(ledger: Ledger, wallet: Wallet, mintUrl: string) {
     this.ledger = ledger;
@@ -250,13 +258,31 @@ export class Gateway {
   /** One pass over all unfinished orders. Called by the watcher loop and at startup. */
   tick(): Promise<void> {
     return this.serial(async () => {
+      if (Date.now() < this.mintDownUntil) return; // mint unreachable: back off instead of hammering it
       for (const o of this.ledger.data.orders) {
+        const now = Date.now();
+        const late = o.state === 'EXPIRED' && now - o.expiresAt < LATE_PAYMENT_MS;
+        if (o.state !== 'SETTLING' && o.state !== 'PENDING' && !late) continue;
+        // SETTLING (crash recovery) runs every tick; quote polls are rate-limited per order
+        if (o.state !== 'SETTLING') {
+          if (now < (this.nextPoll.get(o.id) ?? 0)) continue;
+          this.nextPoll.set(o.id, now + (late ? POLL_LATE_MS : POLL_PENDING_MS));
+        }
         try {
           if (o.state === 'SETTLING') await this.recover(o);
-          else if (o.state === 'PENDING') await this.pollQuote(o);
-          else if (o.state === 'EXPIRED' && Date.now() - o.expiresAt < LATE_PAYMENT_MS) await this.pollQuote(o);
+          else await this.pollQuote(o);
+          this.mintFailures = 0;
         } catch (e) {
-          console.error(`tick ${o.id}:`, (e as Error).message);
+          const msg = (e as Error).message;
+          if (!/fetch failed|timed? ?out|ECONN|network/i.test(msg)) {
+            console.error(`tick ${o.id}:`, msg);
+            continue;
+          }
+          // network-level failure: the mint (or the path to it) is down — stop this pass and pause
+          const wait = Math.min(MINT_BACKOFF_MAX_MS, 5_000 * 2 ** this.mintFailures++);
+          this.mintDownUntil = Date.now() + wait;
+          console.error(`tick ${o.id}: ${msg} — mint unreachable, pausing polls for ${wait / 1000}s`);
+          return;
         }
       }
     });

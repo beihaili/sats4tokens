@@ -35,7 +35,9 @@ cat secrets/demo-accounts.txt
 K=$(grep ^ADMIN_KEY .env | cut -d= -f2)
 curl -s "127.0.0.1:8531/admin?key=$K"                       # orders + balance
 curl -s -XPOST "127.0.0.1:8531/admin/withdraw?key=$K"       # balance → data/$GATEWAY_DATA/withdrawals/withdraw-*.txt
-./switch-mint.sh mainnet [MINT_URL]  # real mint (default Minibits), own wallet dir, checkout opens on ⚡
+./switch-mint.sh mainnet [MINT_URL]  # real mint (default Minibits), checkout opens on ⚡
+                                     # wallet dir: data/gateway-mainnet (Minibits) or data/gateway-<host> (others)
+# live since 10/2 10:15: ./switch-mint.sh mainnet https://mint.coinos.io  (Minibits refuses connections from this VPS IP)
 ./switch-mint.sh testnut             # back to the test mint (its wallet dir is kept)
 ```
 
