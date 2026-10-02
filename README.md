@@ -9,7 +9,7 @@
 KYC, no card — and the key is capped at exactly what they paid. Every payment is credited **exactly
 once**, even if the gateway is killed mid-payment.
 
-Built at [bitcoin++ Berlin 2026](https://btcpp.dev) (payments edition) for a real shop: my AI API relay
+Built at [bitcoin++ Berlin 2026](https://btcpp.dev) (payments edition) for a real shop: our AI API relay
 (310 users, ~12 billion tokens a month), which runs [new-api](https://github.com/QuantumNous/new-api).
 
 **Live demo (mainnet, real sats):** <https://sats4tokens.bhbtc.xyz/>
@@ -68,7 +68,7 @@ Users who already have a relay account can also **top up** through the same chec
                 operator: one click → whole balance as one Cashu token
 ```
 
-- **The mint is my Lightning node.** For ⚡ the gateway asks the mint for an invoice; when it's paid
+- **The mint is our Lightning node.** For ⚡ the gateway asks the mint for an invoice; when it's paid
   the mint signs ecash for us. For 🥜 the customer pastes a token and we swap it for proofs of our own.
 - **Private.** The mint signs blinded messages; it can't link the payer to the shop.
 - **Price.** Fiat → BTC is locked when the order is created (CoinGecko → Coinbase → mempool.space
