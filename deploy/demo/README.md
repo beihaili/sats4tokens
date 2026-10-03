@@ -16,6 +16,7 @@ Production is only ever *read* (one `mysqldump --single-transaction` in `sync-ch
 |---|---|
 | public https | Cloudflare named tunnel `tunnel-named` (below): shop + checkout + `/v1` `https://sats4tokens.bhbtc.xyz` (`SHOP_URL`), new-api console `https://btc.bhbtc.xyz` (`CONSOLE_URL`). Fallback without a domain: `./https-tunnel.sh` (quick tunnels, compose profile `quick-tunnels`, random `*.trycloudflare.com` URLs) |
 | new-api demo | 127.0.0.1:8530 on the host (container `cashu-demo-newapi`) |
+| console nginx | container `cashu-demo-console`, no host port: console host → patched frontend + new-api (`patch-console.py`) |
 | Bitcoin gateway | 127.0.0.1:8531 on the host (container `cashu-demo-gateway`), operator page `/admin.html#key=$ADMIN_KEY` — open it only through the ssh tunnel (below) |
 | MySQL | `cashu-demo-mysql`, not published |
 | accounts | `secrets/demo-accounts.txt` (root admin + `demo` user) |
@@ -30,9 +31,17 @@ Money is **EUR**. Model prices are CNY like production's (1 unit = 500000 quota 
 €0.1333…: `Price=0.133333333333` (new-api charges `units × Price`, the gateway takes it in `FIAT=eur`; the key
 shop reads the same Price, so a €1 key holds 7.5 units) and the display is custom `€` with that rate
 (`general_setting.quota_display_type=CUSTOM`). Top-ups are whole units: presets 15/30/75/150/375/750 units =
-€2/4/10/20/50/100, minimum 15. `USDExchangeRate` = Price as well, so the wallet labels presets in € (2…100; the custom
-amount field still takes units) and Model Square's "Recharge" view equals "Standard". English UI: root/demo have `language: en`. Logo = `LOGO_URL` (production's logo
-option is a path on its own site, 404 here).
+€2/4/10/20/50/100, minimum 15. `USDExchangeRate` = Price as well, so the wallet labels presets in € (2…100) and Model
+Square's "Recharge" view equals "Standard". Logo = `LOGO_URL` (production's logo option is a path on its own site, 404 here).
+
+Patched console frontend (no new-api option exists for these): `./patch-console.py` rewrites two of the image's JS files
+into `console/` — the wallet's **custom amount is typed in €** (÷ rate → whole units; "Amount to pay" shows the exact
+price, e.g. €5 → 38 units = €5.07) and the **UI language is English** unless the visitor picks another one (upstream
+follows the browser, so zh browsers got Chinese). The `console` nginx (`console-nginx.conf`) sits between the tunnel and
+new-api for the console host, except `^/v1/` which goes straight to new-api; it serves the patched files under new names
+(`…-eur<sha>.js`, Cloudflare caches `/static/js/*` for 7 days) and swaps the index name in the HTML (`console/patch.conf`).
+If an anchor doesn't match (another image), the script empties `patch.conf` → original frontend, exit 1. **Re-run
+`./patch-console.py` after changing `NEW_API_IMAGE`.**
 
 `/rankings` counts both sites: `sync-usage.sh` (root cron, minute 7 hourly, log `journalctl -t cashu-sync-usage`)
 copies production's hourly token totals per model into the demo's `quota_data` as rows tagged
@@ -46,6 +55,7 @@ cd /opt/cashu-epay-demo
 ./sync-channels.sh                  # re-copy channels + pricing from production (restarts demo new-api only)
 ./sync-usage.sh                     # re-copy production usage totals for /rankings (cron does it hourly)
 ./export-upstreams.sh               # refresh public/upstreams.json for /network (anonymized; sync-channels.sh runs it too)
+./patch-console.py                  # re-patch the console frontend (after an image change); reloads the console nginx
 docker compose logs -f gateway      # watch ⚡ / 🥜 / 📨 events live during the demo
 docker compose ps
 cat secrets/demo-accounts.txt
@@ -86,7 +96,8 @@ Stable URL (named tunnel, outbound only, server IP stays out of DNS): `cloudflar
 `cloudflared tunnel create sats4tokens` + `cloudflared tunnel route dns sats4tokens sats4tokens.bhbtc.xyz` on the
 laptop, then on the server `secrets/cloudflared/credentials.json` (the tunnel's JSON) and `config.yml`
 (tunnel id, `credentials-file: /etc/cloudflared/credentials.json`, ingress: shop host `^/v1/` → `http://new-api:3000`,
-shop host rest → `http://gateway:8090`, console host → `http://new-api:3000`, catch-all `http_status:404`), both owned
+shop host rest → `http://gateway:8090`, console host `^/v1/` → `http://new-api:3000`, console host rest →
+`http://console:8080`, catch-all `http_status:404`), both owned
 by uid 65532 (cloudflared's user), mode 600. The console host was added with
 `cloudflared tunnel route dns sats4tokens btc.bhbtc.xyz` (an explicit record beats the zone's `*` → Vercel wildcard).
 `.env`: `COMPOSE_PROFILES=named-tunnel`, `KEY_BASE_URL=https://sats4tokens.bhbtc.xyz/v1` (endpoint shown with keys),

@@ -110,6 +110,18 @@ services:
       NODE_OPTIONS: "--network-family-autoselection-attempt-timeout=2000"
     networks: [demo]
 
+  # Console host in front of new-api: serves the patched frontend from patch-console.py (custom top-up in €,
+  # English unless the visitor picks another language). The named tunnel sends the console's /v1/ to new-api directly.
+  console:
+    image: nginx:1.29-alpine
+    container_name: cashu-demo-console
+    restart: unless-stopped
+    logging: *default-logging
+    volumes:
+      - ./console-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./console:/srv/console:ro # patch.conf + patched JS (patch-console.py); empty = original frontend
+    networks: [demo]
+
   # HTTPS without touching the production Caddy (its admin is off, a change means restarting it for
   # all relay users): Cloudflare tunnels, outbound only. Fallback without a domain: quick tunnels (opt in with
   # COMPOSE_PROFILES=quick-tunnels), a random *.trycloudflare.com URL per start; https-tunnel.sh reads them and
@@ -132,7 +144,8 @@ services:
   # stays out of DNS). Opt in with COMPOSE_PROFILES=named-tunnel in .env. Needs, server-only:
   #   secrets/cloudflared/credentials.json  from `cloudflared tunnel create <name>` (owned by uid 65532)
   #   secrets/cloudflared/config.yml        tunnel id + ingress: shop domain ^/v1/ → http://new-api:3000,
-  #                                         rest → http://gateway:8090; console domain → http://new-api:3000
+  #                                         rest → http://gateway:8090; console domain ^/v1/ →
+  #                                         http://new-api:3000, rest → http://console:8080
   # new-api's ServerAddress/PayAddress = CONSOLE_URL/SHOP_URL from .env (sync-channels.sh).
   tunnel-named:
     image: cloudflare/cloudflared:2026.9.3

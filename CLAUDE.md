@@ -128,6 +128,10 @@ Sign-up: `RegisterEnabled`/`PasswordRegisterEnabled` follow Turnstile — `sync-
 `TurnstileCheckEnabled`) only when `.env` has `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` (widget for `btc.bhbtc.xyz`,
 made in the Cloudflare dashboard: the cloudflared cert token has no Turnstile permission). New users get 0 quota and
 top up with Bitcoin. User `demo` (id 2) is disabled since 2026-10-04 (login and its key → "banned").
+Console frontend is patched (2026-10-04, `deploy/demo/patch-console.py` + `console` nginx, see `deploy/demo/README.md`):
+wallet custom amount in € (→ whole units), English unless the visitor picks a language. Re-run it after an image change.
+Login/registration need Turnstile, so CDP-driven Chrome can't sign in (fails even headful); to check logged-in pages, inject
+a user's access token into `/api/*` via CDP `Fetch` and fulfil `POST /api/user/auth/refresh` with a stand-in session bundle.
 
 `api-relay:/opt/cashu-epay-demo` — new-api demo on :8530, gateway on :8531, channels copied
 read-only from production. Verified end to end 2026-10-01: cashu token and lightning top-ups credited
@@ -153,18 +157,19 @@ Plan/pitch/video: `../dev-plan.md`, `../pitch.md`, `../recording-script.md`.
 - Public access is **https only**, through the Cloudflare **named** tunnel `sats4tokens` (service `tunnel-named`,
   compose profile `named-tunnel`; config + credentials server-only in `secrets/cloudflared/`, owned by uid 65532, mode
   600): `https://sats4tokens.bhbtc.xyz` (shop/checkout/top-up `/submit.php`; `^/v1/` → new-api, rest → gateway) and,
-  since 2026-10-03, `https://btc.bhbtc.xyz` (new-api console → new-api). new-api `ServerAddress`/`PayAddress` =
+  since 2026-10-03, `https://btc.bhbtc.xyz` (new-api console: `^/v1/` → new-api, rest → `console` nginx → new-api). new-api `ServerAddress`/`PayAddress` =
   `CONSOLE_URL`/`SHOP_URL` from the server `.env`, written by `sync-channels.sh`. The zone has a `*.bhbtc.xyz` →
   Vercel wildcard; explicit records (`cloudflared tunnel route dns …`) override it per name. The quick tunnels
   (`tunnel-shop`/`tunnel-pay`, random `*.trycloudflare.com`) are retired: compose profile `quick-tunnels`, only for
   `./https-tunnel.sh` as a no-domain fallback. Host ports 8530/8531 are bound to 127.0.0.1 (ssh -L only). The tunnel
   credentials (`~/.cloudflared/*.json`, `cert.pem` on the laptop) are secrets: never print or commit.
   The production Caddy is not involved (admin off → any change restarts it for all relay users).
-- Demo new-api shows English (root/demo have `language: en` in their user setting) and **EUR** (since 2026-10-03):
+- Demo new-api shows English (patched default + root/demo have `language: en`) and **EUR** (since 2026-10-03):
   model prices are CNY (1 unit = ¥1, like production), €1 = ¥7.5 → `Price=0.133333333333` (€ per unit), display
   `quota_display_type=CUSTOM` symbol `€` rate 0.133333333333, gateway `FIAT=eur`. Until then it was USD with Price=1,
   i.e. $1 per ¥1 of quota (~6.7× too expensive). new-api top-ups are whole units (decimals → 参数错误): presets
-  `payment_setting.amount_options=[15,30,75,150,375,750]` (= €2…€100), `MinTopUp=15`. `USDExchangeRate` = Price too: the
+  `payment_setting.amount_options=[15,30,75,150,375,750]` (= €2…€100), `MinTopUp=15` (the patched wallet takes € in the
+  custom field). Redemption codes are in quota: €1 = 7.5 units = 3,750,000. `USDExchangeRate` = Price too: the
   wallet labels presets `units × USDExchangeRate` (→ 2…100) and Model Square's "Recharge" prices divide by it (backend
   uses it only for CNY display). All of it, plus the logo
   (`LOGO_URL` = production's PNG by absolute URL; production's `Logo` is a relative path, 404 on the demo), is
