@@ -1,5 +1,8 @@
 # cashu-epay demo stack (api-relay server)
 
+**Since 2026-10-04 this is the official BHBTC EU relay** ("BHBTC Relay · Europe", prices in EUR), no longer a demo; the
+file/container names below keep "demo" only because renaming them would mean recreating the stack.
+
 A private copy of the BHBTC relay for the bitcoin++ Berlin demo: same new-api image, same 51
 channels / 348 abilities / pricing as production, but its own users only, and the only payment
 method is Bitcoin via the cashu-epay gateway.

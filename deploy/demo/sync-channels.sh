@@ -64,8 +64,9 @@ q() { printf "REPLACE INTO options (\`key\`, value) VALUES ('%s', '%s');\n" "$1"
   q payment_setting.compliance_confirmed_by 1
   q RegisterEnabled false
   q PasswordRegisterEnabled false
-  q SystemName "BHBTC Relay · Bitcoin demo"
-  q Notice "🧪 bitcoin++ Berlin demo instance. Top up with Bitcoin — Lightning or Cashu ecash. No account details, no KYC."
+  # since 2026-10-04 this is the official BHBTC EU relay: no "demo" wording in anything users see
+  q SystemName "BHBTC Relay · Europe"
+  q Notice "🇪🇺 BHBTC Relay Europe. Prices in EUR. Top up with Bitcoin — Lightning or Cashu ecash. No account details, no KYC."
 } > seed/demo-options.sql
 
 docker stop cashu-demo-newapi >/dev/null

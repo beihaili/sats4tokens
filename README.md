@@ -12,7 +12,7 @@ once**, even if the gateway is killed mid-payment.
 Built at [bitcoin++ Berlin 2026](https://btcpp.dev) (payments edition) for a real shop: our AI API relay
 (310 users, ~12 billion tokens a month), which runs [new-api](https://github.com/QuantumNous/new-api).
 
-**Live demo (mainnet, real sats):** <https://sats4tokens.bhbtc.xyz/>
+**Live (mainnet, real sats):** key shop <https://sats4tokens.bhbtc.xyz/> · console of our EU relay <https://btc.bhbtc.xyz/>
 
 **Slides:** [docs/slides.pdf](docs/slides.pdf)
 
@@ -130,7 +130,7 @@ EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance  # or: withd
 |---|---|
 | `NEWAPI_URL`, `NEWAPI_USER_ID`, `NEWAPI_TOKEN`, `KEY_BASE_URL` | turn on the key shop: new-api URL, pool user id + its personal access token, endpoint shown with the key (default new-api's ServerAddress + `/v1`). Key prices use new-api's top-up `Price`, which must be in `FIAT` |
 | `MINT_URL` | Cashu mint (default `https://testnut.cashu.space`) |
-| `FIAT`, `BTC_PRICE` | order currency (default `cny`; our demo uses `eur`); fixed price for offline demos |
+| `FIAT`, `BTC_PRICE` | order currency (default `cny`; our EU relay uses `eur`); fixed price for offline tests |
 | `ADMIN_KEY` | operator page key |
 | `EPAY_KEY` (required), `EPAY_PID` | signing key / merchant id shared with new-api for top-ups (see below). Keep `ADMIN_KEY` different: this one can sign "paid" callbacks |
 | `DATA_DIR`, `ORDER_TTL_MIN`, `CHECKOUT_TAB=ln\|cashu`, `WITHDRAW_TOKEN_OVER_HTTP=1` | storage, order lifetime, default tab, show withdrawn token on the page (https only) |
@@ -164,7 +164,7 @@ src/ledger.ts    orders, durable JSON ledger, pure decision logic (no network)
 src/epay.ts      MD5 sign / verify for the top-up form and callback
 src/price.ts     fiat → BTC with fallbacks
 web/             key shop, mobile checkout page, operator page
-deploy/demo/     the live demo stack (a private copy of the relay, isolated from production)
+deploy/demo/     our live EU relay stack (own new-api + gateway, channels copied from the main relay)
 docs/            user guide, self-hosting, HTTP API, internals; slides (PDF) and screenshots (mock orders)
 ```
 

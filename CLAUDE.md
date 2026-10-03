@@ -121,6 +121,10 @@ PayMethods `[{"name":"Bitcoin","color":"#f7931a","type":"bitcoin"}]`, payment co
 
 ## Demo deployment (live)
 
+**Since 2026-10-04 this stack is the official BHBTC EU relay** ("BHBTC Relay · Europe", EUR): no "demo" wording in
+anything users see (site name/notice in `sync-channels.sh`, README). Internal names (`/opt/cashu-epay-demo`,
+`cashu-demo-*` containers, `deploy/demo/`, user `demo`) keep the old name on purpose. Treat it as production: real users.
+
 `api-relay:/opt/cashu-epay-demo` — new-api demo on :8530, gateway on :8531, channels copied
 read-only from production. Verified end to end 2026-10-01: cashu token and lightning top-ups credited
 in new-api (`topup` status success), a real model call works through the copied channels.
