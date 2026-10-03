@@ -1,6 +1,15 @@
 // Models & prices table (key shop): GET /api/models, grouped by vendor. Used by the buy page and the key page.
 // The buy page also gets a calculator: tick models, pick an amount, see how many tokens that key buys.
-const fmt = (x) => (x === undefined ? '—' : '$' + Number(x.toFixed(x < 1 ? 3 : 2)));
+// Prices come in the gateway's FIAT (from /api/shop), shown with its symbol.
+const SYMBOLS = { usd: '$', eur: '€', cny: '¥', gbp: '£' };
+/** `money(2, 'eur')` → "€2"; `digits` = decimals kept (trailing zeros dropped). */
+export const money = (x, fiat, digits = 2) => {
+  const n = String(Number(x.toFixed(digits)));
+  const s = SYMBOLS[fiat];
+  return s ? s + n : `${n} ${fiat.toUpperCase()}`;
+};
+let FIAT = 'usd';
+const fmt = (x) => (x === undefined ? '—' : money(x, FIAT, x < 1 ? 3 : 2));
 const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumSignificantDigits: 3 });
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 
@@ -15,11 +24,14 @@ const CHAT_OUT = 500;
  * calculator above the table shows, for every ticked model, what one key of the chosen amount buys.
  */
 export async function renderModels(box, { calc } = {}) {
-  const r = await fetch('/api/models');
+  const [r, shop] = await Promise.all([fetch('/api/models'), fetch('/api/shop').then((x) => x.json())]);
   if (!r.ok) {
     box.closest('section').hidden = true;
     return;
   }
+  FIAT = shop.fiat;
+  // the section's hint says "<span class="unit"></span> per 1M tokens"
+  for (const u of box.closest('section').querySelectorAll('.unit')) u.textContent = FIAT.toUpperCase();
   const list = await r.json();
   const picked = new Set(DEFAULT_PICKS.filter((n) => list.some((m) => m.model === n)));
   let amount = Number(calc?.amounts?.[0] ?? 1);
@@ -86,7 +98,7 @@ export async function renderModels(box, { calc } = {}) {
 function drawCalc(box, list, picked, amount, amounts, setAmount) {
   const tabs = el('div', { className: 'tabs' });
   for (const a of amounts) {
-    const b = el('button', { textContent: `$${a}`, className: Number(a) === amount ? 'on' : '' });
+    const b = el('button', { textContent: money(Number(a), FIAT), className: Number(a) === amount ? 'on' : '' });
     b.onclick = () => setAmount(Number(a));
     tabs.append(b);
   }
@@ -106,7 +118,7 @@ function drawCalc(box, list, picked, amount, amounts, setAmount) {
       if (m.perCall !== undefined) {
         tr.append(el('td', { colSpan: 3, textContent: `${Math.floor(amount / m.perCall)} images` }));
       } else {
-        // prices are $ per 1M tokens, so $amount buys amount / price million tokens
+        // prices are FIAT per 1M tokens, so `amount` buys amount / price million tokens
         const chat = (CHAT_IN * m.input + CHAT_OUT * m.output) / 1e6;
         for (const s of [compact.format((amount / m.input) * 1e6), compact.format((amount / m.output) * 1e6), compact.format(Math.floor(amount / chat))]) {
           tr.append(el('td', { textContent: s }));
@@ -120,7 +132,7 @@ function drawCalc(box, list, picked, amount, amounts, setAmount) {
   const head = el('p', { className: 'calc-head', textContent: 'What one key buys:' });
   const note = el('p', {
     className: 'hint',
-    textContent: `Tokens if the whole $${amount} goes to input, or to output. *Chat call = ${CHAT_IN / 1000}K tokens in + ${CHAT_OUT} out. Cached input is cheaper, so real use usually stretches further.`,
+    textContent: `Tokens if the whole ${money(amount, FIAT)} goes to input, or to output. *Chat call = ${CHAT_IN / 1000}K tokens in + ${CHAT_OUT} out. Cached input is cheaper, so real use usually stretches further.`,
   });
   box.replaceChildren(head, tabs, out, note);
 }

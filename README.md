@@ -45,10 +45,10 @@ endpoint**, capped at exactly what you paid. No signup, no email, no password �
   crash between "created" and "saved" finds the same key instead of making a second one.
 - The order id is 128 random bits and is the receipt: whoever has the `/pay/…` link can see the key —
   and its usage: balance left and the latest calls (time, model, tokens, cost), straight from new-api.
-- Both pages list every model the key can call with its price (USD per 1M tokens, from new-api's pricing).
+- Both pages list every model the key can call with its price (per 1M tokens in the shop's currency, from new-api's pricing).
 - **Claude Code works too**: the key page has a copy-paste command that points Claude Code at the relay
   (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`). It caps the output tokens because new-api reserves quota for
-  `max_tokens` up front, and Claude Code's default would need more than a $1 key holds.
+  `max_tokens` up front, and Claude Code's default would need more than a small key holds.
 
 Users who already have a relay account can also **top up** through the same checkout (see *Top-ups* below).
 
@@ -56,7 +56,7 @@ Users who already have a relay account can also **top up** through the same chec
 
 ```
  customer                       gateway                                   Cashu mint
-    │  buy a $1 key  ──────►  order, BTC price locked
+    │  buy a €1 key  ──────►  order, BTC price locked
     │ ◄───────────────────── /pay/:id checkout page
     │                            │
     │  ⚡ pay invoice ───────────┼──── mint quote (bolt11) ─────────────►  receives the sats
@@ -128,9 +128,9 @@ EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance  # or: withd
 
 | env | meaning |
 |---|---|
-| `NEWAPI_URL`, `NEWAPI_USER_ID`, `NEWAPI_TOKEN`, `KEY_BASE_URL` | turn on the key shop: new-api URL, pool user id + its personal access token, endpoint shown with the key (default new-api's ServerAddress + `/v1`). Needs `FIAT=usd` |
+| `NEWAPI_URL`, `NEWAPI_USER_ID`, `NEWAPI_TOKEN`, `KEY_BASE_URL` | turn on the key shop: new-api URL, pool user id + its personal access token, endpoint shown with the key (default new-api's ServerAddress + `/v1`). Key prices use new-api's top-up `Price`, which must be in `FIAT` |
 | `MINT_URL` | Cashu mint (default `https://testnut.cashu.space`) |
-| `FIAT`, `BTC_PRICE` | order currency (default `cny`; `usd` for the key shop); fixed price for offline demos |
+| `FIAT`, `BTC_PRICE` | order currency (default `cny`; our demo uses `eur`); fixed price for offline demos |
 | `ADMIN_KEY` | operator page key |
 | `EPAY_KEY` (required), `EPAY_PID` | signing key / merchant id shared with new-api for top-ups (see below). Keep `ADMIN_KEY` different: this one can sign "paid" callbacks |
 | `DATA_DIR`, `ORDER_TTL_MIN`, `CHECKOUT_TAB=ln\|cashu`, `WITHDRAW_TOKEN_OVER_HTTP=1` | storage, order lifetime, default tab, show withdrawn token on the page (https only) |

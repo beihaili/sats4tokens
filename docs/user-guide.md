@@ -8,10 +8,10 @@ on their own domain; replace the URL below with theirs.
 
 ## 1. Pick an amount
 
-Open the shop and choose **$1, $2, $5 or $10**. The price in sats is fixed the moment you click
+Open the shop and choose **1, 2, 5 or 10** in the shop's currency (e.g. €1–€10). The price in sats is fixed the moment you click
 (spot price, rounded up) and the order is valid for **30 minutes**.
 
-The bottom of the page lists every model the key can call, with its price in USD per 1M input /
+The bottom of the page lists every model the key can call, with its price per 1M input /
 output tokens. Tick a few models to see roughly how many tokens or chat calls each amount buys.
 
 You land on the checkout page, `/pay/CK…`.
@@ -82,8 +82,8 @@ CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 cl
 ```
 
 Note the base URL has **no `/v1`** here. Keep `CLAUDE_CODE_MAX_OUTPUT_TOKENS`: the relay reserves
-quota for the maximum output up front, and Claude Code's default asks for more than a $1 key holds
-(you would get `403` / insufficient quota). One Claude Code turn costs roughly $0.10.
+quota for the maximum output up front, and Claude Code's default can ask for more than a small key holds
+(you would get `403` / insufficient quota). One Claude Code turn costs a few cents at most.
 
 ## 4. Check what's left
 

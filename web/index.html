@@ -24,12 +24,12 @@
     </section>
     <section class="card">
       <h2>Models &amp; prices</h2>
-      <p class="hint">USD per 1M tokens. One key works for every model below — tick models to see what a key buys. <span class="badge anthropic">Claude Code</span> = also speaks the Anthropic API. "fast ×2": service_tier fast/priority costs double.</p>
+      <p class="hint"><span class="unit"></span> per 1M tokens. One key works for every model below — tick models to see what a key buys. <span class="badge anthropic">Claude Code</span> = also speaks the Anthropic API. "fast ×2": service_tier fast/priority costs double.</p>
       <div id="models"><p class="hint">Loading…</p></div>
     </section>
   </main>
   <script type="module">
-    import { renderModels } from '/models.js?v=4';
+    import { renderModels, money } from '/models.js?v=5';
     const $ = (s) => document.querySelector(s);
     const shop = await (await fetch('/api/shop')).json();
     renderModels($('#models'), { calc: { amounts: shop.amounts } }); // + calculator: amount × ticked models → tokens
@@ -40,7 +40,7 @@
     for (const a of shop.amounts) {
       const b = document.createElement('button');
       b.className = 'primary';
-      b.textContent = `Buy a $${a} key`;
+      b.textContent = `Buy a ${money(Number(a), shop.fiat)} key`;
       b.disabled = !shop.enabled;
       b.onclick = async () => {
         b.disabled = true;

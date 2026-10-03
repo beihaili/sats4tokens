@@ -1,5 +1,5 @@
 // Checkout page: polls /api/order/:id, shows the lightning invoice or takes a pasted cashu token.
-import { renderModels } from '/models.js?v=4';
+import { renderModels, money } from '/models.js?v=5';
 const id = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -27,7 +27,7 @@ function render(o) {
       $('#key').hidden = false;
       startUsage();
       // Claude Code speaks the Anthropic API: root URL (it adds /v1/messages). new-api reserves quota for
-      // max_tokens up front, so cap the output or a $1 key is refused before the first call.
+      // max_tokens up front, so cap the output or a small key is refused before the first call.
       const root = o.apiKey.baseUrl.replace(/\/v1$/, '');
       $('#claude').value = `ANTHROPIC_BASE_URL=${root} \\\n  ANTHROPIC_AUTH_TOKEN=${o.apiKey.key} \\\n  ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6 \\\n  CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\\n  claude`;
       $('#prices').hidden = false;
@@ -107,7 +107,7 @@ $('#copyenv').addEventListener('click', () => copyBox($('#env')));
 $('#copyclaude').addEventListener('click', () => copyBox($('#claude')));
 
 // key shop: what the key has spent (balance + latest calls), refreshed every 10s while the key is shown
-const usd = (x) => '$' + Number(x.toFixed(6)); // $0.997648, $0.002352, $0 — small calls stay visible
+const cash = (x, fiat) => money(x, fiat, 6); // €0.997648, €0.002352, €0 — small calls stay visible
 let usageTimer;
 async function loadUsage() {
   const r = await fetch(`/api/order/${id}/usage`);
@@ -116,13 +116,13 @@ async function loadUsage() {
     $('#balance').textContent = `(${u.error})`;
     return;
   }
-  $('#balance').textContent = `${usd(u.remainingUsd)} left · ${usd(u.usedUsd)} used · ${u.totalCalls} call${u.totalCalls === 1 ? '' : 's'}`;
+  $('#balance').textContent = `${cash(u.remaining, u.fiat)} left · ${cash(u.used, u.fiat)} used · ${u.totalCalls} call${u.totalCalls === 1 ? '' : 's'}`;
   $('#nocalls').hidden = u.calls.length > 0;
   $('#calls').hidden = u.calls.length === 0;
   $('#calls tbody').replaceChildren(
     ...u.calls.map((c) => {
       const tr = document.createElement('tr');
-      const cells = [new Date(c.time * 1000).toLocaleTimeString(), c.model, `${c.promptTokens} / ${c.completionTokens}`, usd(c.costUsd)];
+      const cells = [new Date(c.time * 1000).toLocaleTimeString(), c.model, `${c.promptTokens} / ${c.completionTokens}`, cash(c.cost, u.fiat)];
       for (const v of cells) tr.append(Object.assign(document.createElement('td'), { textContent: v }));
       return tr;
     }),
@@ -178,7 +178,7 @@ $('#token').addEventListener('input', () => {
 });
 
 // ---- camera QR scan (cashu tab). BarcodeDetector where the browser has it (Chrome on Android/macOS), else the
-// vendored jsQR (Safari, Firefox). Wallets show tokens with >2 proofs (any $1 key) as an animated NUT-16 QR
+// vendored jsQR (Safari, Firefox). Wallets show tokens with >2 proofs (any 1 € or $ key) as an animated NUT-16 QR
 // (ur:bytes/… fountain-coded frames, cashu.me: 150 bytes per frame, a new frame every 150ms); those frames go to
 // the vendored bc-ur decoder until the token is complete. Both vendor scripts load on first use. Needs https.
 const TOKEN_RE = /cashu[AB][A-Za-z0-9_\-+/=]{40,}/; // also finds it inside "cashu:…" or a wallet link

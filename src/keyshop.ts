@@ -1,6 +1,8 @@
 // Key shop: pay in bitcoin, get an AI API key. No signup, no login, no email — the key is the account.
 //
-// A paid key order becomes a new-api token whose own quota is exactly what was paid ($1 → $1 of quota).
+// A paid key order becomes a new-api token whose own quota is exactly what was paid (€1 → €1 of quota).
+// new-api counts quota in "units" (QuotaPerUnit quota each) and sells a unit for `Price` in the payment currency
+// (the gateway's FIAT); the key shop uses that same Price, so a key costs what a console top-up of it would.
 // All keys belong to one pool user in new-api; the gateway holds only that user's personal access token,
 // so the worst it can do is make keys for that pool (whose total quota the operator sets).
 //
@@ -19,20 +21,21 @@ export interface ApiKey {
   tokenId: number;
 }
 
+// Money amounts are in the payment currency (the gateway's FIAT), converted with new-api's Price.
 export interface KeyUsage {
-  usedUsd: number;
-  remainingUsd: number;
-  calls: Array<{ time: number; model: string; promptTokens: number; completionTokens: number; costUsd: number; seconds: number }>;
+  used: number;
+  remaining: number;
+  calls: Array<{ time: number; model: string; promptTokens: number; completionTokens: number; cost: number; seconds: number }>;
   totalCalls: number;
 }
 
 export interface ModelPrice {
   model: string;
   vendor: string;
-  input?: number; // $ per 1M input tokens
-  output?: number; // $ per 1M output tokens
-  cacheRead?: number; // $ per 1M cached input tokens
-  perCall?: number; // $ per call (image models)
+  input?: number; // fiat per 1M input tokens
+  output?: number; // fiat per 1M output tokens
+  cacheRead?: number; // fiat per 1M cached input tokens
+  perCall?: number; // fiat per call (image models)
   fastTier: boolean; // service_tier fast/priority costs more
   endpoints: string[]; // 'openai' | 'anthropic'
 }
@@ -70,10 +73,13 @@ export class KeyShop {
     return j.data;
   }
 
-  /** new-api's public settings: quota units per $1 and its public address. */
-  private async status(): Promise<{ quotaPerUnit: number; serverAddress: string }> {
+  /** new-api's public settings: quota per unit, price of a unit (in FIAT, new-api's Price) and its public address. */
+  private async status(): Promise<{ quotaPerUnit: number; price: number; serverAddress: string }> {
     const d = await this.api('GET', '/api/status');
-    return { quotaPerUnit: Number(d.quota_per_unit), serverAddress: String(d.server_address ?? '') };
+    const quotaPerUnit = Number(d.quota_per_unit);
+    const price = Number(d.price);
+    if (!(quotaPerUnit > 0 && price > 0)) throw new Error(`new-api status: bad quota_per_unit/price (${d.quota_per_unit}/${d.price})`);
+    return { quotaPerUnit, price, serverAddress: String(d.server_address ?? '') };
   }
 
   private async findToken(name: string): Promise<number | undefined> {
@@ -83,9 +89,10 @@ export class KeyShop {
   }
 
   /**
-   * Models a sold key can call, with prices in USD per 1M tokens (per call for image models). new-api's
+   * Models a sold key can call, with prices in FIAT per 1M tokens (per call for image models). new-api's
    * public /api/pricing gives a billing expression like `tier("base", p * 3.9 + c * 19.5 + cr * 0.39 + …)`
-   * whose coefficients are $/1M tokens; we read the base tier (fast/priority tiers cost more, noted on the page).
+   * whose coefficients are units per 1M tokens; we read the base tier (fast/priority tiers cost more, noted on
+   * the page) and convert units with new-api's Price.
    */
   async models(): Promise<ModelPrice[]> {
     const now = Date.now();
@@ -94,7 +101,8 @@ export class KeyShop {
     const j = (await r.json()) as { data: any[]; vendors?: Array<{ id: number; name: string }>; group_ratio?: Record<string, number> };
     const self = await this.api('GET', '/api/user/self');
     const group = String(self?.group || 'default');
-    const ratio = Number(j.group_ratio?.[group] ?? 1);
+    const { price } = await this.status();
+    const ratio = Number(j.group_ratio?.[group] ?? 1) * price; // units → fiat, with the pool group's ratio
     const vendors = new Map((j.vendors ?? []).map((v) => [v.id, VENDOR_NAMES[v.name] ?? v.name]));
     const coef = (expr: string, v: string) => {
       const m = expr.match(new RegExp(`\\b${v} \\* ([0-9.]+)`));
@@ -123,24 +131,24 @@ export class KeyShop {
   }
   private modelsCache?: { at: number; list: ModelPrice[] };
 
-  /** What a sold key has spent: balance in USD + its latest calls (only fields safe to show the key holder). */
+  /** What a sold key has spent: balance in FIAT + its latest calls (only fields safe to show the key holder). */
   async usage(o: Order): Promise<KeyUsage> {
     const id = o.apiKey!.tokenId;
-    const { quotaPerUnit } = await this.status();
-    const usd = (q: number) => Number(q) / quotaPerUnit;
+    const { quotaPerUnit, price } = await this.status();
+    const money = (q: number) => (Number(q) / quotaPerUnit) * price;
     const t = await this.api('GET', `/api/token/${id}`);
     // type=2: consume logs. new-api filters by token name; we re-check the id in case two names ever collide
     const d = await this.api('GET', `/api/log/self?p=1&page_size=20&type=2&token_name=${encodeURIComponent(`btc-${o.id}`)}`);
     const items: any[] = (Array.isArray(d) ? d : (d?.items ?? [])).filter((l: any) => l.token_id === id);
     return {
-      usedUsd: usd(t.used_quota),
-      remainingUsd: usd(t.remain_quota),
+      used: money(t.used_quota),
+      remaining: money(t.remain_quota),
       calls: items.map((l) => ({
         time: Number(l.created_at),
         model: String(l.model_name),
         promptTokens: Number(l.prompt_tokens),
         completionTokens: Number(l.completion_tokens),
-        costUsd: usd(l.quota),
+        cost: money(l.quota),
         seconds: Number(l.use_time),
       })),
       totalCalls: Number(d?.total ?? items.length),
@@ -162,15 +170,15 @@ export class KeyShop {
     }));
   }
 
-  /** Create (or find again) the key for a paid order. `money` is USD — new-api's quota is priced in USD. */
+  /** Create (or find again) the key for a paid order. `money` is in FIAT; it buys money / Price units. */
   async createKey(o: Order): Promise<ApiKey> {
     const name = `btc-${o.id}`;
-    const { quotaPerUnit, serverAddress } = await this.status();
+    const { quotaPerUnit, price, serverAddress } = await this.status();
     let id = await this.findToken(name);
     if (id === undefined) {
       await this.api('POST', '/api/token/', {
         name,
-        remain_quota: Math.round(Number(o.money) * quotaPerUnit),
+        remain_quota: Math.round((Number(o.money) / price) * quotaPerUnit),
         unlimited_quota: false,
         expired_time: -1,
       });

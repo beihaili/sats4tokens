@@ -111,6 +111,13 @@ export function checkSubmit(data: LedgerData, p: Params, pid: string): SubmitChe
 }
 
 /** Fiat → sats, rounded up so the merchant is never short. */
+/** "€2", "$1", "¥5" — money with its currency symbol (or "2 CHF" for currencies without one here). */
+const SYMBOLS: Record<string, string> = { usd: '$', eur: '€', cny: '¥', gbp: '£' };
+export function moneyLabel(money: string, fiat: string): string {
+  const s = SYMBOLS[fiat.toLowerCase()];
+  return s ? s + money : `${money} ${fiat.toUpperCase()}`;
+}
+
 export function satsFor(money: string, btcPrice: number): number {
   // toFixed: 1/100000*1e8 is 1000.0000000000001 in floating point, which must not round up to 1001
   return Math.max(1, Math.ceil(Number(((Number(money) / btcPrice) * 1e8).toFixed(6))));
@@ -151,7 +158,7 @@ export function makeKeyOrder(money: string, o: { fiat: string; btcPrice: number;
     outTradeNo: id,
     pid: '',
     type: 'bitcoin',
-    name: `AI API key · $${money}`,
+    name: `AI API key · ${moneyLabel(money, o.fiat)}`,
     money,
     notifyUrl: '',
     returnUrl: '',

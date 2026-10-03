@@ -12,10 +12,11 @@ read the order and its key. Treat `/pay/<id>` and `/api/order/<id>` URLs as secr
 ### `GET /api/shop`
 
 ```json
-{ "enabled": true, "amounts": ["1", "2", "5", "10"], "fiat": "usd" }
+{ "enabled": true, "amounts": ["1", "2", "5", "10"], "fiat": "eur" }
 ```
 
 `enabled` is false when the key shop isn't configured (then `/api/buy` and `/api/models` return 404).
+`amounts` are in `fiat`, the gateway's `FIAT`; all key shop money below is in that currency.
 
 ### `POST /api/buy`
 
@@ -43,7 +44,7 @@ Models a sold key can call, with prices for the pool user's group (cached 5 minu
 ]
 ```
 
-`input` / `output` / `cacheRead` are USD per 1M tokens; `perCall` is USD per call (models billed per request);
+`input` / `output` / `cacheRead` are `fiat` per 1M tokens; `perCall` is `fiat` per call (models billed per request);
 `fastTier` means a faster service tier is available at a higher price; `endpoints` lists the API styles
 (`openai`, `anthropic`). (Values above are illustrative.)
 
@@ -58,9 +59,9 @@ order's invoice is checked first.
 {
   "id": "CK3F9A…",
   "kind": "key",
-  "name": "AI API key · $1",
+  "name": "AI API key · €1",
   "money": "1",
-  "fiat": "usd",
+  "fiat": "eur",
   "sats": 1161,
   "btcPrice": 86134.5,
   "state": "PAID",
@@ -124,17 +125,18 @@ IPs or channels.
 
 ```json
 {
-  "usedUsd": 0.0123,
-  "remainingUsd": 0.9877,
+  "used": 0.0123,
+  "remaining": 0.9877,
+  "fiat": "eur",
   "totalCalls": 3,
   "calls": [
     { "time": 1790928700, "model": "deepseek-v4-flash", "promptTokens": 812, "completionTokens": 240,
-      "costUsd": 0.0041, "seconds": 2 }
+      "cost": 0.0041, "seconds": 2 }
   ]
 }
 ```
 
-`time` is in Unix seconds (new-api's log time). 404 `no key yet` before the key exists; 502 if new-api is unreachable.
+`used` / `remaining` / `cost` are in `fiat`. `time` is in Unix seconds (new-api's log time). 404 `no key yet` before the key exists; 502 if new-api is unreachable.
 
 ## Pages
 

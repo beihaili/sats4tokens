@@ -47,7 +47,7 @@ customer ──► reverse proxy ──┬── /v1/*  ──► new-api :3000 
 | `NEWAPI_USER_ID` | key shop | pool user's id |
 | `NEWAPI_TOKEN` | key shop | pool user's system access token |
 | `KEY_BASE_URL` | | endpoint shown with each key, e.g. `https://shop.example.com/v1` (default: new-api's server address + `/v1`) |
-| `FIAT` | key shop | must be `usd` (new-api quota is priced in USD); default `cny` |
+| `FIAT` | key shop | order currency, e.g. `eur`; must be the currency of new-api's top-up price `Price` (below); default `cny` |
 | `MINT_URL` | yes | the mint; default `https://testnut.cashu.space` (test mint, fake sats) |
 | `EPAY_KEY` | yes | signing key for top-ups (below). Set a long random string even if you don't use top-ups |
 | `EPAY_PID` | | merchant id for top-ups, default `1001` |
@@ -77,7 +77,7 @@ services:
       - ./data/gateway-mint-example-com:/data   # one directory per mint (see below)
     environment:
       MINT_URL: https://mint.example.com
-      FIAT: usd
+      FIAT: eur
       CHECKOUT_TAB: ln
       EPAY_KEY: ${EPAY_KEY}
       ADMIN_KEY: ${ADMIN_KEY}
@@ -172,8 +172,11 @@ a Bitcoin button on new-api's top-up page. In new-api → payment settings:
 - the callback address must reach new-api from the gateway (e.g. `http://new-api:3000` on the same network)
 
 new-api redirects the customer to the gateway's `/submit.php` with a signed form; the customer pays on the same
-checkout page; the gateway then calls new-api's signed callback until new-api confirms. With `FIAT=usd` and
-new-api's top-up price `1`, a $1 top-up costs $1 in sats. new-api only accepts whole-dollar top-ups.
+checkout page; the gateway then calls new-api's signed callback until new-api confirms. new-api charges
+`units × Price` for a top-up and only accepts whole units, so set `Price` in the gateway's `FIAT`: e.g. with
+model prices in CNY (1 unit = ¥1) and `FIAT=eur`, `Price` = 0.1333 (€1 = ¥7.5). The key shop uses the same
+`Price` (a €1 key holds 7.5 units), so a key costs what the same top-up would. To show prices in that currency
+in new-api too, set its display to custom with the symbol and the same rate.
 
 ## Operating
 

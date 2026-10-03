@@ -2,9 +2,9 @@
 //
 //   GET|POST /submit.php             new-api redirects the customer here (signed EPay params)
 //   GET      /                       key shop: buy an AI API key with bitcoin, no account (web/index.html)
-//   GET      /api/shop               key shop settings {enabled, amounts}
+//   GET      /api/shop               key shop settings {enabled, amounts, fiat}
 //   POST     /api/buy                {money} → new key order {id}; once paid, its page shows the key
-//   GET      /api/models             key shop: models a key can call + prices ($/1M tokens, from new-api)
+//   GET      /api/models             key shop: models a key can call + prices (FIAT per 1M tokens, from new-api)
 //   GET      /pay/:id                checkout page (web/checkout.html)
 //   GET      /api/order/:id          order status for the checkout page (polled)
 //   POST     /api/order/:id/invoice  create the lightning invoice (lazily, when the customer picks ⚡)
@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { verify, signed, type Params } from './epay.ts';
-import { Ledger, checkSubmit, makeOrder, makeKeyOrder, notifyParams, dueForNotify, notifyBackoffMs, type Order } from './ledger.ts';
+import { Ledger, checkSubmit, makeOrder, makeKeyOrder, moneyLabel, notifyParams, dueForNotify, notifyBackoffMs, type Order } from './ledger.ts';
 import { Gateway, loadSeed } from './gateway.ts';
 import { btcPrice, fiat } from './price.ts';
 import { KeyShop } from './keyshop.ts';
@@ -46,10 +46,10 @@ if (!KEY) throw new Error('EPAY_KEY is required (the same merchant key you put i
 // Operator key for /admin. Keep it different from EPAY_KEY: whoever holds EPAY_KEY can forge "paid" notifies
 // to new-api, and the admin page may be opened over plain http. Falls back to EPAY_KEY for local runs.
 const ADMIN_KEY = process.env.ADMIN_KEY || KEY;
-// Key shop (optional, needs NEWAPI_URL/NEWAPI_USER_ID/NEWAPI_TOKEN). new-api quota is priced in USD.
+// Key shop (optional, needs NEWAPI_URL/NEWAPI_USER_ID/NEWAPI_TOKEN). Amounts are in FIAT; new-api's Price must be
+// in the same currency (it is: new-api's top-ups pay `units × Price` through this gateway in FIAT).
 const shop = KeyShop.fromEnv();
 const KEY_AMOUNTS = ['1', '2', '5', '10'];
-if (shop && fiat() !== 'usd') throw new Error('the key shop needs FIAT=usd (new-api quota is priced in USD)');
 // /network page (optional): UPSTREAMS_FILE from scripts/export-upstreams.ts; live calls come from the key shop pool
 const network = Network.fromEnv(shop);
 
@@ -138,7 +138,7 @@ async function submit(req: http.IncomingMessage, res: http.ServerResponse, url: 
   res.end();
 }
 
-/** Key shop: a new order for an API key worth `money` USD. Never talks to the mint (invoice comes later). */
+/** Key shop: a new order for an API key worth `money` FIAT. Never talks to the mint (invoice comes later). */
 async function buy(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   if (!shop) return send(res, 404, { error: 'key shop not enabled' });
   if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
@@ -192,7 +192,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       // the order id is the capability: whoever may see the key may see what it spent
       if (!shop || !o.apiKey) return send(res, 404, { error: 'no key yet' });
       try {
-        return send(res, 200, await shop.usage(o));
+        return send(res, 200, { ...(await shop.usage(o)), fiat: fiat() });
       } catch (e) {
         return send(res, 502, { error: (e as Error).message });
       }
@@ -285,7 +285,7 @@ async function makeKeyOnce(o: Order): Promise<void> {
     o.apiKey = await shop.createKey(o);
     o.notify = { ...o.notify, done: true, doneAt: Date.now(), lastError: undefined };
     ledger.save();
-    console.log(`🔑 ${o.id.slice(0, 10)}…: key created (new-api token #${o.apiKey.tokenId}, $${o.money})`);
+    console.log(`🔑 ${o.id.slice(0, 10)}…: key created (new-api token #${o.apiKey.tokenId}, ${moneyLabel(o.money, o.fiat)})`);
   } catch (e) {
     o.notify.attempts++;
     o.notify.nextAt = Date.now() + notifyBackoffMs(o.notify.attempts);

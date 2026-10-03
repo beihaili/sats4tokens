@@ -37,7 +37,7 @@ credits it exactly once.
    only the gateway can spend. The customer's token is now worthless to anyone else.
 4. **PAID.** The new proofs go into the ledger; `paid` records how, how much arrived, and the mint fee.
 5. **Credit.** The notify loop (every 2 s) picks up paid orders:
-   - key order → find-or-create the new-api token `btc-<orderId>` with `remain_quota = money × quota_per_unit`,
+   - key order → find-or-create the new-api token `btc-<orderId>` with `remain_quota = money / price × quota_per_unit`,
      never expiring, then read its key. Stored on the order and shown on `/pay/<id>`.
    - top-up → the signed callback to new-api, until it answers `success`.
 
@@ -120,9 +120,9 @@ The gateway talks to new-api as one normal **pool user**, using that user's syst
 
 | call | why |
 |---|---|
-| `GET /api/status` | `quota_per_unit` (quota units per USD) and the server address (default key endpoint) |
+| `GET /api/status` | `quota_per_unit` (quota per unit), `price` (the top-up price of a unit, in `FIAT`) and the server address (default key endpoint) |
 | `GET /api/token/search?keyword=btc-<id>` | find-or-create: is this order's token already there? |
-| `POST /api/token/` | create the token: `remain_quota = money × quota_per_unit`, `unlimited_quota: false`, `expired_time: -1` |
+| `POST /api/token/` | create the token: `remain_quota = money / price × quota_per_unit`, `unlimited_quota: false`, `expired_time: -1` |
 | `POST /api/token/:id/key` | read the full key |
 | `GET /api/token/:id`, `GET /api/log/self?type=2&token_name=btc-<id>` | usage page: balance and the last 20 calls |
 | `GET /api/pricing`, `GET /api/user/self` | model list and prices for the pool user's group |

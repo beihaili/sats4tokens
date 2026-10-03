@@ -1,6 +1,6 @@
 // Fiat → BTC price. Locked into each order at creation time.
 //   BTC_PRICE=…   fixed price (demo / offline)
-//   FIAT=cny      currency of new-api's "money" field (new-api default pricing is CNY; the demo uses usd)
+//   FIAT=cny      currency of new-api's "money" field (must match new-api's Price currency; the demo uses eur)
 // Otherwise free public spot prices (no API key), cached for 60s. Sources are tried in order so one
 // rate-limited or down feed can't block checkout; if all fail, a price up to 10 min old is reused.
 const FIAT = (process.env.FIAT ?? 'cny').toLowerCase();
