@@ -129,7 +129,12 @@ Sign-up: `RegisterEnabled`/`PasswordRegisterEnabled` follow Turnstile — `sync-
 made in the Cloudflare dashboard: the cloudflared cert token has no Turnstile permission). New users get 0 quota and
 top up with Bitcoin. User `demo` (id 2) is disabled since 2026-10-04 (login and its key → "banned").
 Console frontend is patched (2026-10-04, `deploy/demo/patch-console.py` + `console` nginx, see `deploy/demo/README.md`):
-wallet custom amount in € (→ whole units), English unless the visitor picks a language. Re-run it after an image change.
+wallet custom amount in € (→ whole units), English unless the visitor picks a language, API Keys page "Base URL" copy
+button + row menu "Copy Base URL" (instead of "Copy Connection Info"). Re-run it after an image change.
+`sync-channels.sh` also sets: token groups = only `default` (English description; production's `rd-trial` offer cleared),
+`Chats` with English names, dashboard `console_setting.api_info` (base URLs for OpenAI `/v1` and Claude Code root), and
+applies `deploy/demo/english-logs.sql` (trigger `logs_en` on `logs`: new-api's hard-coded Chinese top-up/redemption/
+bonus/2FA lines → English for types 1/3/4; backup of the pre-trigger rows: server `/root/demo-logs-options-20261004b.sql`).
 Login/registration need Turnstile, so CDP-driven Chrome can't sign in (fails even headful); to check logged-in pages, inject
 a user's access token into `/api/*` via CDP `Fetch` and fulfil `POST /api/user/auth/refresh` with a stand-in session bundle.
 

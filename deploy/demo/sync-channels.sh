@@ -6,7 +6,8 @@
 #   options (pricing keys only)    — model/group ratios, so the demo bills like production
 # Users, tokens, logs, top-ups and every other option stay behind.
 # Then the demo-only options are written: EPay → cashu-epay gateway, public URLs, money in EUR, logo,
-# registration (open only behind Turnstile), site name and notice.
+# registration (open only behind Turnstile), site name and notice, token groups, chat apps, API addresses;
+# and english-logs.sql (trigger: new-api's hard-coded Chinese log lines → English).
 #
 # Re-runnable: replaces the demo's channels/abilities each time. Restarts only cashu-demo-newapi.
 set -eu
@@ -78,12 +79,21 @@ q() { printf "REPLACE INTO options (\`key\`, value) VALUES ('%s', '%s');\n" "$1"
   # since 2026-10-04 this is the official BHBTC EU relay: no "demo" wording in anything users see
   q SystemName "BHBTC Relay · Europe"
   q Notice "🇪🇺 BHBTC Relay Europe. Prices in EUR. Top up with Bitcoin — Lightning or Cashu ecash. No account details, no KYC."
+  # API key groups: every user here is in "default". Production's extra group offers (e.g. a video-model trial
+  # group for default users) don't apply to this relay, so a new key only offers "default", described in English.
+  q UserUsableGroups '{"default":"All-in-one: GPT + Claude + images + early access"}'
+  q group_ratio_setting.group_special_usable_group '{}'
+  # "Chat" links in the API key menu: new-api's defaults, with English names (\\" = a quote inside a JSON string)
+  q Chats '[{"Cherry Studio":"cherrystudio://providers/api-keys?v=1&data={cherryConfig}"},{"AionUI":"aionui://provider/add?v=1&data={aionuiConfig}"},{"FluentRead":"fluentread"},{"CC Switch":"ccswitch"},{"DeepChat":"deepchat://provider/install?v=1&data={deepchatConfig}"},{"Lobe Chat":"https://chat-preview.lobehub.com/?settings={\\"keyVaults\\":{\\"openai\\":{\\"apiKey\\":\\"{key}\\",\\"baseURL\\":\\"{address}/v1\\"}}}"},{"AI as Workspace":"https://aiaw.app/set-provider?provider={\\"type\\":\\"openai\\",\\"settings\\":{\\"apiKey\\":\\"{key}\\",\\"baseURL\\":\\"{address}/v1\\",\\"compatibility\\":\\"strict\\"}}"},{"AMA":"ama://set-api-key?server={address}&key={key}"},{"OpenCat":"opencat://team/join?domain={address}&token={key}"}]'
+  # Dashboard "API Info" panel: which base URL to use (the API Keys page's Base URL button is patch-console.py)
+  q console_setting.api_info_enabled true
+  q console_setting.api_info "[{\"id\":1,\"route\":\"OpenAI-compatible\",\"url\":\"$CONSOLE_URL/v1\",\"description\":\"Base URL for OpenAI SDKs and most apps\",\"color\":\"blue\"},{\"id\":2,\"route\":\"Claude Code / Anthropic\",\"url\":\"$CONSOLE_URL\",\"description\":\"ANTHROPIC_BASE_URL, without /v1\",\"color\":\"orange\"}]"
 } > seed/demo-options.sql
 
 docker stop cashu-demo-newapi >/dev/null
 {
   echo "SET FOREIGN_KEY_CHECKS=0; TRUNCATE channels; TRUNCATE abilities;"
-  cat seed/channels.sql seed/options.sql seed/demo-options.sql
+  cat seed/channels.sql seed/options.sql seed/demo-options.sql english-logs.sql
   echo "SET FOREIGN_KEY_CHECKS=1;"
 } | docker exec -i "$DEMO" sh -c 'exec mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" newapi' 2>&1 | grep -v 'Using a password' || true
 docker start cashu-demo-newapi >/dev/null

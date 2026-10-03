@@ -33,11 +33,22 @@ shop reads the same Price, so a €1 key holds 7.5 units) and the display is cus
 (`general_setting.quota_display_type=CUSTOM`). Top-ups are whole units: presets 15/30/75/150/375/750 units =
 €2/4/10/20/50/100, minimum 15. `USDExchangeRate` = Price as well, so the wallet labels presets in € (2…100) and Model
 Square's "Recharge" view equals "Standard". Logo = `LOGO_URL` (production's logo option is a path on its own site, 404 here).
+API key groups: only `default`, described in English (`UserUsableGroups`; production's extra group offers in
+`group_ratio_setting.group_special_usable_group`, e.g. a video-model trial group, are cleared). The key menu's "Chat"
+apps are new-api's defaults with English names (`Chats`). Dashboard "API Info" lists the two base URLs
+(`console_setting.api_info`: `$CONSOLE_URL/v1` for OpenAI-style apps, `$CONSOLE_URL` for Claude Code).
 
-Patched console frontend (no new-api option exists for these): `./patch-console.py` rewrites two of the image's JS files
+English logs: new-api writes top-up / redemption / bonus / check-in / 2FA log lines in hard-coded Chinese.
+`english-logs.sql` (applied by `sync-channels.sh`, idempotent) adds a `BEFORE INSERT` trigger on `logs` that rewrites
+types 1/3/4 (top-up, manage, system; never consume logs) to English with amounts rounded to cents
+(`Top-up: +€2.00 (paid €2.00)`, `Redemption code #1: +€10.00`), and converts existing rows once.
+
+Patched console frontend (no new-api option exists for these): `./patch-console.py` rewrites three of the image's JS files
 into `console/` — the wallet's **custom amount is typed in €** (÷ rate → whole units; "Amount to pay" shows the exact
-price, e.g. €5 → 38 units = €5.07) and the **UI language is English** unless the visitor picks another one (upstream
-follows the browser, so zh browsers got Chinese). The `console` nginx (`console-nginx.conf`) sits between the tunnel and
+price, e.g. €5 → 38 units = €5.07), the **UI language is English** unless the visitor picks another one (upstream
+follows the browser, so zh browsers got Chinese), and the **API Keys page shows the Base URL** (a copy button
+`Base URL https://…/v1` next to "Create API Key"; the row menu's "Copy Connection Info" becomes "Copy Base URL").
+Upstream new-api added an "API Addresses" button in 2026-09 (later rc releases); this image (rc.22) predates it. The `console` nginx (`console-nginx.conf`) sits between the tunnel and
 new-api for the console host, except `^/v1/` which goes straight to new-api; it serves the patched files under new names
 (`…-eur<sha>.js`, Cloudflare caches `/static/js/*` for 7 days) and swaps the index name in the HTML (`console/patch.conf`).
 If an anchor doesn't match (another image), the script empties `patch.conf` → original frontend, exit 1. **Re-run

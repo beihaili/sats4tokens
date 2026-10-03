@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Patch new-api's compiled console frontend for the EU relay; the `console` nginx serves the result.
 
-new-api has no option for either of these, so two of the image's JS files are rewritten:
+new-api has no option for any of these, so three of the image's JS files are rewritten:
   - index.<h>.js   UI language = the visitor's own choice (localStorage) or English, never the browser's
                    (fallbackLng is en; upstream would show Chinese to every zh browser).
   - wallet chunk   the "Custom Amount" field is typed and shown in the display currency (€) instead of top-up
                    units (1 unit = ¥1 = €0.1333 here): € ÷ rate → whole units, the "Pay" box shows the exact
                    price. Minimum labels too. The rate is the one the wallet already uses (USDExchangeRate = Price).
+  - keys chunk     API Keys page: a "Base URL <server_address>/v1" copy button next to "Create API Key", and the
+                   row menu's "Copy Connection Info" (a JSON blob for setting up another new-api's channel)
+                   becomes "Copy Base URL". Upstream added an "API Addresses" button in 2026-09 (after rc.22).
 Patched files get new names (...-eur<sha>.js): Cloudflare and browsers keep /static/js/* for 7 days, so the
 original names can't carry new code. nginx swaps the index name in the HTML (sub_filter, console/patch.conf);
-the patched index points its chunk map at the patched wallet.
+the patched index points its chunk map at the patched chunks.
 
 Every replacement must match exactly once. If one doesn't (another new-api image), nothing is patched:
 patch.conf is emptied (= the original frontend) and the script exits 1. Re-run after changing NEW_API_IMAGE.
@@ -43,6 +46,28 @@ WALLET = [
      'n=r?O("Minimum topup amount: {{amount}}",{amount:"' + SYMBOL + '"+' + EUR.format("s") + '}):void 0,'
      'i=r?`${O("Minimum:")} ' + SYMBOL + '${' + EUR.format("s") + '}`:void 0'),
 ]
+# the console's API address, as upstream's own code finds it (status.server_address, else this origin)
+BASE = ('(function(){try{let e=localStorage.getItem("status");if(e){let t=JSON.parse(e);if(t.server_address)'
+        'return t.server_address}}catch{}return window.location.origin}()).replace(/\\/+$/,"")+"/v1"')
+# API Keys page (module with es() = header buttons and the row actions menu): s = jsx, _ = Button, ep.l = copy,
+# i.oR = toast, all module-level
+KEYS = [
+    ('function es(){let{t:e}=(0,l.Bd)(),{setOpen:t}=p();return(0,s.jsx)("div",{className:"flex gap-2",children:'
+     '(0,s.jsxs)(_.$,{size:"sm",onClick:()=>t("create"),children:[(0,s.jsx)(ea.A,{className:"h-4 w-4"}),'
+     'e("Create API Key")]})})}',
+     'function es(){let{t:e}=(0,l.Bd)(),{setOpen:t}=p(),$u=' + BASE + ';return(0,s.jsxs)("div",'
+     '{className:"flex flex-wrap gap-2",children:[(0,s.jsxs)(_.$,{size:"sm",variant:"outline",title:e("Copy"),'
+     'onClick:async()=>{await (0,ep.l)($u)&&i.oR.success(e("Copied"))},children:[e("Base URL"),'
+     '(0,s.jsx)("code",{className:"font-mono text-xs",children:$u})]}),'
+     '(0,s.jsxs)(_.$,{size:"sm",onClick:()=>t("create"),children:[(0,s.jsx)(ea.A,{className:"h-4 w-4"}),'
+     'e("Create API Key")]})]})}'),
+    ('let e=I();if(!e)return;let t=(0,eq.G1)(e,function(){try{let e=localStorage.getItem("status");if(e){'
+     'let t=JSON.parse(e);if(t.server_address)return t.server_address}}catch{}return window.location.origin}());'
+     'await (0,ep.l)(t)&&i.oR.success(a("Copied"))},children:[a("Copy Connection Info")',
+     'let t=' + BASE + ';await (0,ep.l)(t)&&i.oR.success(a("Copied"))},children:[a("Copy Base URL")'),
+]
+# async chunks to patch: (name, marker found in exactly one chunk, replacements)
+CHUNKS = [("wallet", 'id:"topup-amount"', WALLET), ("keys", 'a("Copy Connection Info")', KEYS)]
 INDEX = [('detection:{order:["localStorage","navigator"]', 'detection:{order:["localStorage"]')]
 
 
@@ -79,22 +104,29 @@ def main():
     # chunk map in the webpack runtime: c.u=e=>"static/js/async/"+e+"."+({1127:"bee1faa10b",...})[e]+".js"
     js_map = re.search(r'"static/js/async/"\+e\+"\."\+\(\{([^}]*)\}\)', index).group(1)
     chunks = dict(re.findall(r'(\d+):"([0-9a-f]+)"', js_map))
-    wallet_id = next((k for k, h in chunks.items() if 'id:"topup-amount"' in get(f"/static/js/async/{k}.{h}.js")), None)
-    if not wallet_id:
-        raise SystemExit("wallet chunk (topup-amount) not found")
-    wallet_hash = chunks[wallet_id]
+    sources = {k: get(f"/static/js/async/{k}.{h}.js") for k, h in chunks.items()}
 
-    wallet = replace_once(get(f"/static/js/async/{wallet_id}.{wallet_hash}.js"), WALLET, "wallet")
-    wallet_new = wallet_hash + tag(wallet)
-    index = replace_once(index, INDEX + [(f'{wallet_id}:"{wallet_hash}"', f'{wallet_id}:"{wallet_new}"')], "index")
+    patched, index_pairs = {}, list(INDEX)  # patched: file path → content
+    for name, marker, pairs in CHUNKS:
+        ids = [k for k, src in sources.items() if marker in src]
+        if len(ids) != 1:
+            raise SystemExit(f"{name} chunk: expected 1 with {marker}, found {len(ids)}")
+        cid, old_hash = ids[0], chunks[ids[0]]
+        src = replace_once(sources[cid], pairs, name)
+        new_hash = old_hash + tag(src)
+        patched[f"static/js/async/{cid}.{new_hash}.js"] = src
+        index_pairs.append((f'{cid}:"{old_hash}"', f'{cid}:"{new_hash}"'))  # chunk map entry
+        print(f"{name} chunk {cid} → {new_hash}")
+    index = replace_once(index, index_pairs, "index")
     index_new = index_name + tag(index)
 
     # files first, then the HTML switch; old patched files stay (an open tab may still load them)
-    write(f"static/js/async/{wallet_id}.{wallet_new}.js", wallet)
+    for rel, data in patched.items():
+        write(rel, data)
     write(f"static/js/{index_new}.js", index)
     write("patch.conf", f"# written by patch-console.py: HTML loads the patched index\n"
                         f"sub_filter '/static/js/{index_name}.js' '/static/js/{index_new}.js';\n")
-    print(f"console patched: {index_name} → {index_new}, wallet chunk {wallet_id} → {wallet_new}")
+    print(f"console patched: {index_name} → {index_new}")
 
 
 if __name__ == "__main__":
