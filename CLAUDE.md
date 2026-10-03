@@ -33,24 +33,28 @@ keep the old name on purpose (deployment unchanged).
 - **Key shop** (`src/keyshop.ts` + server): `GET /` buy page (web/index.html), `GET /api/shop` `{enabled, amounts, fiat}`,
   `POST /api/buy {money: 1|2|5|10}` → key order (`kind:'key'`, id `CK`+32 hex = 128-bit capability, no merchant).
   On PAID the notify loop runs `makeKeyOnce` instead of a merchant notify: `KeyShop.createKey` finds-or-creates new-api
-  token `btc-<orderId>` (`remain_quota = money × quota_per_unit`, never expires) for the pool user, then
+  token `btc-<orderId>` (`remain_quota = money / price × quota_per_unit`, never expires) for the pool user, then
   `POST /api/token/:id/key` → `o.apiKey {key, baseUrl, tokenId}` (bearer; shown on `/pay/:id`, masked in admin).
   Errors retry with notify backoff (`keyError` shown on the page). `GET /api/order/:id/usage` → `KeyShop.usage`: token
   balance (`GET /api/token/:id`) + last 20 consume logs (`/api/log/self?type=2&token_name=`), only time/model/tokens/cost
   (no IP/channel/content); the checkout page shows it under the key, refreshed every 10s. Env `NEWAPI_URL NEWAPI_USER_ID NEWAPI_TOKEN
-  [KEY_BASE_URL]`, needs `FIAT=usd`. new-api auth = user's personal access token (`GET /api/user/token`) as
+  [KEY_BASE_URL]`. Currency-agnostic: amounts are in `FIAT`, and new-api's `/api/status` `price` (its top-up
+  `Price`, a unit's price in FIAT) converts money ↔ units for keys, usage (`{used, remaining, calls[].cost, fiat}`)
+  and model prices, so a key costs what the same console top-up would. Pages format with `money(x, fiat)` from
+  `web/models.js` (symbol map usd/eur/cny/gbp, else "2 CHF"); orders are named `AI API key · €2` (`moneyLabel`). new-api auth = user's personal access token (`GET /api/user/token`) as
   `Authorization` + `New-Api-User`.
   `GET /api/models` → `KeyShop.models()` (5-min cache): new-api `/api/pricing` filtered to the pool user's group;
-  prices are the base-tier coefficients of `billing_expr` (`p`/`c`/`cr` = $ per 1M input/output/cached tokens; verified
+  prices are the base-tier coefficients of `billing_expr` (`p`/`c`/`cr` = units per 1M input/output/cached tokens, × price → FIAT; verified
   against a real charge), `quota_type 1` = per call. `web/models.js` renders it (grouped by vendor) at the bottom of `/`
   and of the key page. On `/` (`renderModels(el, {calc: {amounts}})`) rows have checkboxes and a calculator shows, per ticked
-  model, tokens for $1/2/5/10 if all input / all output, and chat calls (2K in + 500 out); images per call for per-call models.
+  model, tokens for 1/2/5/10 (FIAT) if all input / all output, and chat calls (2K in + 500 out); images per call for per-call models.
   Phones (<480px) hide the cached column.
   Static files are sent `cache-control: no-cache`, but Cloudflare (stable URL) rewrites the browser TTL to 4h: after changing
   `web/*.js|css`, bump the `?v=` in the HTML/`import` URLs or browsers keep the old file. The key page also has a **Claude Code** one-liner: `ANTHROPIC_BASE_URL=<root, no /v1>
   ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
   CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 … claude`. The output cap is required: new-api pre-reserves quota for
-  max_tokens, and Claude Code's default asked for $1.26 → 403 on a $1 key. One Claude Code turn ≈ $0.10 (cache write).
+  max_tokens, and Claude Code's default asked for 1.26 units → 403 on a 1-unit key (then $1 = 1 unit; now €1 = 7.5
+  units). One Claude Code turn ≈ 0.1 unit ≈ €0.013 (cache write).
 - **Upstream network** (`src/upstreams.ts`, `web/network.html|js`): `GET /network` page + `GET /api/network`.
   Sats4Tokens as one node, upstream providers (letters A, B, … = one per registrable domain, ordered by first channel
   id) and their channels (A1, A2, …) fanned out above it. `anonymize()` builds the snapshot from new-api channels +
@@ -76,7 +80,7 @@ keep the old name on purpose (deployment unchanged).
   The 🥜 tab has **📷 Scan QR**: camera (needs https) → `BarcodeDetector` where supported, else vendored
   `web/vendor/jsQR.js` (jsQR 1.4.0, Apache-2.0, lazy-loaded); a decoded `cashuA/B…` (also inside `cashu:` or a link)
   pays at once. **Animated NUT-16 QRs** (`ur:bytes/n-m/…` fountain frames; cashu.me shows them for any token with
-  >2 proofs, i.e. every $1 key) go to `web/vendor/bcur.js` (bc-ur 1.1.12 bundle, lazy-loaded, progress "Animated QR: x%").
+  >2 proofs, i.e. every €1 key) go to `web/vendor/bcur.js` (bc-ur 1.1.12 bundle, lazy-loaded, progress "Animated QR: x%").
   bc-ur's GPL-2.0 dep `@apocentre/alias-sampling` is replaced by our own sampler (`web/vendor/bcur-src/`, build +
   licenses in `web/vendor/README.md`): never ship GPL code here. Scan loop: camera ideal 1920×1080 + continuous focus,
   a decode every 40ms (frames change every 150ms); jsQR alternates full frame / centre 80% square (≤960px); a
@@ -127,7 +131,8 @@ firewalled the VPS IP for polling too hard — `Connection refused` from the VPS
 `~/.config/cashu-epay/`. Compose sets `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000`
 because the VPS→Minibits RTT (~265ms) exceeds Node's 250ms happy-eyeballs attempt timeout (ETIMEDOUT otherwise).
 Production `/opt/new-api-relay/AGENTS.md` has a one-line note about this stack (top of 项目说明).
-Key shop on the demo: pool user `keyshop` (id 3, $1000 quota set via `POST /api/user/manage add_quota`), its PAT in
+Key shop on the demo: pool user `keyshop` (id 3, 1000 units set via `POST /api/user/manage add_quota` = ~€133 of keys at
+the EUR price; top it up when low), its PAT in
 `.env` (`NEWAPI_USER_ID`/`NEWAPI_TOKEN`, mode 600, password in `secrets/demo-accounts.txt`); buy page =
 **https://sats4tokens.bhbtc.xyz/** (named tunnel, see Rules), key endpoint = `KEY_BASE_URL=https://sats4tokens.bhbtc.xyz/v1`. Verified 2026-10-02 locally (testnut + demo new-api): buy $1 →
 key → real chat call, crash-resume found the same token.
@@ -137,15 +142,25 @@ Plan/pitch/video: `../dev-plan.md`, `../pitch.md`, `../recording-script.md`.
 
 - `data/` (seed, ledger proofs, withdrawals) is bearer money: never commit, never print.
 - Never touch production containers/DB/Redis on api-relay; the demo stack is separate on purpose.
-- Public access is **https only**, through two Cloudflare quick tunnels (`tunnel-shop`, `tunnel-pay` in the demo
-  compose; `./https-tunnel.sh` prints the random `*.trycloudflare.com` URLs and sets new-api `ServerAddress`/`PayAddress`;
-  re-run it whenever those containers restart). Host ports 8530/8531 are bound to 127.0.0.1 (ssh -L only).
-  Plus the stable public URL `https://sats4tokens.bhbtc.xyz` = Cloudflare **named** tunnel `sats4tokens`
-  (service `tunnel-named`, compose profile `named-tunnel`; config + credentials server-only in
-  `secrets/cloudflared/`, owned by uid 65532; ingress `^/v1/` → new-api, rest → gateway). The tunnel credentials
-  (`~/.cloudflared/*.json`, `cert.pem` on the laptop) are secrets: never print or commit. Quick tunnels stay because
-  new-api's ServerAddress/PayAddress (top-up redirects + callbacks) point at them.
+- Public access is **https only**, through the Cloudflare **named** tunnel `sats4tokens` (service `tunnel-named`,
+  compose profile `named-tunnel`; config + credentials server-only in `secrets/cloudflared/`, owned by uid 65532, mode
+  600): `https://sats4tokens.bhbtc.xyz` (shop/checkout/top-up `/submit.php`; `^/v1/` → new-api, rest → gateway) and,
+  since 2026-10-03, `https://btc.bhbtc.xyz` (new-api console → new-api). new-api `ServerAddress`/`PayAddress` =
+  `CONSOLE_URL`/`SHOP_URL` from the server `.env`, written by `sync-channels.sh`. The zone has a `*.bhbtc.xyz` →
+  Vercel wildcard; explicit records (`cloudflared tunnel route dns …`) override it per name. The quick tunnels
+  (`tunnel-shop`/`tunnel-pay`, random `*.trycloudflare.com`) are retired: compose profile `quick-tunnels`, only for
+  `./https-tunnel.sh` as a no-domain fallback. Host ports 8530/8531 are bound to 127.0.0.1 (ssh -L only). The tunnel
+  credentials (`~/.cloudflared/*.json`, `cert.pem` on the laptop) are secrets: never print or commit.
   The production Caddy is not involved (admin off → any change restarts it for all relay users).
-- Demo new-api shows English (root/demo have `language: en` in their user setting) and USD
-  (`general_setting.quota_display_type=USD`, gateway `FIAT=usd`, Price=1 → money is USD). new-api top-up amounts
-  are whole dollars (decimals → 参数错误), so $1 (~1160 sat) is the minimum. Presets `payment_setting.amount_options=[1,2,5,10,20,50]`.
+- Demo new-api shows English (root/demo have `language: en` in their user setting) and **EUR** (since 2026-10-03):
+  model prices are CNY (1 unit = ¥1, like production), €1 = ¥7.5 → `Price=0.133333333333` (€ per unit), display
+  `quota_display_type=CUSTOM` symbol `€` rate 0.133333333333, gateway `FIAT=eur`. Until then it was USD with Price=1,
+  i.e. $1 per ¥1 of quota (~6.7× too expensive). new-api top-ups are whole units (decimals → 参数错误): presets
+  `payment_setting.amount_options=[15,30,75,150,375,750]` (= €2…€100), `MinTopUp=15`. `USDExchangeRate` = Price too: the
+  wallet labels presets `units × USDExchangeRate` (→ 2…100) and Model Square's "Recharge" prices divide by it (backend
+  uses it only for CNY display). All of it, plus the logo
+  (`LOGO_URL` = production's PNG by absolute URL; production's `Logo` is a relative path, 404 on the demo), is
+  demo-owned in `sync-channels.sh`, so a re-sync keeps it.
+- `/rankings` merges production usage: `deploy/demo/sync-usage.sh` (root cron `7 * * * *`, syslog tag
+  `cashu-sync-usage`) copies production `quota_data` hourly totals per model (read-only SELECT) into the demo's
+  `quota_data` as `node_name=username='bhbtc-relay'`, `user_id=0` rows, replaced in one transaction.

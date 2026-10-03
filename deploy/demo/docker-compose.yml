@@ -51,7 +51,7 @@ services:
     logging: *default-logging
     command: --log-dir /app/logs
     ports:
-      - "127.0.0.1:8530:3000" # public access is https via tunnel-shop; ssh -L for root
+      - "127.0.0.1:8530:3000" # public access is https via the tunnel (console domain); ssh -L for root
     volumes:
       - ./data/new-api:/data
       - ./logs/new-api:/app/logs
@@ -82,7 +82,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      - "127.0.0.1:8531:8090" # public access is https via tunnel-pay
+      - "127.0.0.1:8531:8090" # public access is https via the tunnel (shop domain)
     volumes:
       - ./data/${GATEWAY_DATA:-gateway}:/data # gateway = testnut wallet, gateway-mainnet = real mint (switch-mint.sh)
       - ./public:/public:ro # upstreams.json from export-upstreams.sh (anonymized, no hosts)
@@ -91,7 +91,7 @@ services:
       EPAY_KEY: "${EPAY_KEY}"
       ADMIN_KEY: "${ADMIN_KEY}" # operator page key; not EPAY_KEY, which can sign "paid" notifies
       MINT_URL: "${MINT_URL:-https://testnut.cashu.space}"
-      FIAT: "${FIAT:-usd}" # new-api money = top-up amount × Price; Price=1 → money is USD
+      FIAT: "${FIAT:-eur}" # new-api money = top-up units × Price; sync-channels.sh sets Price in € (and the key shop uses it)
       ORDER_TTL_MIN: "30"
       CHECKOUT_TAB: "${CHECKOUT_TAB:-cashu}" # testnut pays its own invoices, so don't open on ⚡ (switch-mint.sh sets ln for a real mint)
       # admin page shows the withdrawn token so it can be copied; fine for testnut, set 0 for a real mint on plain http
@@ -111,25 +111,29 @@ services:
     networks: [demo]
 
   # HTTPS without touching the production Caddy (its admin is off, a change means restarting it for
-  # all relay users): Cloudflare quick tunnels, outbound only. Random *.trycloudflare.com URL per start;
-  # https-tunnel.sh reads them and points new-api's ServerAddress/PayAddress at them.
+  # all relay users): Cloudflare tunnels, outbound only. Fallback without a domain: quick tunnels (opt in with
+  # COMPOSE_PROFILES=quick-tunnels), a random *.trycloudflare.com URL per start; https-tunnel.sh reads them and
+  # points new-api's ServerAddress/PayAddress at them. The demo uses the named tunnel below instead.
   tunnel-shop:
     image: cloudflare/cloudflared:2026.9.3
     container_name: cashu-demo-tunnel-shop
+    profiles: [quick-tunnels]
     command: tunnel --no-autoupdate --url http://new-api:3000
     restart: unless-stopped
     networks: [demo]
   tunnel-pay:
     image: cloudflare/cloudflared:2026.9.3
     container_name: cashu-demo-tunnel-pay
+    profiles: [quick-tunnels]
     command: tunnel --no-autoupdate --url http://gateway:8090
     restart: unless-stopped
     networks: [demo]
-  # Optional stable URL: a Cloudflare *named* tunnel on your own domain (still outbound only, no open port,
-  # server IP stays out of DNS). Opt in with COMPOSE_PROFILES=named-tunnel in .env. Needs, server-only:
+  # Stable URLs: a Cloudflare *named* tunnel on your own domain (still outbound only, no open port, server IP
+  # stays out of DNS). Opt in with COMPOSE_PROFILES=named-tunnel in .env. Needs, server-only:
   #   secrets/cloudflared/credentials.json  from `cloudflared tunnel create <name>` (owned by uid 65532)
-  #   secrets/cloudflared/config.yml        tunnel id + ingress: ^/v1/ → http://new-api:3000, rest → http://gateway:8090
-  # The quick tunnels above stay: new-api's ServerAddress/PayAddress (top-up callbacks) still point at them.
+  #   secrets/cloudflared/config.yml        tunnel id + ingress: shop domain ^/v1/ → http://new-api:3000,
+  #                                         rest → http://gateway:8090; console domain → http://new-api:3000
+  # new-api's ServerAddress/PayAddress = CONSOLE_URL/SHOP_URL from .env (sync-channels.sh).
   tunnel-named:
     image: cloudflare/cloudflared:2026.9.3
     container_name: cashu-demo-tunnel-named

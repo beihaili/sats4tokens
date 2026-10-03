@@ -1,11 +1,12 @@
 #!/bin/sh
+# Fallback without a domain (the demo uses the named tunnel + CONSOLE_URL/SHOP_URL instead, see sync-channels.sh).
 # Start the two Cloudflare quick tunnels (if needed), read their https URLs and point demo new-api at them:
 # ServerAddress = shop URL (return links), PayAddress = gateway URL (checkout). Notify stays on the private
 # network (CustomCallbackAddress=http://new-api:3000). Re-run after the tunnel containers restart: the URLs change.
 #   ./https-tunnel.sh          # prints the two URLs
 set -eu
 cd "$(dirname "$0")"
-docker compose up -d tunnel-shop tunnel-pay >/dev/null 2>&1
+docker compose --profile quick-tunnels up -d tunnel-shop tunnel-pay >/dev/null 2>&1
 url() {  # wait until cloudflared logs its *.trycloudflare.com address
   for _ in $(seq 30); do
     u=$(docker compose logs "$1" 2>&1 | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1)
