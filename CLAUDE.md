@@ -124,6 +124,10 @@ PayMethods `[{"name":"Bitcoin","color":"#f7931a","type":"bitcoin"}]`, payment co
 **Since 2026-10-04 this stack is the official BHBTC EU relay** ("BHBTC Relay · Europe", EUR): no "demo" wording in
 anything users see (site name/notice in `sync-channels.sh`, README). Internal names (`/opt/cashu-epay-demo`,
 `cashu-demo-*` containers, `deploy/demo/`, user `demo`) keep the old name on purpose. Treat it as production: real users.
+Sign-up: `RegisterEnabled`/`PasswordRegisterEnabled` follow Turnstile — `sync-channels.sh` opens registration (and sets
+`TurnstileCheckEnabled`) only when `.env` has `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` (widget for `btc.bhbtc.xyz`,
+made in the Cloudflare dashboard: the cloudflared cert token has no Turnstile permission). New users get 0 quota and
+top up with Bitcoin. User `demo` (id 2) is disabled since 2026-10-04 (login and its key → "banned").
 
 `api-relay:/opt/cashu-epay-demo` — new-api demo on :8530, gateway on :8531, channels copied
 read-only from production. Verified end to end 2026-10-01: cashu token and lightning top-ups credited

@@ -6,7 +6,7 @@
 #   options (pricing keys only)    — model/group ratios, so the demo bills like production
 # Users, tokens, logs, top-ups and every other option stay behind.
 # Then the demo-only options are written: EPay → cashu-epay gateway, public URLs, money in EUR, logo,
-# registration off, demo notice.
+# registration (open only behind Turnstile), site name and notice.
 #
 # Re-runnable: replaces the demo's channels/abilities each time. Restarts only cashu-demo-newapi.
 set -eu
@@ -62,8 +62,19 @@ q() { printf "REPLACE INTO options (\`key\`, value) VALUES ('%s', '%s');\n" "$1"
   q payment_setting.compliance_terms_version v1
   q payment_setting.compliance_confirmed_at "$(date +%s)"
   q payment_setting.compliance_confirmed_by 1
-  q RegisterEnabled false
-  q PasswordRegisterEnabled false
+  # sign-up is open only with Cloudflare Turnstile (new-api checks it on register/login/verification/reset);
+  # without both keys in .env registration stays closed. The secret only lives in .env and the DB.
+  if [ -n "${TURNSTILE_SITE_KEY:-}" ] && [ -n "${TURNSTILE_SECRET_KEY:-}" ]; then
+    q TurnstileSiteKey "$TURNSTILE_SITE_KEY"
+    q TurnstileSecretKey "$TURNSTILE_SECRET_KEY"
+    q TurnstileCheckEnabled true
+    q RegisterEnabled true
+    q PasswordRegisterEnabled true
+  else
+    q TurnstileCheckEnabled false
+    q RegisterEnabled false
+    q PasswordRegisterEnabled false
+  fi
   # since 2026-10-04 this is the official BHBTC EU relay: no "demo" wording in anything users see
   q SystemName "BHBTC Relay · Europe"
   q Notice "🇪🇺 BHBTC Relay Europe. Prices in EUR. Top up with Bitcoin — Lightning or Cashu ecash. No account details, no KYC."
@@ -78,5 +89,5 @@ docker stop cashu-demo-newapi >/dev/null
 docker start cashu-demo-newapi >/dev/null
 
 docker exec "$DEMO" sh -c 'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD" newapi -N -e "select concat(count(*), \" channels (\", sum(status=1), \" enabled)\") from channels; select concat(count(*), \" abilities\") from abilities;"' 2>/dev/null
-rm -f seed/channels.sql # holds upstream keys; the demo DB has them now
+rm -f seed/channels.sql seed/demo-options.sql # upstream keys, EpayKey, Turnstile secret; the DB has them now
 ./export-upstreams.sh # refresh the anonymized /network snapshot
