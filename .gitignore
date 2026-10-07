@@ -11,3 +11,4 @@ logs/
 withdrawals/
 public/
 .env.*
+CLAUDE.local.md

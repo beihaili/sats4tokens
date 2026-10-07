@@ -50,6 +50,13 @@ endpoint**, capped at exactly what you paid. No signup, no email, no password �
   (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`). It caps the output tokens because new-api reserves quota for
   `max_tokens` up front, and Claude Code's default would need more than a small key holds.
 
+**For bots and agents** the same flow is three HTTP calls, no account and no browser:
+`POST /api/buy` → pay (`POST /api/order/:id/token` with a Cashu token, or `POST /api/order/:id/invoice` and pay the
+bolt11) → poll `GET /api/order/:id` until `apiKey` appears. Every step is safe to retry: the same token sent again
+for the order it paid gets the same `200`. A complete script with no dependencies:
+[`examples/agent-buy-key.ts`](examples/agent-buy-key.ts) (`node examples/agent-buy-key.ts 1 cashuB…`); the
+endpoints are in [docs/api.md](docs/api.md).
+
 Users who already have a relay account can also **top up** through the same checkout (see *Top-ups* below).
 
 ## How it works
@@ -151,7 +158,7 @@ signed callback, retried until new-api confirms. `scripts/fake-merchant.ts` stan
 ## Tests
 
 ```sh
-npm test && npm run typecheck      # 23 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization, model aliases
+npm test && npm run typecheck      # 24 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization, model aliases, token retries
 npm run edge-checks                # 15 end-to-end checks against testnut (~40 s): bad signatures, underpaid / spent tokens, callback retries, withdraw
 npm run crash-demo -- lightning after-mint   # or: cashu | after-writeahead
 ```
@@ -167,6 +174,7 @@ src/epay.ts      MD5 sign / verify for the top-up form and callback
 src/price.ts     fiat → BTC with fallbacks
 src/upstreams.ts anonymized upstream network for the /network page (no provider names or hosts)
 web/             key shop, mobile checkout page, upstream network page, operator page
+examples/        agent-buy-key.ts: buy and pay for a key from a script
 deploy/demo/     our live EU relay stack (own new-api + gateway, channels copied from the main relay)
 docs/            user guide, self-hosting, HTTP API, internals; slides (PDF) and screenshots (mock orders)
 ```

@@ -9,9 +9,8 @@ no longer mentions EPay. Internally the top-up path still speaks the EPay protoc
 `src/epay.ts`, `EPAY_KEY`/`EPAY_PID`); `/opt/cashu-epay-demo` and container names keep the old name on purpose
 (deployment unchanged).
 
-Local workspace (since 2026-10-07, outside git): this repo lives at `sats4tokens/repo/`; siblings are `../gallery/`
-(slides/images/logo sources), `../notes/` (Chinese; operations docs on top, hackathon plan/pitch/submission/video script in `hackathon/`) and `../private/`
-(`cashu-epay-prescrub.bundle`, pre-scrub history that still contains the server IP: never upload). See `../README.md`.
+Server/ops details (live deployment, server paths, tunnel, EUR settings) are in the gitignored `CLAUDE.local.md`
+(only on the maintainer's laptop); keep them out of this public file.
 
 ## Layout
 
@@ -23,7 +22,9 @@ Local workspace (since 2026-10-07, outside git): this repo lives at `sats4tokens
   mint call; `recover()` uses NUT-09 restore after crashes. `CRASH_AT=after-writeahead|after-mint`
   kills the process for the crash demo. On startup `mintProblems()` checks the mint's NUT-06 info and
   refuses to start without bolt11 sat minting (NUT-04), state checks (NUT-07) and restore (NUT-09).
-  Pasted tokens may carry a `cashu:` URI prefix. Paid invoices are detected by **NUT-17 push**
+  Pasted tokens may carry a `cashu:` URI prefix. **Token retries are idempotent**: the swap stores
+  `order.tokenHash` (`tokenFingerprint` = sha256 of the trimmed token), and `isTokenRetry` answers a re-POST of the same
+  token for a SETTLING/PAID order with 200 + the order (a different token → 400 `order is paid`; `abortSettle` clears it). Paid invoices are detected by **NUT-17 push**
   (`wallet.on.mintQuoteUpdates`, one WebSocket; a PAID push makes the order due, then the normal HTTP check →
   write-ahead → mint runs). HTTP polling is only the safety net and is budgeted: ≤1 quote check per 8s across all
   orders, each order every 60s while subscribed (8s/30s if not, open checkout pages first; expired 120s), and all
@@ -34,7 +35,8 @@ Local workspace (since 2026-10-07, outside git): this repo lives at `sats4tokens
   `/admin?key=ADMIN_KEY` (JSON; ADMIN_KEY falls back to EPAY_KEY, keep them different in deployments), `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`,
   written before the proofs leave the ledger; the token is also returned only if `WITHDRAW_TOKEN_OVER_HTTP=1`),
   notify loop (GET notify_url until it answers `success`). The watcher skips a beat while a tick is still running.
-- **Key shop** (`src/keyshop.ts` + server): `GET /` buy page (web/index.html), `GET /api/shop` `{enabled, amounts, fiat}`,
+- **Key shop** (`src/keyshop.ts` + server): `GET /` buy page (web/index.html), `GET /api/shop` `{enabled, amounts, fiat, sats}`
+  (`sats` = today's `satsFor` per amount for the buttons "Buy a €1 key / ≈ 1,337 sat"; waits ≤1.5s for the price, else omitted),
   `POST /api/buy {money: 1|2|5|10}` → key order (`kind:'key'`, id `CK`+32 hex = 128-bit capability, no merchant).
   On PAID the notify loop runs `makeKeyOnce` instead of a merchant notify: `KeyShop.createKey` finds-or-creates new-api
   token `btc-<orderId>` (`remain_quota = money / price × quota_per_unit`, never expires) for the pool user, then
@@ -102,11 +104,13 @@ Local workspace (since 2026-10-07, outside git): this repo lives at `sats4tokens
   The camera stops on tab switch, PAID/EXPIRED and pagehide. All page copy is English only.
   Testing tip: on testnut, opening the ⚡ tab auto-pays the invoice, so a local keyshop run creates a real key on
   the demo new-api — delete it afterwards (`DELETE /api/token/:id`).
-- `test/` — `node:test` units (23; `upstreams.test.ts` = anonymize/no host leak/tiers; `keyshop.test.ts` = `aliasesOf`): go-epay signature vectors, submit idempotency, write-ahead settle,
+- `test/` — `node:test` units (24; `upstreams.test.ts` = anonymize/no host leak/tiers; `keyshop.test.ts` = `aliasesOf`): go-epay signature vectors, submit idempotency, write-ahead settle,
   `decideSettle`, notify (`ledger`/`epay` tests), mint capability check (`gateway.test.ts`).
 - `scripts/` — `crash-demo.ts` (kill -9 mid-payment → restart → credited once), `edge-checks.ts` (unhappy paths +
   withdraw), `harness.ts` (shared by those two), `fake-merchant.ts` (stands in for new-api),
   `customer-wallet.ts mint <sats>`, `smoke.ts` (raw NUT-09 idea). All local against testnut, ports 8095/3995.
+- `examples/agent-buy-key.ts` — no-dependency agent script: buy → pay (Cashu token arg, else prints the bolt11) → poll
+  until `apiKey`; `SHOP=` picks the shop. Verified on testnut with a fake new-api (both paths). Typechecked (tsconfig include).
 - `Dockerfile`, `deploy/demo/` — demo stack on the relay server (see `deploy/demo/README.md`).
 - `docs/` — documentation (`README.md` index, `user-guide.md` buyer guide, `self-hosting.md` deploy guide, `api.md` every
   endpoint, `how-it-works.md` lifecycle/ledger/recovery; English, public: no EPay, no server IP/tunnel/secrets; keep in
@@ -132,66 +136,9 @@ npm run crash-demo -- cashu after-mint                # or lightning / after-wri
 new-api side: 支付设置 → PayAddress = gateway URL, EpayId = `EPAY_PID`, EpayKey = `EPAY_KEY`,
 PayMethods `[{"name":"Bitcoin","color":"#f7931a","type":"bitcoin"}]`, payment compliance confirmed.
 
-## Demo deployment (live)
-
-**Since 2026-10-04 this stack is the official BHBTC EU relay** ("BHBTC Relay · Europe", EUR): no "demo" wording in
-anything users see (site name/notice in `sync-channels.sh`, README). Internal names (`/opt/cashu-epay-demo`,
-`cashu-demo-*` containers, `deploy/demo/`, user `demo`) keep the old name on purpose. Treat it as production: real users.
-Sign-up: `RegisterEnabled`/`PasswordRegisterEnabled` follow Turnstile — `sync-channels.sh` opens registration (and sets
-`TurnstileCheckEnabled`) only when `.env` has `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` (widget for `btc.bhbtc.xyz`,
-made in the Cloudflare dashboard: the cloudflared cert token has no Turnstile permission). New users get 0 quota and
-top up with Bitcoin. User `demo` (id 2) is disabled since 2026-10-04 (login and its key → "banned").
-Console frontend is patched (2026-10-04, `deploy/demo/patch-console.py` + `console` nginx, see `deploy/demo/README.md`):
-wallet custom amount in € (→ whole units), English unless the visitor picks a language, API Keys page "Base URL" copy
-button + row menu "Copy Base URL" (instead of "Copy Connection Info"). Re-run it after an image change.
-`sync-channels.sh` also sets: token groups = only `default` (English description; production's `rd-trial` offer cleared),
-`Chats` with English names, dashboard `console_setting.api_info` (base URLs for OpenAI `/v1` and Claude Code root), and
-applies `deploy/demo/english-logs.sql` (trigger `logs_en` on `logs`: new-api's hard-coded Chinese top-up/redemption/
-bonus/2FA lines → English for types 1/3/4; backup of the pre-trigger rows: server `/root/demo-logs-options-20261004b.sql`).
-Login/registration need Turnstile, so CDP-driven Chrome can't sign in (fails even headful); to check logged-in pages, inject
-a user's access token into `/api/*` via CDP `Fetch` and fulfil `POST /api/user/auth/refresh` with a stand-in session bundle.
-
-`api-relay:/opt/cashu-epay-demo` — new-api demo on :8530, gateway on :8531, channels copied
-read-only from production. Verified end to end 2026-10-01: cashu token and lightning top-ups credited
-in new-api (`topup` status success), a real model call works through the copied channels.
-Since 2026-10-02 the demo gateway runs on a **mainnet mint**: first Minibits, then (10:15, after Minibits
-firewalled the VPS IP for polling too hard — `Connection refused` from the VPS only) **Coinos `https://mint.coinos.io`**.
-`./switch-mint.sh mainnet [URL]|testnut`, one wallet dir per mint: `data/gateway/` (testnut), `data/gateway-mainnet/`
-(Minibits), `data/gateway-<host>/` (others, e.g. `gateway-mint-coinos-io`); seed backups on the laptop in
-`~/.config/cashu-epay/`. Compose sets `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000`
-because the VPS→Minibits RTT (~265ms) exceeds Node's 250ms happy-eyeballs attempt timeout (ETIMEDOUT otherwise).
-Production `/opt/new-api-relay/AGENTS.md` has a one-line note about this stack (top of 项目说明).
-Key shop on the demo: pool user `keyshop` (id 3, 1000 units set via `POST /api/user/manage add_quota` = ~€133 of keys at
-the EUR price; top it up when low), its PAT in
-`.env` (`NEWAPI_USER_ID`/`NEWAPI_TOKEN`, mode 600, password in `secrets/demo-accounts.txt`); buy page =
-**https://sats4tokens.bhbtc.xyz/** (named tunnel, see Rules), key endpoint = `KEY_BASE_URL=https://sats4tokens.bhbtc.xyz/v1`. Verified 2026-10-02 locally (testnut + demo new-api): buy $1 →
-key → real chat call, crash-resume found the same token.
-Plan/pitch/video: `../notes/hackathon/dev-plan.md`, `../notes/hackathon/pitch.md`, `../notes/hackathon/recording-script.md`.
-
 ## Rules
 
 - `data/` (seed, ledger proofs, withdrawals) is bearer money: never commit, never print.
-- Never touch production containers/DB/Redis on api-relay; the demo stack is separate on purpose.
-- Public access is **https only**, through the Cloudflare **named** tunnel `sats4tokens` (service `tunnel-named`,
-  compose profile `named-tunnel`; config + credentials server-only in `secrets/cloudflared/`, owned by uid 65532, mode
-  600): `https://sats4tokens.bhbtc.xyz` (shop/checkout/top-up `/submit.php`; `^/v1/` → new-api, rest → gateway) and,
-  since 2026-10-03, `https://btc.bhbtc.xyz` (new-api console: `^/v1/` → new-api, rest → `console` nginx → new-api). new-api `ServerAddress`/`PayAddress` =
-  `CONSOLE_URL`/`SHOP_URL` from the server `.env`, written by `sync-channels.sh`. The zone has a `*.bhbtc.xyz` →
-  Vercel wildcard; explicit records (`cloudflared tunnel route dns …`) override it per name. The quick tunnels
-  (`tunnel-shop`/`tunnel-pay`, random `*.trycloudflare.com`) are retired: compose profile `quick-tunnels`, only for
-  `./https-tunnel.sh` as a no-domain fallback. Host ports 8530/8531 are bound to 127.0.0.1 (ssh -L only). The tunnel
-  credentials (`~/.cloudflared/*.json`, `cert.pem` on the laptop) are secrets: never print or commit.
-  The production Caddy is not involved (admin off → any change restarts it for all relay users).
-- Demo new-api shows English (patched default + root/demo have `language: en`) and **EUR** (since 2026-10-03):
-  model prices are CNY (1 unit = ¥1, like production), €1 = ¥7.5 → `Price=0.133333333333` (€ per unit), display
-  `quota_display_type=CUSTOM` symbol `€` rate 0.133333333333, gateway `FIAT=eur`. Until then it was USD with Price=1,
-  i.e. $1 per ¥1 of quota (~6.7× too expensive). new-api top-ups are whole units (decimals → 参数错误): presets
-  `payment_setting.amount_options=[15,30,75,150,375,750]` (= €2…€100), `MinTopUp=15` (the patched wallet takes € in the
-  custom field). Redemption codes are in quota: €1 = 7.5 units = 3,750,000. `USDExchangeRate` = Price too: the
-  wallet labels presets `units × USDExchangeRate` (→ 2…100) and Model Square's "Recharge" prices divide by it (backend
-  uses it only for CNY display). All of it, plus the logo
-  (`LOGO_URL` = production's PNG by absolute URL; production's `Logo` is a relative path, 404 on the demo), is
-  demo-owned in `sync-channels.sh`, so a re-sync keeps it.
-- `/rankings` merges production usage: `deploy/demo/sync-usage.sh` (root cron `7 * * * *`, syslog tag
-  `cashu-sync-usage`) copies production `quota_data` hourly totals per model (read-only SELECT) into the demo's
-  `quota_data` as `node_name=username='bhbtc-relay'`, `user_id=0` rows, replaced in one transaction.
+- Public repo: no server IP, tunnel URLs, keys, passwords or upstream provider names (suffixes go in `MODEL_ALIAS_SUFFIX`
+  in the server `.env`), no "EPay" in public copy. Order ids (`CK…`), `/pay/` URLs and sold keys are bearer secrets.
+- Screenshots/images only from `../gallery/` mocks, never from a real `/pay/` page.

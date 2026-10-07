@@ -12,7 +12,7 @@
 // Notify is at-least-once with backoff; new-api's RechargeEpay is idempotent on its side.
 import fs from 'node:fs';
 import path from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import type { Params } from './epay.ts';
 import type { ApiKey } from './keyshop.ts';
 
@@ -47,6 +47,7 @@ export interface Order {
   settle?: Settle;
   lastError?: string; // shown on the checkout page (e.g. "token already spent")
   paid?: { at: number; via: Via; sats: number; fee: number };
+  tokenHash?: string; // cashu path: tokenFingerprint() of the token that paid, so a retried POST gets the same answer
   notify: { done: boolean; attempts: number; nextAt: number; lastError?: string; doneAt?: number };
   // Key shop orders (no merchant): "notify" is the step that creates the API key in new-api.
   kind?: 'key';
@@ -199,10 +200,21 @@ export function finishSettle(data: LedgerData, order: Order, proofs: string[], s
   order.notify.nextAt = now;
 }
 
+/** sha256 of a pasted token as the customer sent it (trimmed, no `cashu:` prefix). Not bearer: can't be spent. */
+export function tokenFingerprint(token: string): string {
+  return createHash('sha256').update(token.trim().replace(/^cashu:/i, '')).digest('hex');
+}
+
+/** A token POSTed again for the order it already paid (or is paying): a client retry, answered like the first. */
+export function isTokenRetry(order: Order, token: string): boolean {
+  return order.state !== 'PENDING' && order.state !== 'EXPIRED' && !!order.tokenHash && order.tokenHash === tokenFingerprint(token);
+}
+
 /** Back to PENDING after a cashu attempt that can never succeed (token spent elsewhere). */
 export function abortSettle(order: Order, reason: string): void {
   order.state = 'PENDING';
   order.settle = undefined;
+  order.tokenHash = undefined;
   order.lastError = reason;
 }
 

@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   Ledger, abortSettle, beginSettle, checkSubmit, decideSettle, dueForNotify, emptyLedger, finishSettle,
-  makeOrder, notifyBackoffMs, notifyParams, satsFor,
+  isTokenRetry, makeOrder, notifyBackoffMs, notifyParams, satsFor, tokenFingerprint,
 } from '../src/ledger.ts';
 
 const PID = '1001';
@@ -90,6 +90,22 @@ test('abortSettle returns to PENDING with a reason; counter range is not reused'
   assert.equal(o.state, 'PENDING');
   assert.equal(o.lastError, 'token already spent');
   assert.equal(beginSettle(data, o, { via: 'cashu', keysetId: 'k', count: 2 }, NOW).counter, 3);
+});
+
+test('isTokenRetry: the token that paid an order gets the same answer again, others don\'t', () => {
+  const { data, o } = newOrder();
+  assert.equal(isTokenRetry(o, 'cashuBabc'), false, 'PENDING: a real payment attempt');
+  beginSettle(data, o, { via: 'cashu', keysetId: 'k', count: 2, token: 'cashuBabc' }, NOW);
+  o.tokenHash = tokenFingerprint('cashuBabc');
+  assert.ok(isTokenRetry(o, ' cashu:cashuBabc\n'), 'SETTLING, same token (cashu: prefix and spaces ignored)');
+  finishSettle(data, o, ['p'], 1250, NOW);
+  assert.ok(isTokenRetry(o, 'cashuBabc'), 'PAID, same token');
+  assert.equal(isTokenRetry(o, 'cashuBxyz'), false, 'another token still gets "order is paid"');
+  const { o: o2 } = newOrder(data, submit({ out_trade_no: 'USR2NOx3' }));
+  beginSettle(data, o2, { via: 'cashu', keysetId: 'k', count: 1 }, NOW);
+  o2.tokenHash = tokenFingerprint('cashuBdef');
+  abortSettle(o2, 'token already spent');
+  assert.equal(o2.tokenHash, undefined, 'a failed token is forgotten');
 });
 
 test('decideSettle recovery table', () => {

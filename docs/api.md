@@ -12,11 +12,12 @@ read the order and its key. Treat `/pay/<id>` and `/api/order/<id>` URLs as secr
 ### `GET /api/shop`
 
 ```json
-{ "enabled": true, "amounts": ["1", "2", "5", "10"], "fiat": "eur" }
+{ "enabled": true, "amounts": ["1", "2", "5", "10"], "fiat": "eur", "sats": { "1": 1337, "2": 2674, "5": 6685, "10": 13369 } }
 ```
 
 `enabled` is false when the key shop isn't configured (then `/api/buy` and `/api/models` return 404).
-`amounts` are in `fiat`, the gateway's `FIAT`; all key shop money below is in that currency.
+`amounts` are in `fiat`, the gateway's `FIAT`; all key shop money below is in that currency. `sats` is what each
+amount costs at the current BTC price (an order locks its own price when it's created); omitted if the price feeds are slow or down.
 
 ### `POST /api/buy`
 
@@ -127,6 +128,9 @@ of our own. On success returns the order, now `PAID`. On failure 400 with a mess
 - `order expired — go back and create a new one`
 
 A `cashu:` prefix is accepted. Overpayment is kept (a token can't be split here).
+
+**Retries are safe.** Sending the same token again for the order it paid (or is paying) returns `200` and the
+order, and nothing happens twice. A different token for a paid order gets 400 `order is paid`.
 
 ### `GET /api/order/:id/usage`
 

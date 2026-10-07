@@ -27,6 +27,8 @@ import {
   beginSettle,
   finishSettle,
   abortSettle,
+  isTokenRetry,
+  tokenFingerprint,
   decideSettle,
   type Order,
   type SettleFacts,
@@ -219,6 +221,7 @@ export class Gateway {
     return this.serial(async () => {
       const order = this.ledger.order(orderId);
       if (!order) throw new Error('unknown order');
+      if (isTokenRetry(order, token)) return order; // same token again (client retry): same 200, nothing new happens
       const t = this.checkToken(order, token);
       const states = await this.wallet.checkProofsStates(t.proofs);
       if (states.some((s) => s.state !== 'UNSPENT')) throw new Error('token already spent');
@@ -233,6 +236,7 @@ export class Gateway {
     if (fresh) {
       const keysetId = outs[0].blindedMessage.id;
       beginSettle(this.ledger.data, order, { via: 'cashu', keysetId, count: outs.length, token: raw }, Date.now());
+      if (raw) order.tokenHash = tokenFingerprint(raw);
       this.ledger.save(); // ← write-ahead
       crashPoint('after-writeahead');
     }

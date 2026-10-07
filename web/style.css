@@ -26,6 +26,7 @@ button, .button { padding: 10px 16px; border: 1px solid #ddd; border-radius: 10p
 .admin td.ok { color: var(--ok); }
 button:disabled { opacity: .45; cursor: default; }
 .amounts { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+.amounts button small { display: block; font-size: 13px; font-weight: 400; opacity: .85; margin-top: 2px; }
 #key textarea { margin-top: 8px; }
 
 /* key shop usage */

@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { verify, signed, type Params } from './epay.ts';
-import { Ledger, checkSubmit, makeOrder, makeKeyOrder, moneyLabel, notifyParams, dueForNotify, notifyBackoffMs, type Order } from './ledger.ts';
+import { Ledger, checkSubmit, makeOrder, makeKeyOrder, moneyLabel, satsFor, notifyParams, dueForNotify, notifyBackoffMs, type Order } from './ledger.ts';
 import { Gateway, loadSeed } from './gateway.ts';
 import { btcPrice, fiat } from './price.ts';
 import { KeyShop } from './keyshop.ts';
@@ -156,7 +156,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   const p = url.pathname;
   if (p === '/submit.php') return submit(req, res, url);
   if (p === '/api/buy') return buy(req, res);
-  if (p === '/api/shop') return send(res, 200, { enabled: !!shop, amounts: KEY_AMOUNTS, fiat: fiat() });
+  if (p === '/api/shop') {
+    // sats: today's price of each amount, for the buy buttons (an order locks its own price when it's made)
+    // at most 1.5s: the buy page waits for this, and the price feeds can be slow (then no sats on the buttons)
+    const price = await Promise.race([btcPrice(), new Promise<undefined>((r) => setTimeout(r, 1500))]).catch(() => undefined);
+    const sats = price ? Object.fromEntries(KEY_AMOUNTS.map((a) => [a, satsFor(a, price)])) : undefined;
+    return send(res, 200, { enabled: !!shop, amounts: KEY_AMOUNTS, fiat: fiat(), sats });
+  }
   if (p === '/api/models') {
     if (!shop) return send(res, 404, { error: 'key shop not enabled' });
     try {

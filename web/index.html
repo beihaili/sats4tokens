@@ -18,7 +18,7 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Sats4Tokens: pay from €1 in bitcoin, get a capped API key, use any model">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="/style.css?v=6">
+  <link rel="stylesheet" href="/style.css?v=7">
 </head>
 <body>
   <main class="checkout">
@@ -69,6 +69,7 @@
       const b = document.createElement('button');
       b.className = 'primary';
       b.textContent = `Buy a ${money(Number(a), shop.fiat)} key`;
+      if (shop.sats?.[a]) b.append(Object.assign(document.createElement('small'), { textContent: `≈ ${shop.sats[a].toLocaleString('en')} sat` }));
       b.disabled = !shop.enabled;
       b.onclick = async () => {
         b.disabled = true;
