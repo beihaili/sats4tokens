@@ -43,11 +43,11 @@ English logs: new-api writes top-up / redemption / bonus / check-in / 2FA log li
 types 1/3/4 (top-up, manage, system; never consume logs) to English with amounts rounded to cents
 (`Top-up: +€2.00 (paid €2.00)`, `Redemption code #1: +€10.00`), and converts existing rows once.
 
-Patched console frontend (no new-api option exists for these): `./patch-console.py` rewrites three of the image's JS files
+Patched console frontend (no new-api option exists for these): `./patch-console.py` rewrites four of the image's JS files
 into `console/` — the wallet's **custom amount is typed in €** (÷ rate → whole units; "Amount to pay" shows the exact
 price, e.g. €5 → 38 units = €5.07), the **UI language is English** unless the visitor picks another one (upstream
 follows the browser, so zh browsers got Chinese), and the **API Keys page shows the Base URL** (a copy button
-`Base URL https://…/v1` next to "Create API Key"; the row menu's "Copy Connection Info" becomes "Copy Base URL").
+`Base URL https://…/v1` next to "Create API Key"; the row menu's "Copy Connection Info" becomes "Copy Base URL"), and the home page animation's made-up cost shows € instead of a hard-coded $.
 Upstream new-api added an "API Addresses" button in 2026-09 (later rc releases); this image (rc.22) predates it. The `console` nginx (`console-nginx.conf`) sits between the tunnel and
 new-api for the console host, except `^/v1/` which goes straight to new-api; it serves the patched files under new names
 (`…-eur<sha>.js`, Cloudflare caches `/static/js/*` for 7 days) and swaps the index name in the HTML (`console/patch.conf`).

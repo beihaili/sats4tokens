@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Patch new-api's compiled console frontend for the EU relay; the `console` nginx serves the result.
 
-new-api has no option for any of these, so three of the image's JS files are rewritten:
+new-api has no option for any of these, so four of the image's JS files are rewritten:
   - index.<h>.js   UI language = the visitor's own choice (localStorage) or English, never the browser's
                    (fallbackLng is en; upstream would show Chinese to every zh browser).
   - wallet chunk   the "Custom Amount" field is typed and shown in the display currency (€) instead of top-up
@@ -10,6 +10,7 @@ new-api has no option for any of these, so three of the image's JS files are rew
   - keys chunk     API Keys page: a "Base URL <server_address>/v1" copy button next to "Create API Key", and the
                    row menu's "Copy Connection Info" (a JSON blob for setting up another new-api's channel)
                    becomes "Copy Base URL". Upstream added an "API Addresses" button in 2026-09 (after rc.22).
+  - hero chunk     home page animation: its made-up "cost $0.00093" line shows € instead of a hard-coded $.
 Patched files get new names (...-eur<sha>.js): Cloudflare and browsers keep /static/js/* for 7 days, so the
 original names can't carry new code. nginx swaps the index name in the HTML (sub_filter, console/patch.conf);
 the patched index points its chunk map at the patched chunks.
@@ -66,8 +67,11 @@ KEYS = [
      'await (0,ep.l)(t)&&i.oR.success(a("Copied"))},children:[a("Copy Connection Info")',
      'let t=' + BASE + ';await (0,ep.l)(t)&&i.oR.success(a("Copied"))},children:[a("Copy Base URL")'),
 ]
+# home page hero animation (decorative numbers): the hard-coded currency symbol
+HERO = [('["$",(3e-5*d.tokens).toFixed(5)]', '["' + SYMBOL + '",(3e-5*d.tokens).toFixed(5)]')]
 # async chunks to patch: (name, marker found in exactly one chunk, replacements)
-CHUNKS = [("wallet", 'id:"topup-amount"', WALLET), ("keys", 'a("Copy Connection Info")', KEYS)]
+CHUNKS = [("wallet", 'id:"topup-amount"', WALLET), ("keys", 'a("Copy Connection Info")', KEYS),
+          ("hero", "(3e-5*d.tokens).toFixed(5)", HERO)]
 INDEX = [('detection:{order:["localStorage","navigator"]', 'detection:{order:["localStorage"]')]
 
 
