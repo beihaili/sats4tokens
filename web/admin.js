@@ -20,11 +20,22 @@ async function load() {
   $('#mint').textContent = a.mint;
   $('#balance').textContent = a.balance.toLocaleString();
   $('#withdraw').disabled = a.balance === 0;
+  // key pool (FIAT): what the shop can still sell; it stops selling an amount when amount + reserve > available − pending
+  const f = (x) => `${x.toFixed(2)} ${esc(a.fiat.toUpperCase())}`;
+  $('#pool').hidden = !a.pool;
+  if (a.pool) {
+    const left = a.pool.available - a.pool.pending;
+    $('#pool').innerHTML = `Key pool: <b class="${left < a.pool.alert ? 'bad' : ''}">${f(left)}</b> left to sell
+      (pool user ${f(a.pool.quota)} − sold keys hold ${f(a.pool.owed)} − open orders ${f(a.pool.pending)}; reserve ${a.pool.reserve}, alert below ${a.pool.alert})`;
+  }
+  const refunds = a.orders.filter((o) => o.topup?.needsRefund);
+  $('#refunds').hidden = refunds.length === 0;
+  $('#refunds').textContent = `Needs refund (top-up paid, key gone): ${refunds.map((o) => `${o.id} ${o.money} ${o.fiat.toUpperCase()} ${o.paid?.sats} sat`).join(' · ')}`;
   const time = (t) => new Date(t).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   $('#orders').innerHTML = a.orders.slice().reverse().slice(0, 30).map((o) => `<tr>
-    <td class="muted">${time(o.createdAt)}</td><td>${esc(o.money)} ${esc(o.fiat.toUpperCase())}</td>
+    <td class="muted">${time(o.createdAt)}</td><td>${o.kind === 'keytopup' ? '🔋 ' : o.kind === 'key' ? '🔑 ' : ''}${esc(o.money)} ${esc(o.fiat.toUpperCase())}</td>
     <td>${o.paid ? `${o.paid.sats} sat ${o.paid.via === 'cashu' ? '🥜' : '⚡'}` : `<span class="muted">${o.sats} sat</span>`}</td>
-    <td class="${o.state === 'PAID' ? 'ok' : 'muted'}">${esc(o.state)}${o.paid && !o.notify.done ? ' · notify…' : ''}</td></tr>`).join('');
+    <td class="${o.state === 'PAID' ? 'ok' : 'muted'}">${esc(o.state)}${o.paid && !o.notify.done ? ' · notify…' : ''}${o.topup?.needsRefund ? ' · needs refund' : ''}</td></tr>`).join('');
 }
 
 $('#go').addEventListener('click', () => {

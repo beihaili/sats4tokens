@@ -12,12 +12,16 @@ read the order and its key. Treat `/pay/<id>` and `/api/order/<id>` URLs as secr
 ### `GET /api/shop`
 
 ```json
-{ "enabled": true, "amounts": ["1", "2", "5", "10"], "fiat": "eur", "sats": { "1": 1337, "2": 2674, "5": 6685, "10": 13369 } }
+{ "enabled": true, "amounts": ["1", "2", "5", "10"], "fiat": "eur", "sats": { "1": 1337, "2": 2674, "5": 6685, "10": 13369 }, "soldOut": false }
 ```
 
 `enabled` is false when the key shop isn't configured (then `/api/buy` and `/api/models` return 404).
 `amounts` are in `fiat`, the gateway's `FIAT`; all key shop money below is in that currency. `sats` is what each
 amount costs at the current BTC price (an order locks its own price when it's created); omitted if the price feeds are slow or down.
+
+`amounts` only lists what the key pool can still cover (see `POOL_RESERVE` in the self-hosting guide); when it
+can't cover even the smallest amount, `amounts` is empty and `soldOut` is true. If new-api can't be read in time
+the list isn't filtered.
 
 ### `POST /api/buy`
 
@@ -31,7 +35,20 @@ curl -s -XPOST https://shop.example.com/api/buy -H 'content-type: application/js
 ```
 
 `money` must be one of `amounts` (string or number). Then send the customer to `/pay/<id>`, or drive the
-order through the endpoints below.
+order through the endpoints below. 503 `sold out right now: …` if the key pool can't cover `money` (try a smaller
+amount, or later).
+
+**Top up a key.** Add `key` (a key sold by this shop, with or without `sk-`) to put the money on that key instead
+of making a new one:
+
+```sh
+curl -s -XPOST https://shop.example.com/api/buy -H 'content-type: application/json' -d '{"money": 2, "key": "sk-…"}'
+```
+
+It returns a top-up order (`kind: "keytopup"`, also a `CK…` id) that is paid exactly like a key order. When it is
+`PAID`, the money is added to the key's balance, once. The key goes in the body so it never ends up in a URL or
+an access log, and the top-up order never shows it (only its last 4 characters), so a top-up link can be sent to
+someone else to pay. 404 `unknown key` if the key wasn't sold here.
 
 ### `GET /api/models`
 
@@ -94,9 +111,11 @@ order's invoice is checked first.
 | `lastError` | why the last payment attempt failed (e.g. a rejected token), if any |
 | `paid` | `via` = `lightning` / `cashu`; `sats` received after mint fees; `fee` = mint fee absorbed |
 | `apiKey` | key orders, once `PAID` and the key is created. `baseUrl` is the endpoint to use |
-| `keyError` | key orders: why creating the key failed so far (it is retried with backoff) |
-| `kind` | `key` for key shop orders; absent for top-up orders (`CE…` ids) |
-| `returnUrl` | top-up orders: where to send the customer back after payment (signed) |
+| `keyError` | key orders: why creating the key failed so far; key top-ups: why adding the money failed so far (both retried with backoff) |
+| `topups` | key orders: paid top-ups of this key, `[{at, money, fiat, applied, needsRefund}]` |
+| `topup` | key top-ups: `{key: "sk-…a1b2", applied?: {at, remaining}, needsRefund}`. `applied.remaining` = the key's balance right after (in `fiat`). `needsRefund` is true if the key was deleted before the money could be added: the operator refunds by hand |
+| `kind` | `key` for key orders, `keytopup` for key top-ups; absent for account top-up orders (`CE…` ids) |
+| `returnUrl` | account top-up orders: where to send the customer back after payment (signed) |
 
 Fields that don't apply are omitted (here: `invoice`, `lastError`, `keyError`). An `EXPIRED` order whose invoice is paid within 24 hours still becomes `PAID`.
 
@@ -157,7 +176,7 @@ IPs or channels.
 | path | page |
 |---|---|
 | `GET /` | key shop: amounts, model list with a cost calculator |
-| `GET /pay/:id` | checkout: ⚡ invoice + QR, 🥜 paste / scan a token, then the key, snippets and usage |
+| `GET /pay/:id` | checkout: ⚡ invoice + QR, 🥜 paste / scan a token, then the key, snippets, usage and "Top up this key" (a key top-up shows only the amount added and the new balance) |
 | `GET /network` | upstream network: anonymized providers (A, B, …) and channels, routing per model, latest real calls (only if `UPSTREAMS_FILE` is set) |
 | `GET /admin.html#key=<ADMIN_KEY>` | operator page: balance, orders, withdraw |
 
@@ -168,11 +187,16 @@ Both need `?key=<ADMIN_KEY>`; a wrong key gets `403 forbidden`.
 ### `GET /admin?key=…`
 
 ```json
-{ "balance": 3476, "nextCounter": 120, "mint": "https://mint.example.com", "tokenOverHttp": false,
+{ "balance": 3476, "nextCounter": 120, "mint": "https://mint.example.com", "tokenOverHttp": false, "fiat": "eur",
+  "pool": { "quota": 133.2, "owed": 21.5, "available": 111.7, "pending": 2, "reserve": 10, "alert": 30 },
   "orders": [ … ] }
 ```
 
 `orders` are the full ledger orders minus bearer material (no token, keys masked to their first 7 characters).
+`pool` (key shop only, in `fiat`): `quota` = the pool user's quota in new-api, `owed` = what sold keys can still
+spend, `available` = the difference, `pending` = open orders that may still become keys or top-ups; the shop sells
+an amount only while `amount + reserve ≤ available − pending`, and logs a warning when `available < alert`.
+Absent if new-api didn't answer within 5 seconds. Top-ups with `topup.needsRefund` are listed on the admin page for a manual refund.
 
 ### `POST /admin/withdraw?key=…`
 

@@ -13,7 +13,9 @@
 //
 // Exactly once: the token's name is derived from the order id. Before creating, we look it up by name, so
 // a crash between "created in new-api" and "saved in our ledger" finds the same token instead of making two.
-import type { Order } from './ledger.ts';
+// Top-ups (topUp) add quota to a sold key; exactly once via the token's remain + used total, see ledger.ts Topup.
+// Every sold key spends the pool user's quota too, so pool() tells how much is left to sell.
+import { decideTopup, type Order } from './ledger.ts';
 
 export interface ApiKey {
   key: string; // sk-…
@@ -27,6 +29,13 @@ export interface KeyUsage {
   remaining: number;
   calls: Array<{ time: number; model: string; promptTokens: number; completionTokens: number; cost: number; seconds: number }>;
   totalCalls: number;
+}
+
+/** The pool in FIAT: the pool user's quota, what sold keys still hold (owed), and the difference left to sell. */
+export interface Pool {
+  quota: number;
+  owed: number;
+  available: number;
 }
 
 export interface ModelPrice {
@@ -104,6 +113,81 @@ export class KeyShop {
     const items: Array<{ id: number; name: string }> = Array.isArray(d) ? d : (d?.items ?? []);
     return items.find((t) => t.name === name)?.id;
   }
+
+  /** A token as new-api stores it (all fields: a PUT must send them all back), or undefined if it was deleted. */
+  private async token(id: number): Promise<any | undefined> {
+    try {
+      return await this.api('GET', `/api/token/${id}`);
+    } catch (e) {
+      if (/record not found/.test((e as Error).message)) return undefined;
+      throw e;
+    }
+  }
+
+  /**
+   * Add a paid top-up to its key, exactly once. Safe to call again after any crash or error: `o.topup.base/add` are
+   * saved (write-ahead) before new-api is changed, and only what is still missing of `base + add` gets added.
+   * Returns the key's balance in FIAT after, or undefined if the token no longer exists (needs a refund).
+   * The caller runs top-ups of one key one after another (topupBlocked).
+   *
+   * new-api facts this relies on (checked against the image we run, rc.22):
+   *   - PUT /api/token/ writes every editable field from the body (a partial body clears name, group, expiry …),
+   *     so we send back the whole GET object with only remain_quota changed;
+   *   - a token whose quota ran out has status 4 (exhausted). A PUT with status 1 is refused while it's 4, so the
+   *     PUT keeps the status it read, and `?status_only=true` turns it back on once it has quota again;
+   *   - PUT sets remain_quota absolutely: a call charged between our GET and PUT is overwritten (a gift of cents).
+   */
+  async topUp(o: Order, save: () => void): Promise<{ remaining: number } | undefined> {
+    const tp = o.topup!;
+    const { quotaPerUnit, price } = await this.status();
+    let t = await this.token(tp.tokenId);
+    if (!t) return undefined;
+    const total = (t: any) => Number(t.remain_quota) + Number(t.used_quota);
+    if (tp.base === undefined || tp.add === undefined) {
+      tp.base = total(t);
+      tp.add = Math.round((Number(o.money) / price) * quotaPerUnit);
+      save(); // write-ahead: from here on a retry knows what the total was before this top-up
+    }
+    const missing = decideTopup(total(t), tp.base, tp.add);
+    if (missing > 0) await this.api('PUT', '/api/token/', { ...t, remain_quota: Number(t.remain_quota) + missing });
+    t = await this.token(tp.tokenId);
+    if (!t) return undefined;
+    if (t.status === 4 && t.remain_quota > 0) {
+      await this.api('PUT', '/api/token/?status_only=true', { id: tp.tokenId, status: 1 });
+      t = await this.token(tp.tokenId);
+      if (!t) return undefined;
+    }
+    // a refund of an in-flight call can land between GET and PUT and undo part of it: then retry adds the rest
+    if (total(t) < tp.base + tp.add) throw new Error(`top-up not complete yet (${tp.base + tp.add - total(t)} quota missing)`);
+    if (t.status === 4) throw new Error('key still marked exhausted');
+    this.poolCache = undefined;
+    return { remaining: (Number(t.remain_quota) / quotaPerUnit) * price };
+  }
+
+  /**
+   * What the pool can still sell (FIAT, cached 30s): the pool user's quota minus what its limited, usable tokens
+   * still hold. Every call charges both the token and the user, so this doesn't move when keys are used; it drops
+   * when a key is sold or topped up. Selling past it would leave sold keys failing once the user's quota is gone.
+   */
+  async pool(): Promise<Pool> {
+    if (this.poolCache && Date.now() - this.poolCache.at < 30_000) return this.poolCache.pool;
+    const { quotaPerUnit, price } = await this.status();
+    const self = await this.api('GET', '/api/user/self');
+    let owed = 0;
+    for (let p = 1, seen = 0; ; p++) {
+      const d = await this.api('GET', `/api/token/?p=${p}&page_size=100`);
+      const items: any[] = Array.isArray(d) ? d : (d?.items ?? []);
+      // status 1 enabled, 4 exhausted (≈0 left; a top-up turns it back on); 2 disabled and 3 expired can't spend
+      for (const t of items) if (!t.unlimited_quota && (t.status === 1 || t.status === 4)) owed += Math.max(0, Number(t.remain_quota));
+      seen += items.length;
+      if (items.length === 0 || seen >= Number(d?.total ?? 0) || p >= 100) break;
+    }
+    const money = (q: number) => (q / quotaPerUnit) * price;
+    const pool = { quota: money(Number(self.quota)), owed: money(owed), available: money(Number(self.quota) - owed) };
+    this.poolCache = { at: Date.now(), pool };
+    return pool;
+  }
+  poolCache?: { at: number; pool: Pool };
 
   /**
    * Models a sold key can call, with prices in FIAT per 1M tokens (per call for image models). new-api's
@@ -204,6 +288,7 @@ export class KeyShop {
       id = await this.findToken(name);
       if (id === undefined) throw new Error('new-api: token created but not found');
     }
+    this.poolCache = undefined;
     const { key } = await this.api('POST', `/api/token/${id}/key`);
     const base = this.baseUrlEnv || (serverAddress ? serverAddress.replace(/\/$/, '') + '/v1' : this.url + '/v1');
     return { key: 'sk-' + String(key).replace(/^sk-/, ''), baseUrl: base, tokenId: id };

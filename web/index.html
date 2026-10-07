@@ -18,7 +18,7 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Sats4Tokens: pay from €1 in bitcoin, get a capped API key, use any model">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="/style.css?v=7">
+  <link rel="stylesheet" href="/style.css?v=8">
 </head>
 <body>
   <main class="checkout">
@@ -60,10 +60,11 @@
     import { renderModels, money } from '/models.js?v=5';
     const $ = (s) => document.querySelector(s);
     const shop = await (await fetch('/api/shop')).json();
-    renderModels($('#models'), { calc: { amounts: shop.amounts } }); // + calculator: amount × ticked models → tokens
-    if (!shop.enabled) {
+    // + calculator: amount × ticked models → tokens (all amounts, even while some are sold out)
+    renderModels($('#models'), { calc: { amounts: shop.amounts.length ? shop.amounts : ['1', '2', '5', '10'] } });
+    if (!shop.enabled || shop.soldOut) {
       $('#err').hidden = false;
-      $('#err').textContent = 'The key shop is not enabled on this gateway.';
+      $('#err').textContent = shop.soldOut ? 'Sold out right now: we are refilling. Please come back later.' : 'The key shop is not enabled on this gateway.';
     }
     for (const a of shop.amounts) {
       const b = document.createElement('button');

@@ -90,8 +90,20 @@ quota for the maximum output up front, and Claude Code's default can ask for mor
 The key page shows the balance left and your latest 20 calls (time, model, tokens, cost), refreshed
 every 10 seconds. Only you (whoever holds the link) can see it; it shows no prompts or replies.
 
-When less than 10% is left, the key page says so with a link to buy another key; once it is used up, calls
-fail with `403` / insufficient quota. Topping up an existing key isn't possible yet.
+When less than 10% is left, the key page says so; once it is used up, calls fail with `403` / insufficient quota.
+
+## 5. Top up the key
+
+No need to buy a new key: under the usage on the key page, **Top up this key** has the same amounts (€1, €2,
+€5, €10). Pick one and you get a normal checkout for it; pay with ⚡ or 🥜 as before. Once it is paid the money is
+added to the same key, so nothing in your app or Claude Code changes (a key that was used up works again). The
+key page lists your top-ups.
+
+The top-up page never shows the key, only its last 4 characters, the amount added and the new balance. So you
+can send a top-up link to someone else (a friend, a team mate, your agent's wallet) and let them pay it.
+
+Agents can do it with one call: `POST /api/buy {"money": 2, "key": "sk-…"}`, then pay the order like any other
+(see [api.md](api.md) and `examples/agent-buy-key.ts --topup`).
 
 ## FAQ
 
@@ -104,6 +116,12 @@ or not a valid token. Nothing is taken from a rejected token.
 
 **The page says paid but there's no key yet.** The key is created right after payment and retried
 automatically if the relay is briefly unreachable; the page shows "Creating your key… (retrying: …)" meanwhile. Keep the link.
+
+**"Sold out right now".** The shop only sells what its pool of API credit can cover, and it is being refilled.
+Try a smaller amount or come back later.
+
+**I paid a top-up but the key had been deleted.** The top-up page says so; contact us with the top-up link and we
+refund it by hand.
 
 **I lost the link.** The key can't be recovered — it is a bearer receipt by design (no account behind
 it). If you still have the key itself, it keeps working.

@@ -35,7 +35,7 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   `/admin?key=ADMIN_KEY` (JSON; ADMIN_KEY falls back to EPAY_KEY, keep them different in deployments), `POST /admin/withdraw?key=` (balance → token file in `DATA_DIR/withdrawals/`,
   written before the proofs leave the ledger; the token is also returned only if `WITHDRAW_TOKEN_OVER_HTTP=1`),
   notify loop (GET notify_url until it answers `success`). The watcher skips a beat while a tick is still running.
-- **Key shop** (`src/keyshop.ts` + server): `GET /` buy page (web/index.html), `GET /api/shop` `{enabled, amounts, fiat, sats}`
+- **Key shop** (`src/keyshop.ts` + server): `GET /` buy page (web/index.html), `GET /api/shop` `{enabled, amounts, fiat, sats, soldOut}`
   (`sats` = today's `satsFor` per amount for the buttons "Buy a €1 key / ≈ 1,337 sat"; waits ≤1.5s for the price, else omitted),
   `POST /api/buy {money: 1|2|5|10}` → key order (`kind:'key'`, id `CK`+32 hex = 128-bit capability, no merchant).
   On PAID the notify loop runs `makeKeyOnce` instead of a merchant notify: `KeyShop.createKey` finds-or-creates new-api
@@ -59,10 +59,28 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   → `aliasesOf()`: a name matching it whose base name is also listed is hidden from `/api/models` and `/network`
   (routes dropped, node model lists and live calls mapped to the base name). Still callable with a key. Variants
   priced differently (`-max`, `-max-all`) are real models, not aliases.
+  **Key top-ups** (since 2026-10-07): `POST /api/buy {money, key}` (key in the body, ±`sk-`; `findKeyOrder` = only keys
+  sold here, else 404 `unknown key`) → order `kind:'keytopup'` (`makeTopupOrder`: `CK…` id, name `Top-up · €2 for key sk-…a1b2`,
+  `topup {of, tokenId, keyHint}`; `publicOrder` never returns `of` or the key, so the link can go to a third party). On PAID the
+  notify loop runs `makeTopupOnce` → `KeyShop.topUp(o, save)`: checkpoint = new-api's `remain_quota + used_quota` (only grows
+  when quota is added; calls/reservations/refunds move quota between the two). Write-ahead `topup.base = remain+used`,
+  `topup.add = money/price×qpu` (saved before any change), then add `decideTopup(total, base, add)` = what is still missing,
+  re-read and verify (`total ≥ base+add`, status ≠ 4), else throw → notify backoff. rc.22 facts (checked in a throwaway
+  container): `PUT /api/token/` writes **every** editable field from the body (a partial body clears name/group/model_limits/
+  expiry), so send the whole GET object back, with its own status (a PUT with status 1 on a status-4 token is refused); a
+  used-up key (status 4) comes back only via `PUT /api/token/?status_only=true {id,status:1}` once remain > 0. One key's
+  top-ups run in order (`topupBlocked`: another unfinished top-up of the same token already took its `base`). Token gone
+  (`record not found`) → `topup.needsRefund`, listed red on admin.html for a manual refund. Key page: "Top up this key"
+  buttons (`showTopup`), `topups` history; `examples/agent-buy-key.ts --topup sk-… <amount>`.
+  **Pool protection**: `KeyShop.pool()` (cached 30s, cleared after createKey/topUp) = pool user quota (`/api/user/self`) −
+  Σ `remain_quota` of its limited tokens with status 1/4 (`/api/token/?p=&page_size=100`, paged) → `{quota, owed, available}`
+  in FIAT. `poolLeft()` = available − `pendingMoney` (open/settling/paid-not-made key + top-up orders). An amount is sold
+  only while `money + POOL_RESERVE (10) ≤ left`: `/api/shop` filters `amounts` (empty → `soldOut`, buy page says "Sold
+  out right now"), `/api/buy` → 503. Fail open (new-api unreadable or >1.5s on `/api/shop` → unfiltered). `POOL_ALERT` (30) →
+  hourly `⚠️ key pool low` log line (checked at start and every 10 min). Admin JSON has `pool {…, pending, reserve, alert}`.
   Homepage (`web/index.html`): og/twitter meta (`og:image` = `/og-card.png`, 1200×630 from `../gallery/og-card.html`;
   absolute URLs on our domain, self-hosters change them), nav (🛰 /network, 📖 user guide, GitHub) and a "Who runs this"
-  card (BHBTC relay, privacy, exactly-once, agents). Key page shows `#low` ("Running low" / "used up" → buy another key;
-  keys can't be topped up) when ≤10% of the key is left.
+  card (BHBTC relay, privacy, exactly-once, agents). Key page shows `#low` ("Running low" / "used up" → "Top it up ↓") when ≤10% of the key is left.
   Static files are sent `cache-control: no-cache`, but Cloudflare (stable URL) rewrites the browser TTL to 4h: after changing
   `web/*.js|css`, bump the `?v=` in the HTML/`import` URLs or browsers keep the old file. The key page also has a **Claude Code** one-liner: `ANTHROPIC_BASE_URL=<root, no /v1>
   ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
@@ -104,13 +122,14 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   The camera stops on tab switch, PAID/EXPIRED and pagehide. All page copy is English only.
   Testing tip: on testnut, opening the ⚡ tab auto-pays the invoice, so a local keyshop run creates a real key on
   the demo new-api — delete it afterwards (`DELETE /api/token/:id`).
-- `test/` — `node:test` units (24; `upstreams.test.ts` = anonymize/no host leak/tiers; `keyshop.test.ts` = `aliasesOf`): go-epay signature vectors, submit idempotency, write-ahead settle,
+- `test/` — `node:test` units (37; `topup.test.ts` = top-up helpers + `KeyShop.topUp`/`pool` against a fake new-api with rc.22's PUT semantics: crash after write-ahead / after the PUT, calls in between, status 4, refund race, deleted key, paging; `upstreams.test.ts` = anonymize/no host leak/tiers; `keyshop.test.ts` = `aliasesOf`): go-epay signature vectors, submit idempotency, write-ahead settle,
   `decideSettle`, notify (`ledger`/`epay` tests), mint capability check (`gateway.test.ts`).
 - `scripts/` — `crash-demo.ts` (kill -9 mid-payment → restart → credited once), `edge-checks.ts` (unhappy paths +
   withdraw), `harness.ts` (shared by those two), `fake-merchant.ts` (stands in for new-api),
   `customer-wallet.ts mint <sats>`, `smoke.ts` (raw NUT-09 idea). All local against testnut, ports 8095/3995.
 - `examples/agent-buy-key.ts` — no-dependency agent script: buy → pay (Cashu token arg, else prints the bolt11) → poll
-  until `apiKey`; `SHOP=` picks the shop. Verified on testnut with a fake new-api (both paths). Typechecked (tsconfig include).
+  until `apiKey`; `SHOP=` picks the shop; `--topup sk-… <amount>` tops up a key and prints `{added, remaining}`. Verified on
+  testnut with a fake new-api (both paths); `--topup` end to end against a throwaway new-api rc.22 container. Typechecked (tsconfig include).
 - `Dockerfile`, `deploy/demo/` — demo stack on the relay server (see `deploy/demo/README.md`).
 - `docs/` — documentation (`README.md` index, `user-guide.md` buyer guide, `self-hosting.md` deploy guide, `api.md` every
   endpoint, `how-it-works.md` lifecycle/ledger/recovery; English, public: no EPay, no server IP/tunnel/secrets; keep in

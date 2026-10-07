@@ -130,3 +130,36 @@ The gateway talks to new-api as one normal **pool user**, using that user's syst
 
 Each key has its own hard cap, enforced by new-api. new-api also reserves quota for a request's `max_tokens` up
 front, which is why clients with a large default output limit (Claude Code) need a lower one on small keys.
+
+### Topping up a key
+
+| call | why |
+|---|---|
+| `GET /api/token/:id` | the key's `remain_quota`, `used_quota` and status, plus every other field to send back |
+| `PUT /api/token/` | set `remain_quota`. new-api writes every editable field from the body, so the whole token goes back with only `remain_quota` changed |
+| `PUT /api/token/?status_only=true` | turn a used-up key (status 4) back on, once it has quota again |
+
+new-api moves quota between `remain_quota` and `used_quota` on every call, reservation and refund, so their sum
+is everything ever put on the key. That sum is the top-up's checkpoint:
+
+1. Read the key. If the order has no `base` yet, write `base = remain + used` and `add = money / price ×
+   quota_per_unit` to the ledger and fsync it before anything changes.
+2. `missing = base + add − (remain + used)`. If it is above 0, add `missing` to `remain_quota`.
+3. Read the key again: done only if the sum reached `base + add` and the key isn't still marked used up;
+   otherwise retry with backoff.
+
+A crash before step 2 lands adds the money on the retry; a crash after it finds nothing missing. Calls in
+between don't change the sum. Two top-ups of one key run one after the other (a second one doesn't take its
+`base` while the first is unfinished). One small gap: the PUT sets an absolute value, so a charge that lands in
+the milliseconds between the read and the write is overwritten (a few cents in the customer's favour); a refund
+in that window leaves the sum short, step 3 notices and the retry adds the rest. If the key no longer exists, the
+top-up is marked `needsRefund` for the operator.
+
+### The pool
+
+Sold keys are capped tokens of one pool user, and new-api charges each call to the token and to the user. So
+the user's quota must cover what all its keys can still spend: `available = user quota − Σ remain_quota` of its
+limited, enabled (or used-up) tokens, read with `GET /api/user/self` and the token list (cached 30 s). The shop
+offers an amount only while `amount + POOL_RESERVE ≤ available − open orders`; otherwise `/api/buy` answers 503
+and the buy page shows "sold out". The check runs when an order is created; if new-api can't be read the shop
+stays open. Below `POOL_ALERT` the gateway logs a warning: time to add quota to the pool user.

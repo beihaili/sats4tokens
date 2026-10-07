@@ -2,8 +2,9 @@
 //
 //   GET|POST /submit.php             new-api redirects the customer here (signed EPay params)
 //   GET      /                       key shop: buy an AI API key with bitcoin, no account (web/index.html)
-//   GET      /api/shop               key shop settings {enabled, amounts, fiat}
+//   GET      /api/shop               key shop settings {enabled, amounts, fiat, sats, soldOut}
 //   POST     /api/buy                {money} → new key order {id}; once paid, its page shows the key
+//                                    {money, key} → top-up of a key sold here (its page never shows the key)
 //   GET      /api/models             key shop: models a key can call + prices (FIAT per 1M tokens, from new-api)
 //   GET      /pay/:id                checkout page (web/checkout.html)
 //   GET      /api/order/:id          order status for the checkout page (polled)
@@ -18,13 +19,16 @@
 //                                    (+ the token itself in the reply if WITHDRAW_TOKEN_OVER_HTTP=1)
 // Background: watcher every 2s (crash recovery; at most one quote check per 8s across all orders — open
 // checkout pages first — paused with backoff on network errors / 429), notify loop every 2s (for key shop
-// orders "notify" means: create the key in new-api, see keyshop.ts).
+// orders "notify" means: create the key in new-api or add the top-up to it, see keyshop.ts).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { verify, signed, type Params } from './epay.ts';
-import { Ledger, checkSubmit, makeOrder, makeKeyOrder, moneyLabel, satsFor, notifyParams, dueForNotify, notifyBackoffMs, type Order } from './ledger.ts';
+import {
+  Ledger, checkSubmit, makeOrder, makeKeyOrder, makeTopupOrder, findKeyOrder, topupBlocked, pendingMoney, moneyLabel, satsFor,
+  notifyParams, dueForNotify, notifyBackoffMs, type Order,
+} from './ledger.ts';
 import { Gateway, loadSeed } from './gateway.ts';
 import { btcPrice, fiat } from './price.ts';
 import { KeyShop } from './keyshop.ts';
@@ -50,6 +54,10 @@ const ADMIN_KEY = process.env.ADMIN_KEY || KEY;
 // in the same currency (it is: new-api's top-ups pay `units × Price` through this gateway in FIAT).
 const shop = KeyShop.fromEnv();
 const KEY_AMOUNTS = ['1', '2', '5', '10'];
+// Pool protection (FIAT): every sold key spends the pool user's quota, so the shop sells (keys and top-ups) only while
+// the pool keeps POOL_RESERVE on top of the order; below POOL_ALERT the log warns (hourly) to top the pool up.
+const POOL_RESERVE = Number(process.env.POOL_RESERVE ?? 10);
+const POOL_ALERT = Number(process.env.POOL_ALERT ?? 30);
 // /network page (optional): UPSTREAMS_FILE from scripts/export-upstreams.ts; live calls come from the key shop pool
 const network = Network.fromEnv(shop);
 
@@ -79,6 +87,31 @@ async function epayParams(req: http.IncomingMessage, url: URL): Promise<Params> 
   return Object.fromEntries(src.entries());
 }
 
+/** Resolves to undefined if `p` takes longer than `ms` or fails (for pages that shouldn't wait on slow upstreams). */
+const within = <T>(ms: number, p: Promise<T>): Promise<T | undefined> =>
+  Promise.race([p, new Promise<undefined>((r) => setTimeout(r, ms))]).catch(() => undefined);
+
+/**
+ * FIAT the key shop can still sell: the pool's available quota minus orders that may still turn into quota.
+ * undefined if new-api can't be read: then the shop stays open (fail open, logged), as before pool checks existed.
+ */
+let poolAlertAt = 0;
+async function poolLeft(): Promise<number | undefined> {
+  if (!shop) return undefined;
+  try {
+    const p = await shop.pool();
+    if (p.available < POOL_ALERT && Date.now() - poolAlertAt > 3600_000) {
+      poolAlertAt = Date.now();
+      console.warn(`⚠️ key pool low: ${p.available.toFixed(2)} ${fiat()} left to sell (alert below ${POOL_ALERT}): add quota to the pool user`);
+    }
+    return p.available - pendingMoney(ledger.data, Date.now());
+  } catch (e) {
+    console.warn(`key pool unknown (selling anyway): ${(e as Error).message}`);
+    return undefined;
+  }
+}
+const fits = (money: string, left: number | undefined) => left === undefined || Number(money) + POOL_RESERVE <= left;
+
 /** What the customer's browser may see. No proofs, no token, no notify internals. */
 function publicOrder(o: Order) {
   let returnUrl = '';
@@ -104,8 +137,18 @@ function publicOrder(o: Order) {
     returnUrl,
     kind: o.kind,
     apiKey: o.state === 'PAID' ? o.apiKey : undefined, // the order id is the capability (128 random bits)
-    keyError: o.kind === 'key' && !o.apiKey ? o.notify.lastError : undefined,
+    keyError: (o.kind === 'key' && !o.apiKey) || (o.kind === 'keytopup' && !o.notify.done) ? o.notify.lastError : undefined,
+    // a top-up's page may be someone else's (a friend paying): only the key's last 4 characters, never `of`
+    topup: o.topup && { key: o.topup.keyHint, applied: o.topup.applied, needsRefund: !!o.topup.needsRefund },
+    // the key's page: its paid top-ups
+    topups: o.kind === 'key' && o.apiKey ? topupsOf(o) : undefined,
   };
+}
+
+function topupsOf(key: Order) {
+  return ledger.data.orders
+    .filter((x) => x.kind === 'keytopup' && x.topup!.of === key.id && x.state === 'PAID')
+    .map((x) => ({ at: x.paid!.at, money: x.money, fiat: x.fiat, applied: !!x.topup!.applied, needsRefund: !!x.topup!.needsRefund }));
 }
 
 // ------------------------------------------------------------------ routes
@@ -138,16 +181,24 @@ async function submit(req: http.IncomingMessage, res: http.ServerResponse, url: 
   res.end();
 }
 
-/** Key shop: a new order for an API key worth `money` FIAT. Never talks to the mint (invoice comes later). */
+/**
+ * Key shop: a new order for an API key worth `money` FIAT, or with `key` a top-up of that key (only keys sold here;
+ * the key goes in the body, not the URL, to stay out of access logs). Never talks to the mint (invoice comes later).
+ */
 async function buy(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   if (!shop) return send(res, 404, { error: 'key shop not enabled' });
   if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
-  const { money } = JSON.parse((await readBody(req)) || '{}') as { money?: unknown };
+  const { money, key } = JSON.parse((await readBody(req)) || '{}') as { money?: unknown; key?: unknown };
   if (!KEY_AMOUNTS.includes(String(money))) return send(res, 400, { error: `amount must be one of ${KEY_AMOUNTS.join(', ')}` });
-  const order = makeKeyOrder(String(money), { fiat: fiat(), btcPrice: await btcPrice(), now: Date.now(), ttlMs: TTL_MS });
+  const parent = key === undefined ? undefined : findKeyOrder(ledger.data, String(key));
+  if (key !== undefined && !parent) return send(res, 404, { error: 'unknown key' });
+  // the pool check is only here: an order that was made gets its key / top-up once paid, whatever the pool says then
+  if (!fits(String(money), await poolLeft())) return send(res, 503, { error: 'sold out right now: we are refilling, try again later or a smaller amount' });
+  const opts = { fiat: fiat(), btcPrice: await btcPrice(), now: Date.now(), ttlMs: TTL_MS };
+  const order = parent ? makeTopupOrder(parent, String(money), opts) : makeKeyOrder(String(money), opts);
   ledger.data.orders.push(order);
   ledger.save();
-  console.log(`🔑 ${order.id.slice(0, 10)}…: key order ${order.money} ${order.fiat} = ${order.sats} sat`);
+  console.log(`🔑 ${order.id.slice(0, 10)}…: ${parent ? `top-up of token #${order.topup!.tokenId}` : 'key order'} ${order.money} ${order.fiat} = ${order.sats} sat`);
   return send(res, 200, { id: order.id });
 }
 
@@ -159,9 +210,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (p === '/api/shop') {
     // sats: today's price of each amount, for the buy buttons (an order locks its own price when it's made)
     // at most 1.5s: the buy page waits for this, and the price feeds can be slow (then no sats on the buttons)
-    const price = await Promise.race([btcPrice(), new Promise<undefined>((r) => setTimeout(r, 1500))]).catch(() => undefined);
-    const sats = price ? Object.fromEntries(KEY_AMOUNTS.map((a) => [a, satsFor(a, price)])) : undefined;
-    return send(res, 200, { enabled: !!shop, amounts: KEY_AMOUNTS, fiat: fiat(), sats });
+    // amounts: only those the pool can still sell (all of them if the pool can't be read in time)
+    const [price, left] = await Promise.all([within(1500, btcPrice()), within(1500, poolLeft())]);
+    const amounts = KEY_AMOUNTS.filter((a) => fits(a, left));
+    const sats = price ? Object.fromEntries(amounts.map((a) => [a, satsFor(a, price)])) : undefined;
+    return send(res, 200, { enabled: !!shop, amounts, fiat: fiat(), sats, soldOut: !!shop && amounts.length === 0 });
   }
   if (p === '/api/models') {
     if (!shop) return send(res, 404, { error: 'key shop not enabled' });
@@ -240,7 +293,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       settle: settle && { ...settle, token: undefined },
       apiKey: apiKey && { ...apiKey, key: apiKey.key.slice(0, 7) + '…' }, // bearer; the operator doesn't need it
     }));
-    return send(res, 200, { balance: gw.balance(), nextCounter: ledger.data.nextCounter, mint: gw.mintUrl, tokenOverHttp: TOKEN_OVER_HTTP, orders });
+    const pool = shop ? await within(5000, shop.pool()) : undefined;
+    const pending = pendingMoney(ledger.data, Date.now());
+    return send(res, 200, {
+      balance: gw.balance(), nextCounter: ledger.data.nextCounter, mint: gw.mintUrl, tokenOverHttp: TOKEN_OVER_HTTP, orders,
+      fiat: fiat(), pool: pool && { ...pool, pending, reserve: POOL_RESERVE, alert: POOL_ALERT },
+    });
   }
 
   // static files; /pay/:id is the checkout page
@@ -261,6 +319,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
 /** Tell new-api an order is paid. At-least-once: retried with backoff until it answers "success". */
 async function notifyOnce(o: Order): Promise<void> {
   if (o.kind === 'key') return makeKeyOnce(o);
+  if (o.kind === 'keytopup') return makeTopupOnce(o);
   const u = new URL(o.notifyUrl);
   for (const [k, v] of Object.entries(signed(notifyParams(o), KEY))) u.searchParams.set(k, v);
   let err = '';
@@ -301,6 +360,31 @@ async function makeKeyOnce(o: Order): Promise<void> {
   }
 }
 
+/**
+ * Key shop: add a paid top-up to its key. Same retry/backoff; waits while another top-up of the same key is half-way.
+ * A deleted key can't be topped up: the order is marked needsRefund (admin page) and not retried.
+ */
+async function makeTopupOnce(o: Order): Promise<void> {
+  const tp = o.topup!;
+  if (topupBlocked(ledger.data, o)) return; // the other one goes first; this one is due again next pass
+  try {
+    if (!shop) throw new Error('key shop not configured (NEWAPI_*)');
+    const r = await shop.topUp(o, () => ledger.save());
+    if (r) tp.applied = { at: Date.now(), remaining: r.remaining };
+    else tp.needsRefund = 'key no longer exists in new-api';
+    o.notify = { ...o.notify, done: true, doneAt: Date.now(), lastError: undefined };
+    ledger.save();
+    if (r) console.log(`🔋 ${o.id.slice(0, 10)}…: top-up added to token #${tp.tokenId} (${moneyLabel(o.money, o.fiat)}, now ${r.remaining.toFixed(2)})`);
+    else console.warn(`🔋 ${o.id.slice(0, 10)}…: token #${tp.tokenId} is gone — top-up paid but NOT applied, needs a refund`);
+  } catch (e) {
+    o.notify.attempts++;
+    o.notify.nextAt = Date.now() + notifyBackoffMs(o.notify.attempts);
+    o.notify.lastError = (e as Error).message;
+    ledger.save();
+    console.warn(`🔋 ${o.id.slice(0, 10)}…: top-up failed (#${o.notify.attempts}): ${o.notify.lastError}`);
+  }
+}
+
 let notifying = false;
 async function notifyLoop(): Promise<void> {
   if (notifying) return;
@@ -324,6 +408,9 @@ setInterval(() => {
   void gw.tick().finally(() => (ticking = false));
 }, 2000);
 setInterval(() => void notifyLoop(), 2000);
+// so the low-pool warning shows up in the log even with no visitors; the first run also warms the cache /api/shop reads
+void poolLeft();
+setInterval(() => void poolLeft(), 10 * 60_000);
 
 http
   .createServer((req, res) => {

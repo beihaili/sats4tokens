@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <title>Sats4Tokens · operator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css?v=7">
+  <link rel="stylesheet" href="/style.css?v=8">
 </head>
 <body>
   <main class="checkout admin">
@@ -20,6 +20,8 @@
     <section id="wallet" class="card" hidden>
       <div class="muted">Balance at <span id="mint" class="mono"></span></div>
       <div class="amount"><span id="balance">–</span> <small>sat</small></div>
+      <p id="pool" class="hint" hidden></p>
+      <p id="refunds" class="bad" hidden></p>
       <button id="withdraw" class="primary">Withdraw all as ecash token</button>
       <p id="err" class="bad" hidden></p>
     </section>
@@ -37,6 +39,6 @@
       <table id="orders"></table>
     </section>
   </main>
-  <script type="module" src="/admin.js"></script>
+  <script type="module" src="/admin.js?v=2"></script>
 </body>
 </html>

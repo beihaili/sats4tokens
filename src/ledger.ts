@@ -49,9 +49,27 @@ export interface Order {
   paid?: { at: number; via: Via; sats: number; fee: number };
   tokenHash?: string; // cashu path: tokenFingerprint() of the token that paid, so a retried POST gets the same answer
   notify: { done: boolean; attempts: number; nextAt: number; lastError?: string; doneAt?: number };
-  // Key shop orders (no merchant): "notify" is the step that creates the API key in new-api.
-  kind?: 'key';
+  // Key shop orders (no merchant): "notify" is the step that creates the API key in new-api ('key') or adds the paid
+  // quota to a key sold earlier ('keytopup').
+  kind?: 'key' | 'keytopup';
   apiKey?: ApiKey; // BEARER: whoever has it spends the quota; shown only to the order's own page
+  topup?: Topup;
+}
+
+/**
+ * A top-up of a key sold earlier. Its page never shows the key (only `keyHint`), so the link can be sent to someone
+ * else to pay. Exactly once rests on new-api keeping `remain_quota + used_quota` = all quota ever given to the token
+ * (calls move quota from one to the other): `base` is that total before this top-up, saved together with `add`
+ * before anything is changed in new-api, so a retry after a crash adds only what is still missing (decideTopup).
+ */
+export interface Topup {
+  of: string; // id of the key order (a capability: never sent to this order's page)
+  tokenId: number;
+  keyHint: string; // "sk-…a1b2"
+  base?: number; // token's remain + used before this top-up (write-ahead, with `add`)
+  add?: number; // quota this top-up adds
+  applied?: { at: number; remaining: number }; // the key's balance (FIAT) right after
+  needsRefund?: string; // couldn't be applied (key deleted in new-api): paid, credited nowhere; a human refunds
 }
 
 export interface LedgerData {
@@ -172,6 +190,51 @@ export function makeKeyOrder(money: string, o: { fiat: string; btcPrice: number;
     notify: { done: false, attempts: 0, nextAt: 0 },
     kind: 'key',
   };
+}
+
+/** A top-up for the key sold by `parent`: same checkout and payment as buying a key, then makeTopupOnce. */
+export function makeTopupOrder(parent: Order, money: string, o: { fiat: string; btcPrice: number; now: number; ttlMs: number }): Order {
+  if (parent.kind !== 'key' || !parent.apiKey) throw new Error('not a sold key');
+  const keyHint = 'sk-…' + parent.apiKey.key.slice(-4);
+  return {
+    ...makeKeyOrder(money, o),
+    name: `Top-up · ${moneyLabel(money, o.fiat)} for key ${keyHint}`,
+    kind: 'keytopup',
+    topup: { of: parent.id, tokenId: parent.apiKey.tokenId, keyHint },
+  };
+}
+
+/** The key order that sold `key` ("sk-…", with or without the prefix), if it was sold here. */
+export function findKeyOrder(data: LedgerData, key: string): Order | undefined {
+  const k = 'sk-' + key.trim().replace(/^sk-/, '');
+  return k.length > 10 ? data.orders.find((o) => o.kind === 'key' && o.apiKey?.key === k) : undefined;
+}
+
+/** Quota still missing for a top-up: the token held `base` in total before it, and must hold `base + add` after. */
+export const decideTopup = (total: number, base: number, add: number): number => Math.max(0, base + add - total);
+
+/**
+ * Another top-up of the same key is half-way (its base is saved, not finished): this one waits, because its own base
+ * must be read after that one is fully added (else both would read the same base and one would be lost).
+ */
+export function topupBlocked(data: LedgerData, o: Order): boolean {
+  return data.orders.some(
+    (x) => x !== o && x.kind === 'keytopup' && x.topup!.tokenId === o.topup!.tokenId && x.topup!.base !== undefined && !x.notify.done,
+  );
+}
+
+/**
+ * FIAT promised to key shop orders that new-api doesn't hold as token quota yet: open or settling orders (they may
+ * still be paid) and paid ones whose key / top-up isn't made yet. The pool check subtracts it from what's left.
+ */
+export function pendingMoney(data: LedgerData, now: number): number {
+  let sum = 0;
+  for (const o of data.orders) {
+    if (o.kind !== 'key' && o.kind !== 'keytopup') continue;
+    const open = (o.state === 'PENDING' && o.expiresAt > now) || o.state === 'SETTLING' || (o.state === 'PAID' && !o.notify.done);
+    if (open) sum += Number(o.money);
+  }
+  return sum;
 }
 
 // ------------------------------------------------------------------ settle

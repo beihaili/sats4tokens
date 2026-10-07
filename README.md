@@ -45,6 +45,9 @@ endpoint**, capped at exactly what you paid. No signup, no email, no password �
   crash between "created" and "saved" finds the same key instead of making a second one.
 - The order id is 128 random bits and is the receipt: whoever has the `/pay/…` link can see the key —
   and its usage: balance left and the latest calls (time, model, tokens, cost), straight from new-api.
+- **Top up the same key**: "Top up this key" on the key page (or `POST /api/buy {"money": 2, "key": "sk-…"}`) makes a
+  normal order that adds the money to that key exactly once. The top-up page never shows the key, so anyone can pay it.
+- The shop sells only what the pool user's quota can cover (minus a reserve), so a sold key is never left without credit.
 - Both pages list every model the key can call with its price (per 1M tokens in the shop's currency, from new-api's pricing).
 - **Claude Code works too**: the key page has a copy-paste command that points Claude Code at the relay
   (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`). It caps the output tokens because new-api reserves quota for
@@ -104,8 +107,10 @@ exists, but nobody holds it — or worse, a naive retry credits the order twice.
 `npm run crash-demo` kills the gateway with `kill -9` at both crash points, for both payment paths.
 All four cases end the same way: credited once, replaying the token is rejected.
 
-Crediting is idempotent too: a key is find-or-create by order id, and a top-up is retried with backoff
-until new-api confirms it, which credits each order once on its side.
+Crediting is idempotent too: a key is find-or-create by order id, and an account top-up is retried with backoff
+until new-api confirms it, which credits each order once on its side. A key top-up uses the fact that new-api's
+`remain_quota + used_quota` of a key changes only when quota is added: the gateway writes that total to its ledger
+before it adds anything, and after a crash adds only what is still missing.
 
 ## Polite to public mints
 
@@ -136,6 +141,7 @@ EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance  # or: withd
 | env | meaning |
 |---|---|
 | `NEWAPI_URL`, `NEWAPI_USER_ID`, `NEWAPI_TOKEN`, `KEY_BASE_URL` | turn on the key shop: new-api URL, pool user id + its personal access token, endpoint shown with the key (default new-api's ServerAddress + `/v1`). Key prices use new-api's top-up `Price`, which must be in `FIAT` |
+| `POOL_RESERVE`, `POOL_ALERT` | key shop: quota (in `FIAT`) never sold from the pool, default `10`; warn in the log below this much, default `30` |
 | `MINT_URL` | Cashu mint (default `https://testnut.cashu.space`) |
 | `FIAT`, `BTC_PRICE` | order currency (default `cny`; our EU relay uses `eur`); fixed price for offline tests |
 | `ADMIN_KEY` | operator page key |
@@ -189,7 +195,7 @@ About 2,800 lines for the gateway and pages, 700 for tests and scripts. Dependen
 - **The mint is custodial** until you withdraw — so withdraw often, or run your own mint.
 - **No signed receipt yet.** The order id is the receipt; a client can check its Cashu proofs are spent (NUT-07) or
   keep the Lightning preimage, but nothing binds payment and key cryptographically.
-- Next: signed receipts, topping up an existing key, NUT-18 payment requests (the wallet pays the request, no
+- Next: signed receipts, NUT-18 payment requests (the wallet pays the request, no
   copy-paste), pay-per-request with Cashu tokens in the API header (NUT-24), automatic melt to the operator's
   Lightning wallet.
 

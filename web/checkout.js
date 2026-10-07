@@ -10,11 +10,24 @@ let redirectTimer = 0;
 function render(o) {
   if (o.state === 'PAID' || o.state === 'EXPIRED') stopScan(); // the pay card is hidden from here on
   $('#order').innerHTML = `
-    <div class="muted">${esc(o.name)} · order <span class="mono">${esc(o.kind === 'key' ? o.id.slice(0, 10) + '…' : o.id)}</span></div>
+    <div class="muted">${esc(o.name)} · order <span class="mono">${esc(o.kind ? o.id.slice(0, 10) + '…' : o.id)}</span></div>
     <div class="amount">${o.sats.toLocaleString()} <small>sat</small></div>
     <div class="muted">= ${esc(o.money)} ${esc(o.fiat.toUpperCase())} · 1 BTC = ${o.btcPrice.toLocaleString()} ${esc(o.fiat.toUpperCase())}</div>`;
   $('#mint').textContent = o.mint;
 
+  if (o.state === 'PAID' && o.kind === 'keytopup') {
+    // a top-up page may be a friend's who pays for you: it never shows the key or links to the key's page
+    $('#pay').hidden = true;
+    $('#done').hidden = false;
+    $('#back').hidden = true;
+    const t = o.topup;
+    $('#done-detail').textContent = `${o.paid.sats} sat received via ${o.paid.via}. ` + (t.applied
+      ? `Added ${money(Number(o.money), o.fiat)} to key ${t.key} · its balance is now ${money(t.applied.remaining, o.fiat, 2)}.`
+      : t.needsRefund
+        ? `Key ${t.key} no longer exists, so nothing was added. You get the money back: keep this page's URL (don't post it publicly) and contact us.`
+        : `Adding it to key ${t.key}…${o.keyError ? ' (retrying: ' + o.keyError + ')' : ''}`);
+    return;
+  }
   if (o.state === 'PAID' && o.kind === 'key') {
     // key shop: no merchant to go back to — the key itself is the product
     $('#pay').hidden = true;
@@ -33,8 +46,10 @@ function render(o) {
       $('#prices').hidden = false;
       renderModels($('#models'));
       $('#env').value = `OPENAI_BASE_URL=${o.apiKey.baseUrl}\nOPENAI_API_KEY=${o.apiKey.key}`;
+      showTopup(o.apiKey.key);
       $('#curl').value = `curl ${o.apiKey.baseUrl}/chat/completions \\\n  -H "Authorization: Bearer ${o.apiKey.key}" \\\n  -H "content-type: application/json" \\\n  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hi"}]}'`;
     }
+    renderTopups(o.topups ?? []);
     return;
   }
   if (o.state === 'PAID') {
@@ -48,7 +63,8 @@ function render(o) {
   }
   if (o.state === 'EXPIRED') {
     $('#pay').hidden = true;
-    $('#order').insertAdjacentHTML('beforeend', '<p class="bad">This order expired. Go back and start a new top-up.</p>');
+    const again = o.kind === 'keytopup' ? 'Start a new top-up from the key\'s page.' : o.kind === 'key' ? '<a href="/">Start a new order</a>.' : 'Go back and start a new top-up.';
+    $('#order').insertAdjacentHTML('beforeend', `<p class="bad">This order expired. ${again}</p>`);
     return;
   }
   $('#pay').hidden = false;
@@ -117,10 +133,10 @@ async function loadUsage() {
     return;
   }
   $('#balance').textContent = `${cash(u.remaining, u.fiat)} left · ${cash(u.used, u.fiat)} used · ${u.totalCalls} call${u.totalCalls === 1 ? '' : 's'}`;
-  // a spent key answers 403 "quota exhausted"; it can't be topped up yet, so point at a new one before that happens
+  // a spent key answers 403 "quota exhausted": point at the top-up buttons before that happens
   const low = u.remaining <= 0.1 * (u.used + u.remaining);
   $('#low').hidden = !low;
-  if (low) $('#low').innerHTML = `${u.remaining > 0 ? 'Running low.' : 'This key is used up.'} <a href="/">Buy another key →</a> (a key can't be topped up yet)`;
+  if (low) $('#low').innerHTML = `${u.remaining > 0 ? 'Running low.' : 'This key is used up.'} <a href="#topup">Top it up ↓</a>`;
   $('#nocalls').hidden = u.calls.length > 0;
   $('#calls').hidden = u.calls.length === 0;
   $('#calls tbody').replaceChildren(
@@ -132,6 +148,50 @@ async function loadUsage() {
     }),
   );
 }
+// Top-up buttons under the usage: a new order for this key (its page shows only the key's last 4 characters, so the
+// link can go to someone else to pay). Amounts come from /api/shop, which leaves out what the pool can't sell now.
+async function showTopup(key) {
+  const shop = await (await fetch('/api/shop')).json().catch(() => ({}));
+  const msg = (t) => {
+    $('#topup-msg').hidden = !t;
+    $('#topup-msg').textContent = t ?? '';
+  };
+  if (!shop.enabled || shop.soldOut) return msg('Top-ups are paused right now (we are refilling). Try again later.');
+  $('#topup-amounts').replaceChildren(
+    ...shop.amounts.map((a) => {
+      const b = document.createElement('button');
+      b.className = 'primary';
+      b.textContent = `+ ${money(Number(a), shop.fiat)}`;
+      if (shop.sats?.[a]) b.append(Object.assign(document.createElement('small'), { textContent: `≈ ${shop.sats[a].toLocaleString('en')} sat` }));
+      b.onclick = async () => {
+        b.disabled = true;
+        const r = await fetch('/api/buy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ money: a, key }) });
+        const j = await r.json();
+        if (!r.ok) {
+          b.disabled = false;
+          return msg(j.error);
+        }
+        location.href = `/pay/${j.id}`;
+      };
+      return b;
+    }),
+  );
+  msg('Pays like the key did. The top-up page never shows the key, so you can send its link to someone else to pay.');
+}
+let shownTopups = '';
+function renderTopups(list) {
+  const s = JSON.stringify(list);
+  if (s === shownTopups) return;
+  shownTopups = s;
+  $('#topups').hidden = list.length === 0;
+  $('#topups').replaceChildren(
+    ...list.map((t) => Object.assign(document.createElement('li'), {
+      textContent: `${new Date(t.at).toLocaleString()} · +${money(Number(t.money), t.fiat)}${t.applied ? '' : t.needsRefund ? ' · not added (key was gone)' : ' · adding…'}`,
+    })),
+  );
+  if (list.some((t) => t.applied)) loadUsage(); // a top-up just landed: show the new balance now
+}
+
 function startUsage() {
   if (usageTimer) return;
   loadUsage();
