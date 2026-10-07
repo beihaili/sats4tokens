@@ -46,7 +46,8 @@ Models a sold key can call, with prices for the pool user's group (cached 5 minu
 
 `input` / `output` / `cacheRead` are `fiat` per 1M tokens; `perCall` is `fiat` per call (models billed per request);
 `fastTier` means a faster service tier is available at a higher price; `endpoints` lists the API styles
-(`openai`, `anthropic`). (Values above are illustrative.)
+(`openai`, `anthropic`). (Values above are illustrative.) Names matching `MODEL_ALIAS_SUFFIX` whose base model is listed too are left out
+(they still work with a key); `/api/network` does the same.
 
 ### `GET /api/network`
 

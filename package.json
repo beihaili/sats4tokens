@@ -11,7 +11,7 @@
     "smoke": "node --disable-warning=ExperimentalWarning scripts/smoke.ts",
     "typecheck": "tsc --noEmit"
   },
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@cashu/cashu-ts": "^4.11.0",
     "qrcode": "^1.5.4"

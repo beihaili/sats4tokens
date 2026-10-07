@@ -2,7 +2,7 @@
 
 Bitcoin checkout for AI APIs: customers pay with Lightning or Cashu ecash and get a capped new-api key
 (key shop), or top up an existing new-api account. No account details, no KYC, exactly-once settlement.
-bitcoin++ Berlin 2026 (payments edition) hackathon project.
+bitcoin++ Berlin 2026 (payments edition) hackathon project. MIT license (`LICENSE`, since 2026-10-07).
 
 Naming: the GitHub repo was renamed from `cashu-epay` on 2026-10-02 (old URL redirects) and public copy (README, submission)
 no longer mentions EPay. Internally the top-up path still speaks the EPay protocol (`/submit.php`,
@@ -53,6 +53,14 @@ Local workspace (since 2026-10-07, outside git): this repo lives at `sats4tokens
   and of the key page. On `/` (`renderModels(el, {calc: {amounts}})`) rows have checkboxes and a calculator shows, per ticked
   model, tokens for 1/2/5/10 (FIAT) if all input / all output, and chat calls (2K in + 500 out); images per call for per-call models.
   Phones (<480px) hide the cached column.
+  **Model aliases**: `MODEL_ALIAS_SUFFIX` (regex, server `.env` only, so upstream-named suffixes stay out of the repo)
+  → `aliasesOf()`: a name matching it whose base name is also listed is hidden from `/api/models` and `/network`
+  (routes dropped, node model lists and live calls mapped to the base name). Still callable with a key. Variants
+  priced differently (`-max`, `-max-all`) are real models, not aliases.
+  Homepage (`web/index.html`): og/twitter meta (`og:image` = `/og-card.png`, 1200×630 from `../gallery/og-card.html`;
+  absolute URLs on our domain, self-hosters change them), nav (🛰 /network, 📖 user guide, GitHub) and a "Who runs this"
+  card (BHBTC relay, privacy, exactly-once, agents). Key page shows `#low` ("Running low" / "used up" → buy another key;
+  keys can't be topped up) when ≤10% of the key is left.
   Static files are sent `cache-control: no-cache`, but Cloudflare (stable URL) rewrites the browser TTL to 4h: after changing
   `web/*.js|css`, bump the `?v=` in the HTML/`import` URLs or browsers keep the old file. The key page also has a **Claude Code** one-liner: `ANTHROPIC_BASE_URL=<root, no /v1>
   ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
@@ -72,6 +80,7 @@ Local workspace (since 2026-10-07, outside git): this repo lives at `sats4tokens
   time, model, node}. The page polls every 5s and animates each new real call (you → hub → provider → node → back);
   between them a lighter, labelled "route preview" samples the routing table (12% simulated failover to the next tier).
   The "why" copy computes its numbers from the routes (busiest provider, models with a cross-provider fallback).
+  The 4th stats tile shows real requests in the last 24 h, or (when 0 / not live) the cross-provider fallback count.
   Local preview: `../gallery/mock-server.mjs` serves `/api/network` from `/tmp/upstreams.json` with fake calls.
 - `README.md` — public overview (no secrets, no tunnel URLs).
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
@@ -93,7 +102,7 @@ Local workspace (since 2026-10-07, outside git): this repo lives at `sats4tokens
   The camera stops on tab switch, PAID/EXPIRED and pagehide. All page copy is English only.
   Testing tip: on testnut, opening the ⚡ tab auto-pays the invoice, so a local keyshop run creates a real key on
   the demo new-api — delete it afterwards (`DELETE /api/token/:id`).
-- `test/` — `node:test` units (22; `upstreams.test.ts` = anonymize/no host leak/tiers): go-epay signature vectors, submit idempotency, write-ahead settle,
+- `test/` — `node:test` units (23; `upstreams.test.ts` = anonymize/no host leak/tiers; `keyshop.test.ts` = `aliasesOf`): go-epay signature vectors, submit idempotency, write-ahead settle,
   `decideSettle`, notify (`ledger`/`epay` tests), mint capability check (`gateway.test.ts`).
 - `scripts/` — `crash-demo.ts` (kill -9 mid-payment → restart → credited once), `edge-checks.ts` (unhappy paths +
   withdraw), `harness.ts` (shared by those two), `fake-merchant.ts` (stands in for new-api),

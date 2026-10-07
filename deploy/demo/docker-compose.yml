@@ -106,6 +106,8 @@ services:
       KEY_BASE_URL: "${KEY_BASE_URL:-}"
       # /network page: anonymized upstream routing table (re-read when the file changes)
       UPSTREAMS_FILE: "/public/upstreams.json"
+      # regex of alias suffixes (duplicate routes of one model) left out of /api/models and /network; set in .env
+      MODEL_ALIAS_SUFFIX: "${MODEL_ALIAS_SUFFIX:-}"
       # Node's happy-eyeballs gives each connect attempt 250ms; Minibits is ~265ms RTT from this VPS → ETIMEDOUT
       NODE_OPTIONS: "--network-family-autoselection-attempt-timeout=2000"
     networks: [demo]

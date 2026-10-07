@@ -133,6 +133,7 @@ EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance  # or: withd
 | `FIAT`, `BTC_PRICE` | order currency (default `cny`; our EU relay uses `eur`); fixed price for offline tests |
 | `ADMIN_KEY` | operator page key |
 | `UPSTREAMS_FILE` | turn on the `/network` page: snapshot from `scripts/export-upstreams.ts` (optional) |
+| `MODEL_ALIAS_SUFFIX` | regex of alias suffixes (e.g. `-alt$`): extra routes of one model stay callable but are left out of `/api/models` and `/network` (optional) |
 | `EPAY_KEY` (required), `EPAY_PID` | signing key / merchant id shared with new-api for top-ups (see below). Keep `ADMIN_KEY` different: this one can sign "paid" callbacks |
 | `DATA_DIR`, `ORDER_TTL_MIN`, `CHECKOUT_TAB=ln\|cashu`, `WITHDRAW_TOKEN_OVER_HTTP=1` | storage, order lifetime, default tab, show withdrawn token on the page (https only) |
 
@@ -150,7 +151,7 @@ signed callback, retried until new-api confirms. `scripts/fake-merchant.ts` stan
 ## Tests
 
 ```sh
-npm test && npm run typecheck      # 22 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization
+npm test && npm run typecheck      # 23 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization, model aliases
 npm run edge-checks                # 15 end-to-end checks against testnut (~40 s): bad signatures, underpaid / spent tokens, callback retries, withdraw
 npm run crash-demo -- lightning after-mint   # or: cashu | after-writeahead
 ```
@@ -187,3 +188,7 @@ About 2,800 lines for the gateway and pages, 700 for tests and scripts. Dependen
 ## Safety
 
 `data/` holds the wallet seed and ecash proofs — **bearer money**. It is git-ignored; back up `seed.hex`.
+
+## License
+
+MIT, see [LICENSE](LICENSE). Vendored browser libraries keep their own licenses ([web/vendor/README.md](web/vendor/README.md)).

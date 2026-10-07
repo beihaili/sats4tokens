@@ -43,6 +43,23 @@ export interface ModelPrice {
 // new-api's vendor names are the operator's labels (some in Chinese); the page is English
 const VENDOR_NAMES: Record<string, string> = { 智谱: 'Zhipu GLM', 字节跳动: 'ByteDance' };
 
+// MODEL_ALIAS_SUFFIX: regex of name suffixes the operator gives extra routes of one model (e.g. `-a$|-b$`). Such
+// aliases still work with a key, but the public lists (/api/models, /network) leave them out and show their calls
+// under the base name: they look like duplicates, and a suffix can name an upstream. Kept in env, not in the code.
+const ALIAS_SUFFIX = process.env.MODEL_ALIAS_SUFFIX ? new RegExp(process.env.MODEL_ALIAS_SUFFIX) : undefined;
+
+/** alias → base name, for every name matching `suffix` whose base name is in the list too (else it isn't hidden). */
+export function aliasesOf(names: string[], suffix = ALIAS_SUFFIX): Map<string, string> {
+  const all = new Set(names);
+  const out = new Map<string, string>();
+  if (!suffix) return out;
+  for (const n of names) {
+    const base = n.replace(suffix, '');
+    if (base !== n && all.has(base)) out.set(n, base);
+  }
+  return out;
+}
+
 export class KeyShop {
   url: string;
   headers: Record<string, string>;
@@ -108,8 +125,10 @@ export class KeyShop {
       const m = expr.match(new RegExp(`\\b${v} \\* ([0-9.]+)`));
       return m ? Number(m[1]) * ratio : undefined;
     };
-    const list: ModelPrice[] = j.data
-      .filter((m) => (m.enable_groups ?? []).includes(group))
+    const inGroup = j.data.filter((m) => (m.enable_groups ?? []).includes(group));
+    const aliases = aliasesOf(inGroup.map((m) => String(m.model_name)));
+    const list: ModelPrice[] = inGroup
+      .filter((m) => !aliases.has(String(m.model_name)))
       .map((m) => {
         const expr = String(m.billing_expr ?? '');
         const base = expr.slice(Math.max(0, expr.indexOf('tier("base"'))); // skip the fast tier of a ternary

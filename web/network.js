@@ -288,7 +288,10 @@ function renderStats() {
     tile(net.providers.length, 'independent providers') +
     tile(all.length, `upstream channels · ${inRotation} in rotation`) +
     tile(Object.keys(net.routes).length, 'models routed') +
-    tile(net.live ? day : '–', net.live ? 'real requests, last 24 h' : 'live feed unavailable');
+    // a quiet day says nothing about the network, so then the tile shows its resilience instead (the call list stays below)
+    (net.live && day
+      ? tile(day, 'real requests, last 24 h')
+      : tile(crossFailover(), 'models with a fallback at another provider'));
 }
 
 function renderRoute() {
@@ -327,6 +330,10 @@ function renderRecent() {
     .join('');
 }
 
+/** Models whose routes (any tier) span more than one provider: one provider failing doesn't stop them. */
+const crossFailover = () =>
+  Object.values(net.routes).filter((tiers) => new Set(tiers.flat().map((c) => nodes.get(c.node)?.provider)).size > 1).length;
+
 /** The three claims, with numbers from the routing table itself (so they stay true when it changes). */
 function renderWhy() {
   const models = Object.keys(net.routes);
@@ -337,14 +344,13 @@ function renderWhy() {
     }
   }
   const busiest = Math.max(...primaryProvs.values());
-  const crossFailover = models.filter((m) => new Set(net.routes[m].flat().map((c) => nodes.get(c.node)?.provider)).size > 1).length;
   $('#why').innerHTML = `
     <p><b>Upstreams see Sats4Tokens, not you.</b> Every request leaves here with our credentials. Behind your key there is no
       account, no email and no card — you paid with bitcoin — so there is nothing about you to pass on. Upstreams do receive what you
       send (that is how the model answers), so keep identifying details out of prompts.</p>
     <p><b>No single upstream sees all the traffic.</b> Requests are split by model over ${primaryProvs.size} providers; the busiest one is
       the first choice for ${busiest} of ${models.length} models. Calls to different models can land at different companies.</p>
-    <p><b>No single upstream can cut you off.</b> ${crossFailover} of ${models.length} models have a fallback at another provider. If an
+    <p><b>No single upstream can cut you off.</b> ${crossFailover()} of ${models.length} models have a fallback at another provider. If an
       upstream fails, blocks us or starts misbehaving, the relay retries on the next one and your key keeps working.</p>`;
 }
 

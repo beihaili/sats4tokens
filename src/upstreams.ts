@@ -12,7 +12,7 @@
 // equal chances). A failed call is retried on the next lower tier.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import type { KeyShop } from './keyshop.ts';
+import { aliasesOf, type KeyShop } from './keyshop.ts';
 
 /** One channel row as the export script reads it from new-api's DB (host only for grouping, never stored). */
 export interface RawChannel {
@@ -145,7 +145,7 @@ export interface RecentCall {
 export class Network {
   file: string;
   shop?: KeyShop;
-  private cached?: { mtimeMs: number; snap: UpstreamSnapshot; nodeOfChannel: Map<number, string> };
+  private cached?: { mtimeMs: number; snap: UpstreamSnapshot; nodeOfChannel: Map<number, string>; aliases: Map<string, string> };
   private recentCache?: { at: number; calls: Promise<RecentCall[]> };
 
   constructor(file: string, shop?: KeyShop) {
@@ -162,7 +162,9 @@ export class Network {
     if (this.cached?.mtimeMs !== mtimeMs) {
       const snap = JSON.parse(fs.readFileSync(this.file, 'utf8')) as UpstreamSnapshot;
       const nodeOfChannel = new Map(snap.providers.flatMap((p) => p.nodes.map((n) => [n.channel, n.name] as [number, string])));
-      this.cached = { mtimeMs, snap, nodeOfChannel };
+      // MODEL_ALIAS_SUFFIX (see keyshop.ts): names from the routes and from every node, switched-off ones too
+      const aliases = aliasesOf([...new Set([...Object.keys(snap.routes), ...snap.providers.flatMap((p) => p.nodes.flatMap((n) => n.models))])]);
+      this.cached = { mtimeMs, snap, nodeOfChannel, aliases };
     }
     return this.cached;
   }
@@ -175,12 +177,12 @@ export class Network {
     if (!this.shop) return Promise.resolve([]);
     const now = Date.now();
     if (!this.recentCache || now - this.recentCache.at > 5_000) {
-      const { nodeOfChannel } = this.load();
+      const { nodeOfChannel, aliases } = this.load();
       const calls = this.shop.recentCalls(30).then((cs) =>
         cs.map((c) => ({
           id: crypto.createHash('sha256').update(c.requestId).digest('hex').slice(0, 10),
           time: c.time,
-          model: c.model,
+          model: aliases.get(c.model) ?? c.model,
           node: nodeOfChannel.get(c.channel),
         })),
       );
@@ -192,7 +194,7 @@ export class Network {
 
   /** What /api/network returns. */
   async view() {
-    const { snap } = this.load();
+    const { snap, aliases } = this.load();
     let recent: RecentCall[] = [];
     let live = !!this.shop;
     try {
@@ -202,8 +204,11 @@ export class Network {
     }
     return {
       generatedAt: snap.generatedAt,
-      providers: snap.providers.map((p) => ({ name: p.name, nodes: p.nodes.map(({ channel, ...n }) => n) })),
-      routes: snap.routes,
+      providers: snap.providers.map((p) => ({
+        name: p.name,
+        nodes: p.nodes.map(({ channel, ...n }) => ({ ...n, models: [...new Set(n.models.map((m) => aliases.get(m) ?? m))] })),
+      })),
+      routes: Object.fromEntries(Object.entries(snap.routes).filter(([m]) => !aliases.has(m))),
       live,
       recent,
     };

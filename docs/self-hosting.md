@@ -55,6 +55,7 @@ customer ──► reverse proxy ──┬── /v1/*  ──► new-api :3000 
 | `DATA_DIR` | | wallet seed + ledger, default `data` (`/data` in the Docker image) |
 | `SEED` | | wallet seed as hex; otherwise `DATA_DIR/seed.hex` is created on first start |
 | `UPSTREAMS_FILE` | | turns on the `/network` page: an anonymized snapshot made by `scripts/export-upstreams.ts` from a dump of new-api's channels, re-read when it changes |
+| `MODEL_ALIAS_SUFFIX` | | regex of name suffixes for extra routes of one model, e.g. `-alt$\|-backup$`. A name matching it whose base name exists too stays callable with a key, but `/api/models` and `/network` leave it out and show its calls under the base name |
 | `PORT` | | default `8090` |
 | `ORDER_TTL_MIN` | | how long an unpaid order stays open, default `30` |
 | `CHECKOUT_TAB` | | tab the checkout opens on: `ln` (default) or `cashu` |

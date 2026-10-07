@@ -90,7 +90,8 @@ quota for the maximum output up front, and Claude Code's default can ask for mor
 The key page shows the balance left and your latest 20 calls (time, model, tokens, cost), refreshed
 every 10 seconds. Only you (whoever holds the link) can see it; it shows no prompts or replies.
 
-When the balance runs out, buy another key. Topping up an existing key isn't possible yet.
+When less than 10% is left, the key page says so with a link to buy another key; once it is used up, calls
+fail with `403` / insufficient quota. Topping up an existing key isn't possible yet.
 
 ## FAQ
 

@@ -6,14 +6,30 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <title>Sats4Tokens — AI API key for bitcoin</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css?v=5">
+  <meta name="description" content="Pay with bitcoin (Lightning or Cashu ecash), get an AI API key for Claude, GPT, Kimi K3, DeepSeek, GLM. No signup, no email, no card, no KYC. From €1.">
+  <!-- link previews (X, Telegram, Discord …): crawlers need absolute URLs, so a self-hosted copy points these at its own domain -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Sats4Tokens">
+  <meta property="og:title" content="Sats4Tokens — AI API key for bitcoin">
+  <meta property="og:description" content="Pay with Lightning or Cashu ecash, get an API key for Claude, GPT, Kimi K3, DeepSeek, GLM. No signup, no email, no card, no KYC.">
+  <meta property="og:url" content="https://sats4tokens.bhbtc.xyz/">
+  <meta property="og:image" content="https://sats4tokens.bhbtc.xyz/og-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Sats4Tokens: pay from €1 in bitcoin, get a capped API key, use any model">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="/style.css?v=6">
 </head>
 <body>
   <main class="checkout">
     <header>
       <h1>🔑 Sats4Tokens</h1>
       <p class="tag">Sats in, tokens out. Pay with bitcoin, get an AI API key — no signup, no email, no KYC.</p>
-      <nav class="nav"><a href="/network">🛰 Upstream network: where your requests go →</a></nav>
+      <nav class="nav">
+        <a href="/network">🛰 Where your requests go</a>
+        <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/user-guide.md">📖 Guide</a>
+        <a href="https://github.com/beihaili/sats4tokens">Open source ↗</a>
+      </nav>
     </header>
     <section class="card">
       <p>One key works with Claude, GPT, DeepSeek, GLM, Kimi … through one OpenAI-compatible endpoint (and the Anthropic API for Claude Code).
@@ -21,6 +37,18 @@
       <div id="amounts" class="amounts"></div>
       <p id="err" class="bad" hidden></p>
       <p class="hint">Pay with ⚡ Lightning or 🥜 Cashu ecash. Keep the next page — it is your receipt and shows your key.</p>
+    </section>
+    <section class="card about">
+      <h2>Who runs this</h2>
+      <p>Sats4Tokens is the bitcoin checkout of the BHBTC relay, an AI API relay (its regular console, with an account and
+        bitcoin top-ups, is <a href="https://btc.bhbtc.xyz">btc.bhbtc.xyz</a>). The code is <a href="https://github.com/beihaili/sats4tokens">open source</a>.</p>
+      <ul>
+        <li><b>We never learn who you are.</b> No account, no email. A Cashu mint can't link ecash to the wallet that paid it.
+          Like any AI API, we and the model provider see your prompts, so keep identifying details out of them (and use Tor if your IP matters).</li>
+        <li><b>Every payment counts exactly once</b>, even if our server crashes mid-payment
+          (<a href="https://github.com/beihaili/sats4tokens/blob/main/docs/how-it-works.md">how</a>). Reopening your key page shows the same key, never a second charge.</li>
+        <li><b>For bots and agents:</b> buy, pay and fetch the key over plain HTTP, see the <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/api.md">API</a>.</li>
+      </ul>
     </section>
     <section class="card">
       <h2>Models &amp; prices</h2>

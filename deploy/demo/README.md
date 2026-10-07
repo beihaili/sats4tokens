@@ -20,7 +20,7 @@ Production is only ever *read* (one `mysqldump --single-transaction` in `sync-ch
 | Bitcoin gateway | 127.0.0.1:8531 on the host (container `cashu-demo-gateway`), operator page `/admin.html#key=$ADMIN_KEY` — open it only through the ssh tunnel (below) |
 | MySQL | `cashu-demo-mysql`, not published |
 | accounts | `secrets/demo-accounts.txt` (root admin + `demo` user) |
-| secrets | `.env` (0600): DB password, session secrets, EPay key, `ADMIN_KEY`, `MINT_URL`, `GATEWAY_DATA`; plus `FIAT=eur`, `CONSOLE_URL`, `SHOP_URL`, `LOGO_URL`, `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` (both set → sign-up open behind Turnstile, else closed) |
+| secrets | `.env` (0600): DB password, session secrets, EPay key, `ADMIN_KEY`, `MINT_URL`, `GATEWAY_DATA`; plus `FIAT=eur`, `CONSOLE_URL`, `SHOP_URL`, `LOGO_URL`, `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` (both set → sign-up open behind Turnstile, else closed), `MODEL_ALIAS_SUFFIX` (regex of alias suffixes hidden from `/api/models` and `/network`) |
 | gateway wallet | `data/gateway/` (testnut), `data/gateway-mainnet/` (real mint) — seed + ecash proofs = **bearer money** |
 
 new-api's EPay settings point at the gateway (all written by `sync-channels.sh`): `PayAddress=$SHOP_URL`,

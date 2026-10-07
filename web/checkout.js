@@ -117,6 +117,10 @@ async function loadUsage() {
     return;
   }
   $('#balance').textContent = `${cash(u.remaining, u.fiat)} left · ${cash(u.used, u.fiat)} used · ${u.totalCalls} call${u.totalCalls === 1 ? '' : 's'}`;
+  // a spent key answers 403 "quota exhausted"; it can't be topped up yet, so point at a new one before that happens
+  const low = u.remaining <= 0.1 * (u.used + u.remaining);
+  $('#low').hidden = !low;
+  if (low) $('#low').innerHTML = `${u.remaining > 0 ? 'Running low.' : 'This key is used up.'} <a href="/">Buy another key →</a> (a key can't be topped up yet)`;
   $('#nocalls').hidden = u.calls.length > 0;
   $('#calls').hidden = u.calls.length === 0;
   $('#calls tbody').replaceChildren(
