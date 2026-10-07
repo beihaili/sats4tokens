@@ -54,6 +54,7 @@ customer ──► reverse proxy ──┬── /v1/*  ──► new-api :3000 
 | `ADMIN_KEY` | recommended | operator key for `/admin` (falls back to `EPAY_KEY`). **Keep it different from `EPAY_KEY`**: that one can sign "paid" callbacks |
 | `DATA_DIR` | | wallet seed + ledger, default `data` (`/data` in the Docker image) |
 | `SEED` | | wallet seed as hex; otherwise `DATA_DIR/seed.hex` is created on first start |
+| `UPSTREAMS_FILE` | | turns on the `/network` page: an anonymized snapshot made by `scripts/export-upstreams.ts` from a dump of new-api's channels, re-read when it changes |
 | `PORT` | | default `8090` |
 | `ORDER_TTL_MIN` | | how long an unpaid order stays open, default `30` |
 | `CHECKOUT_TAB` | | tab the checkout opens on: `ln` (default) or `cashu` |

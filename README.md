@@ -20,7 +20,7 @@ Built at [bitcoin++ Berlin 2026](https://btcpp.dev) (payments edition) for a rea
 
 ![Pick an amount, pay with Lightning or Cashu, get a key](docs/images/2-flow.png)
 
-> **Real money, verified.** 2026-10-02, mainnet (Coinos mint), paid from a phone wallet:
+> **Real money, verified.** 2026-10-02, mainnet (Coinos mint, priced in USD back then), paid from a phone wallet:
 > - **Key shop:** $1 (1161 sat) → API key → a real model call.
 > - **Top-up:** $1 (1158 sat) → credited to a relay account → withdrawn from the gateway as one Cashu
 >   token → received back in a phone wallet.
@@ -36,10 +36,10 @@ real-name account, and every API call ends up tied to an ID card.
 
 ## Key shop: pay, get a key
 
-Open `/`, pick $1 / $2 / $5 / $10, pay with ⚡ or 🥜, and the checkout page shows an API key **with its
+Open `/`, pick €1 / €2 / €5 / €10 (amounts and currency are configurable), pay with ⚡ or 🥜, and the checkout page shows an API key **with its
 endpoint**, capped at exactly what you paid. No signup, no email, no password — **the key is the account**.
 
-- The key is a new-api token of one pool user, with its own hard quota (`$1` → `$1` of quota).
+- The key is a new-api token of one pool user, with its own hard quota: €1 buys exactly the quota €1 buys in the relay's console.
   The gateway holds only that user's personal access token, not an admin key.
 - Exactly once: the token name comes from the order id; the gateway looks it up before creating, so a
   crash between "created" and "saved" finds the same key instead of making a second one.
@@ -114,7 +114,7 @@ our server after hours of polling 4 quotes every 2 s; another answered `429` at 
 ## Cashu NUTs used
 
 NUT-03 swap · NUT-04 mint from Lightning · NUT-06 mint info check · NUT-07 proof states ·
-NUT-09 restore · NUT-13 deterministic secrets · NUT-17 WebSocket subscriptions
+NUT-09 restore · NUT-13 deterministic secrets · NUT-16 animated QR (camera scan) · NUT-17 WebSocket subscriptions
 
 ## Run it
 
@@ -132,6 +132,7 @@ EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance  # or: withd
 | `MINT_URL` | Cashu mint (default `https://testnut.cashu.space`) |
 | `FIAT`, `BTC_PRICE` | order currency (default `cny`; our EU relay uses `eur`); fixed price for offline tests |
 | `ADMIN_KEY` | operator page key |
+| `UPSTREAMS_FILE` | turn on the `/network` page: snapshot from `scripts/export-upstreams.ts` (optional) |
 | `EPAY_KEY` (required), `EPAY_PID` | signing key / merchant id shared with new-api for top-ups (see below). Keep `ADMIN_KEY` different: this one can sign "paid" callbacks |
 | `DATA_DIR`, `ORDER_TTL_MIN`, `CHECKOUT_TAB=ln\|cashu`, `WITHDRAW_TOKEN_OVER_HTTP=1` | storage, order lifetime, default tab, show withdrawn token on the page (https only) |
 
@@ -149,7 +150,7 @@ signed callback, retried until new-api confirms. `scripts/fake-merchant.ts` stan
 ## Tests
 
 ```sh
-npm test && npm run typecheck      # 18 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks
+npm test && npm run typecheck      # 22 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization
 npm run edge-checks                # 15 end-to-end checks against testnut (~40 s): bad signatures, underpaid / spent tokens, callback retries, withdraw
 npm run crash-demo -- lightning after-mint   # or: cashu | after-writeahead
 ```
@@ -163,12 +164,13 @@ src/gateway.ts   the engine: seed-backed cashu-ts wallet, write-ahead settle, NU
 src/ledger.ts    orders, durable JSON ledger, pure decision logic (no network)
 src/epay.ts      MD5 sign / verify for the top-up form and callback
 src/price.ts     fiat → BTC with fallbacks
-web/             key shop, mobile checkout page, operator page
+src/upstreams.ts anonymized upstream network for the /network page (no provider names or hosts)
+web/             key shop, mobile checkout page, upstream network page, operator page
 deploy/demo/     our live EU relay stack (own new-api + gateway, channels copied from the main relay)
 docs/            user guide, self-hosting, HTTP API, internals; slides (PDF) and screenshots (mock orders)
 ```
 
-About 1,750 lines for the gateway and pages, 600 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`.
+About 2,800 lines for the gateway and pages, 700 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`.
 
 ## Limits and next steps
 
@@ -176,8 +178,11 @@ About 1,750 lines for the gateway and pages, 600 for tests and scripts. Dependen
   Next: a list of trusted mints, or melting foreign tokens to pay our invoice.
 - **Overpayment is kept** (a pasted token can't be split here; the page shows the exact amount).
 - **The mint is custodial** until you withdraw — so withdraw often, or run your own mint.
-- Next: topping up an existing key, NUT-18 payment requests (scan instead of paste), automatic melt to the
-  operator's Lightning wallet, pay-per-request with Cashu tokens in the API header.
+- **No signed receipt yet.** The order id is the receipt; a client can check its Cashu proofs are spent (NUT-07) or
+  keep the Lightning preimage, but nothing binds payment and key cryptographically.
+- Next: signed receipts, topping up an existing key, NUT-18 payment requests (the wallet pays the request, no
+  copy-paste), pay-per-request with Cashu tokens in the API header (NUT-24), automatic melt to the operator's
+  Lightning wallet.
 
 ## Safety
 

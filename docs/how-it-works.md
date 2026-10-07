@@ -13,6 +13,7 @@ credits it exactly once.
 | `src/ledger.ts` | order records, the durable ledger file, and the pure decision logic (no network, unit-tested) |
 | `src/keyshop.ts` | paid key order → capped new-api token; usage and model prices |
 | `src/price.ts` | fiat → BTC price with fallbacks |
+| `src/upstreams.ts` | anonymized upstream network for `/network`: providers as letters, routing per model, no names or hosts |
 
 ## Order lifecycle
 

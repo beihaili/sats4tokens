@@ -48,6 +48,15 @@ Models a sold key can call, with prices for the pool user's group (cached 5 minu
 `fastTier` means a faster service tier is available at a higher price; `endpoints` lists the API styles
 (`openai`, `anthropic`). (Values above are illustrative.)
 
+### `GET /api/network`
+
+Data for the `/network` page; 404 `network view not enabled` unless `UPSTREAMS_FILE` is set. Returns
+`{ generatedAt, providers, routes, live, recent }`: `providers` are letters (`A`, `B`, …, one per upstream domain)
+with their channel nodes (`A1`, `A2`, …), `routes` is the routing table per model (tiers by priority, share by
+weight), `recent` the latest real calls of the key shop pool (hashed request id, time, model, node). No provider
+names, hosts, keys or channel ids. The snapshot file is exported on the server from new-api's channels
+(`scripts/export-upstreams.ts`) and re-read when it changes.
+
 ## Orders
 
 ### `GET /api/order/:id`
@@ -144,6 +153,7 @@ IPs or channels.
 |---|---|
 | `GET /` | key shop: amounts, model list with a cost calculator |
 | `GET /pay/:id` | checkout: ⚡ invoice + QR, 🥜 paste / scan a token, then the key, snippets and usage |
+| `GET /network` | upstream network: anonymized providers (A, B, …) and channels, routing per model, latest real calls (only if `UPSTREAMS_FILE` is set) |
 | `GET /admin.html#key=<ADMIN_KEY>` | operator page: balance, orders, withdraw |
 
 ## Operator

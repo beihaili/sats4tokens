@@ -7,4 +7,4 @@
 | [HTTP API](api.md) | every endpoint the gateway serves, with request / response shapes |
 | [How it works](how-it-works.md) | order lifecycle, the ledger, exactly-once settlement and crash recovery |
 
-Also here: [slides.pdf](slides.pdf) (hackathon pitch) and `images/` (screenshots built from mock orders).
+Also here: [slides.pdf](slides.pdf) (our bitcoin++ Berlin 2026 pitch; prices were in USD then) and `images/` (screenshots built from mock orders).
