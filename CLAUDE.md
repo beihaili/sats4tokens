@@ -6,8 +6,12 @@ bitcoin++ Berlin 2026 (payments edition) hackathon project.
 
 Naming: the GitHub repo was renamed from `cashu-epay` on 2026-10-02 (old URL redirects) and public copy (README, submission)
 no longer mentions EPay. Internally the top-up path still speaks the EPay protocol (`/submit.php`,
-`src/epay.ts`, `EPAY_KEY`/`EPAY_PID`); the local directory, `/opt/cashu-epay-demo` and container names
-keep the old name on purpose (deployment unchanged).
+`src/epay.ts`, `EPAY_KEY`/`EPAY_PID`); `/opt/cashu-epay-demo` and container names keep the old name on purpose
+(deployment unchanged).
+
+Local workspace (since 2026-10-07, outside git): this repo lives at `sats4tokens/repo/`; siblings are `../gallery/`
+(slides/images/logo sources), `../notes/` (hackathon plan, pitch, submission, video script, Chinese) and `../private/`
+(`cashu-epay-prescrub.bundle`, pre-scrub history that still contains the server IP: never upload). See `../README.md`.
 
 ## Layout
 
@@ -153,7 +157,7 @@ the EUR price; top it up when low), its PAT in
 `.env` (`NEWAPI_USER_ID`/`NEWAPI_TOKEN`, mode 600, password in `secrets/demo-accounts.txt`); buy page =
 **https://sats4tokens.bhbtc.xyz/** (named tunnel, see Rules), key endpoint = `KEY_BASE_URL=https://sats4tokens.bhbtc.xyz/v1`. Verified 2026-10-02 locally (testnut + demo new-api): buy $1 →
 key → real chat call, crash-resume found the same token.
-Plan/pitch/video: `../dev-plan.md`, `../pitch.md`, `../recording-script.md`.
+Plan/pitch/video: `../notes/dev-plan.md`, `../notes/pitch.md`, `../notes/recording-script.md`.
 
 ## Rules
 
