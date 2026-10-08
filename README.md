@@ -168,7 +168,7 @@ signed callback, retried until new-api confirms. `scripts/fake-merchant.ts` stan
 ## Tests
 
 ```sh
-npm test && npm run typecheck      # 58 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization, model aliases, token retries, key top-ups, NWC (NIP-44 vectors, fake relay + wallet), auto top-up
+npm test && npm run typecheck      # 62 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization, model aliases, token retries, key top-ups, NWC (NIP-44 vectors, fake relay + wallet), auto top-up
 npm run edge-checks                # 15 end-to-end checks against testnut (~40 s): bad signatures, underpaid / spent tokens, callback retries, withdraw
 npm run crash-demo -- lightning after-mint   # or: cashu | after-writeahead
 ```

@@ -8,6 +8,8 @@
 //   POST     /api/autotopup          {key, nwc?, money, below, perDay} → auto top-up over Nostr Wallet Connect on
 //                                    {key, off: true} → turn it off; {key} → its status (never the connection string)
 //   GET      /api/models             key shop: models a key can call + prices (FIAT per 1M tokens, from new-api)
+//   GET      /api/compare            homepage price check: our live price vs list price and ppq.ai (USD per 1M tokens)
+//   POST     /api/hit                homepage beacon {ref, first} for the funnel counts (no IP, no cookie)
 //   GET      /pay/:id                checkout page (web/checkout.html)
 //   GET      /api/order/:id          order status for the checkout page (polled)
 //   POST     /api/order/:id/invoice  create the lightning invoice (lazily, when the customer picks ⚡)
@@ -39,6 +41,8 @@ import { KeyShop } from './keyshop.ts';
 import { Network } from './upstreams.ts';
 import { AutoTopups, checkNwc, checkSettings, publicAuto } from './autotopup.ts';
 import { payInvoice, walletInfo } from './nwc.ts';
+import { compare, usdPerFiat } from './compare.ts';
+import { Funnel, cleanRef } from './funnel.ts';
 
 const PORT = Number(process.env.PORT ?? 8090);
 const PID = process.env.EPAY_PID ?? '1001';
@@ -75,6 +79,8 @@ const AUTO_EVERY_MS = Number(process.env.AUTO_TOPUP_EVERY_S ?? 60) * 1000;
 const root = path.resolve(import.meta.dirname, '..', 'web');
 const ledger = new Ledger(path.join(DATA_DIR, 'ledger.json'));
 const gw = await Gateway.open(ledger, MINT_URL, loadSeed(DATA_DIR));
+// homepage views per day and ref, joined with the ledger's orders on the admin page (written every minute)
+const funnel = new Funnel(path.join(DATA_DIR, 'funnel.json'));
 
 // ------------------------------------------------------------------ helpers
 
@@ -201,21 +207,22 @@ async function submit(req: http.IncomingMessage, res: http.ServerResponse, url: 
 async function buy(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   if (!shop) return send(res, 404, { error: 'key shop not enabled' });
   if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
-  const { money, key } = JSON.parse((await readBody(req)) || '{}') as { money?: unknown; key?: unknown };
+  const { money, key, ref } = JSON.parse((await readBody(req)) || '{}') as { money?: unknown; key?: unknown; ref?: unknown };
   if (!KEY_AMOUNTS.includes(String(money))) return send(res, 400, { error: `amount must be one of ${KEY_AMOUNTS.join(', ')}` });
   const parent = key === undefined ? undefined : findKeyOrder(ledger.data, String(key));
   if (key !== undefined && !parent) return send(res, 404, { error: 'unknown key' });
-  const order = await newShopOrder(String(money), parent);
+  const order = await newShopOrder(String(money), parent, cleanRef(ref));
   if (typeof order === 'string') return send(res, 503, { error: order });
   return send(res, 200, { id: order.id });
 }
 
 /** A saved key order, or a top-up order for `parent`; or why not (the pool can't take it). Shared with auto top-up. */
-async function newShopOrder(money: string, parent?: Order): Promise<Order | string> {
+async function newShopOrder(money: string, parent?: Order, ref = 'direct'): Promise<Order | string> {
   // the pool check is only here: an order that was made gets its key / top-up once paid, whatever the pool says then
   if (!fits(money, await poolLeft())) return 'sold out right now: we are refilling, try again later or a smaller amount';
   const opts = { fiat: fiat(), btcPrice: await btcPrice(), now: Date.now(), ttlMs: TTL_MS, bonus: BONUS[money] };
   const order = parent ? makeTopupOrder(parent, money, opts) : makeKeyOrder(money, opts);
+  order.ref = ref; // which post the buyer came from (funnel), e.g. 'x', 'hn'; 'auto' for auto top-ups
   ledger.data.orders.push(order);
   ledger.save();
   console.log(`🔑 ${order.id.slice(0, 10)}…: ${parent ? `top-up of token #${order.topup!.tokenId}` : 'key order'} ${order.money} ${order.fiat}${order.bonus ? ` +${order.bonus}%` : ''} = ${order.sats} sat`);
@@ -285,6 +292,22 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     } catch (e) {
       return send(res, 502, { error: (e as Error).message });
     }
+  }
+
+  if (p === '/api/compare') {
+    if (!shop) return send(res, 404, { error: 'key shop not enabled' });
+    try {
+      const [models, rate] = await Promise.all([shop.models(), usdPerFiat(fiat())]);
+      return send(res, 200, compare(models, rate));
+    } catch (e) {
+      return send(res, 502, { error: (e as Error).message });
+    }
+  }
+  if (p === '/api/hit') {
+    if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
+    const b = JSON.parse((await readBody(req)) || '{}') as { ref?: unknown; first?: unknown };
+    if (!/bot|crawl|spider|preview|headless/i.test(req.headers['user-agent'] ?? '')) funnel.hit(cleanRef(b.ref), b.first === true, Date.now());
+    return send(res, 204, '');
   }
 
   if (p === '/api/network') {
@@ -361,6 +384,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return send(res, 200, {
       balance: gw.balance(), nextCounter: ledger.data.nextCounter, mint: gw.mintUrl, tokenOverHttp: TOKEN_OVER_HTTP, orders,
       fiat: fiat(), pool: pool && { ...pool, pending, reserve: POOL_RESERVE, alert: POOL_ALERT },
+      funnel: funnel.report(ledger.data.orders, 14, Date.now()),
     });
   }
 
@@ -465,7 +489,7 @@ const auto = new AutoTopups({
   data: () => ledger.data,
   save: () => ledger.save(),
   remaining: (tokenId) => shop!.remaining(tokenId),
-  newTopup: (key, money) => newShopOrder(money, key),
+  newTopup: (key, money) => newShopOrder(money, key, 'auto'),
   invoice: async (id) => (await gw.ensureQuote(id)).quote!.request,
   checkSoon: (id) => gw.checkSoon(id),
   pay: (c, invoice) => payInvoice(c, invoice),
@@ -486,6 +510,8 @@ setInterval(() => {
 }, 2000);
 setInterval(() => void notifyLoop(), 2000);
 if (shop) setInterval(() => void auto.tick(), AUTO_EVERY_MS);
+setInterval(() => funnel.flush(), 60_000);
+for (const sig of ['SIGTERM', 'SIGINT'] as const) process.on(sig, () => (funnel.flush(), process.exit(0)));
 // so the low-pool warning shows up in the log even with no visitors; the first run also warms the cache /api/shop reads
 void poolLeft();
 setInterval(() => void poolLeft(), 10 * 60_000);

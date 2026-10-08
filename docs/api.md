@@ -97,6 +97,28 @@ Models a sold key can call, with prices for the pool user's group (cached 5 minu
 (`openai`, `anthropic`). (Values above are illustrative.) Names matching `MODEL_ALIAS_SUFFIX` whose base model is listed too are left out
 (they still work with a key); `/api/network` does the same.
 
+### `GET /api/compare`
+
+The homepage's price check: for a few models, our live price next to the model maker's list price and ppq.ai's, in USD
+per 1M input / output tokens.
+
+```json
+{ "checked": "2026-10-08", "usdPerFiat": 1.12, "minOff": 59,
+  "rows": [ { "model": "claude-opus-5-5", "name": "Claude Opus 5.5", "list": [4, 20], "ppq": [4.22, 21.1], "ours": [1.63, 8.14], "off": 59 } ],
+  "sources": { "list": ["https://www.anthropic.com/pricing", "https://openai.com/api/pricing"], "ppq": "https://ppq.ai/pricing" } }
+```
+
+`list` and `ppq` are copied by hand from those pages on `checked` (in `src/compare.ts`). `ours` comes live from
+`/api/models`, converted to USD with BTC's USD/`fiat` price ratio (mempool.space, cached 1 h; `USD_PER_FIAT` overrides).
+`off` = % below list price; `minOff` = the smallest, which the headline uses. Models the pool can't call are left out.
+
+### `POST /api/hit`
+
+`{"ref": "hn", "first": true}` → 204. The homepage sends this once per load, for the funnel on the admin page: views
+and first visits per UTC day and `ref` (from `?ref=` in the link, kept in the browser's localStorage so a later purchase
+is counted for the same channel; `POST /api/buy` also takes `ref`). No IP, no cookie, nothing per person. Requests with
+a bot-like user agent are ignored.
+
 ### `GET /api/network`
 
 Data for the `/network` page; 404 `network view not enabled` unless `UPSTREAMS_FILE` is set. Returns

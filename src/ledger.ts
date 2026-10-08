@@ -54,6 +54,7 @@ export interface Order {
   // quota to a key sold earlier ('keytopup').
   kind?: 'key' | 'keytopup';
   bonus?: number; // key shop: extra quota in percent of `money` (KEY_BONUS tier), locked when the order is made
+  ref?: string; // key shop: where the buyer came from (`?ref=` on the homepage, cleanRef), 'auto' for auto top-ups
   apiKey?: ApiKey; // BEARER: whoever has it spends the quota; shown only to the order's own page
   topup?: Topup;
   auto?: AutoTopup; // key orders: auto top-up over Nostr Wallet Connect (holds a BEARER connection string)

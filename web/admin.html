@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <title>Sats4Tokens · operator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css?v=8">
+  <link rel="stylesheet" href="/style.css?v=10">
 </head>
 <body>
   <main class="checkout admin">
@@ -38,7 +38,12 @@
       <div class="muted">Orders (newest first)</div>
       <table id="orders"></table>
     </section>
+    <section id="funnel-card" class="card" hidden>
+      <h2>Funnel, last 14 days</h2>
+      <p class="hint">Homepage loads (beacon, no IP/cookie) and first visits per <code>?ref=</code>, joined with key shop orders made and paid. UTC days.</p>
+      <div class="scroll"><table id="funnel" class="calls prices"></table></div>
+    </section>
   </main>
-  <script type="module" src="/admin.js?v=2"></script>
+  <script type="module" src="/admin.js?v=3"></script>
 </body>
 </html>

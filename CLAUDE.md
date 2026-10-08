@@ -98,6 +98,13 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   money × (1 + bonus/100) is what createKey/topUp put on the token, what `pendingMoney` and `fits` count. Same for ⚡ and 🥜
   (a Lightning-only bonus would punish Cashu payers) and for auto top-ups. `/api/shop` has `bonus`; buttons, key-page top-ups,
   the auto top-up select and the calculator (`bonusText` in models.js) show it. Orders made before have no `bonus` → none.
+  **Price check + funnel** (since 2026-10-08, for the price-first homepage): `src/compare.ts` = hand-checked list/ppq.ai
+  prices (`ROWS`, `CHECKED`; update both when prices change) joined with `KeyShop.models()` × `usdPerFiat` (mempool
+  USD/FIAT, 1h cache) → `GET /api/compare` (`off` per row, `minOff` drives the "N%+ below list price" headline). Copy rule:
+  "list price", never "official API". `src/funnel.ts`: homepage beacon `POST /api/hit {ref, first}` (no IP/cookie; bot UAs
+  ignored; ≤50 refs/day) → `DATA_DIR/funnel.json` (flushed every minute + on SIGTERM/SIGINT, 120 days kept); `order.ref`
+  (`cleanRef`, from `?ref=` kept in localStorage, sent with `/api/buy`; auto top-ups = `auto`); admin JSON `funnel` = last 14
+  days of views/first visits/orders/paid/money per day and ref, table on admin.html.
   **Pool protection**: `KeyShop.pool()` (cached 30s, cleared after createKey/topUp) = pool user quota (`/api/user/self`) −
   Σ `remain_quota` of its limited tokens with status 1/4 (`/api/token/?p=&page_size=100`, paged) → `{quota, owed, available}`
   in FIAT. `poolLeft()` = available − `pendingMoney` (open/settling/paid-not-made key + top-up orders). An amount is sold
@@ -148,7 +155,7 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   The camera stops on tab switch, PAID/EXPIRED and pagehide. All page copy is English only.
   Testing tip: on testnut, opening the ⚡ tab auto-pays the invoice, so a local keyshop run creates a real key on
   the demo new-api — delete it afterwards (`DELETE /api/token/:id`).
-- `test/` — `node:test` units (58; `autotopup.test.ts` = NWC parse/relay filter, NIP-44 spec vectors, payInvoice against a fake relay +
+- `test/` — `node:test` units (62; `funnel.test.ts` = cleanRef, funnel report/persistence/ref cap, compare rows; `autotopup.test.ts` = NWC parse/relay filter, NIP-44 spec vectors, payInvoice against a fake relay +
   wallet (nip44/nip04, wallet error codes, TIMEOUT, forged answers ignored), decideAuto/caps, engine crash points; `topup.test.ts` = top-up helpers + `KeyShop.topUp`/`pool` against a fake new-api with rc.22's PUT semantics: crash after write-ahead / after the PUT, calls in between, status 4, refund race, deleted key, paging; `upstreams.test.ts` = anonymize/no host leak/tiers; `keyshop.test.ts` = `aliasesOf`): go-epay signature vectors, submit idempotency, write-ahead settle,
   `decideSettle`, notify (`ledger`/`epay` tests), mint capability check (`gateway.test.ts`).
 - `scripts/` — `crash-demo.ts` (kill -9 mid-payment → restart → credited once), `edge-checks.ts` (unhappy paths +

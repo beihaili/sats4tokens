@@ -4,27 +4,28 @@
   <meta charset="utf-8">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <title>Sats4Tokens — AI API key for bitcoin</title>
+  <title>Sats4Tokens — Claude Code on sats, ~60% below list price</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Pay with bitcoin (Lightning or Cashu ecash), get an AI API key for Claude, GPT, Kimi K3, DeepSeek, GLM. No signup, no email, no card, no KYC. From €1.">
+  <meta name="description" content="Claude Opus, Fable and GPT for bitcoin, about 60% below list price. Pay with Lightning or Cashu ecash, get an API key that works in Claude Code. No signup, no KYC. From €1.">
   <!-- link previews (X, Telegram, Discord …): crawlers need absolute URLs, so a self-hosted copy points these at its own domain -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Sats4Tokens">
-  <meta property="og:title" content="Sats4Tokens — AI API key for bitcoin">
-  <meta property="og:description" content="Pay with Lightning or Cashu ecash, get an API key for Claude, GPT, Kimi K3, DeepSeek, GLM. No signup, no email, no card, no KYC.">
+  <meta property="og:title" content="Sats4Tokens — Claude Code on sats, ~60% below list price">
+  <meta property="og:description" content="Claude Opus, Fable and GPT for bitcoin, about 60% below list price. Pay with Lightning or Cashu, get a key that works in Claude Code. No signup, no KYC.">
   <meta property="og:url" content="https://sats4tokens.bhbtc.xyz/">
   <meta property="og:image" content="https://sats4tokens.bhbtc.xyz/og-card.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Sats4Tokens: pay from €1 in bitcoin, get a capped API key, use any model">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="/style.css?v=8">
+  <link rel="stylesheet" href="/style.css?v=10">
 </head>
 <body>
   <main class="checkout">
     <header>
       <h1>🔑 Sats4Tokens</h1>
-      <p class="tag">Sats in, tokens out. Pay with bitcoin, get an AI API key — no signup, no email, no KYC.</p>
+      <p class="hero">Claude Code on sats, <b id="off">~60%</b> below list price.</p>
+      <p class="tag">Pay with ⚡ Lightning or 🥜 Cashu, get an API key for Claude, GPT and more. No signup, no email, no KYC.</p>
       <nav class="nav">
         <a href="/network">🛰 Where your requests go</a>
         <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/user-guide.md">📖 Guide</a>
@@ -37,6 +38,14 @@
       <div id="amounts" class="amounts"></div>
       <p id="err" class="bad" hidden></p>
       <p class="hint">Pay with ⚡ Lightning or 🥜 Cashu ecash. Keep the next page — it is your receipt and shows your key.</p>
+    </section>
+    <section id="compare" class="card" hidden>
+      <h2>Same models, fewer sats</h2>
+      <div class="scroll"><table class="calls prices cmp">
+        <thead><tr><th class="name">Model</th><th>List price</th><th><a id="ppq-link">ppq.ai</a></th><th>Sats4Tokens</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <p class="hint" id="cmp-note"></p>
     </section>
     <section class="card about">
       <h2>Who runs this</h2>
@@ -59,6 +68,13 @@
   <script type="module">
     import { renderModels, money, bonusText } from '/models.js?v=6';
     const $ = (s) => document.querySelector(s);
+    // funnel: which post brought this visitor (?ref=x, kept for this browser's later purchases), one beacon per load
+    const ref = new URLSearchParams(location.search).get('ref') || localStorage.getItem('s4t-ref') || '';
+    if (ref) localStorage.setItem('s4t-ref', ref);
+    const first = !localStorage.getItem('s4t-seen');
+    localStorage.setItem('s4t-seen', '1');
+    fetch('/api/hit', { method: 'POST', body: JSON.stringify({ ref, first }), keepalive: true }).catch(() => {});
+    void showCompare();
     const shop = await (await fetch('/api/shop')).json();
     // + calculator: amount × ticked models → tokens (all amounts, even while some are sold out)
     renderModels($('#models'), { calc: { amounts: shop.amounts.length ? shop.amounts : ['1', '2', '5', '10'] } });
@@ -75,7 +91,7 @@
       b.disabled = !shop.enabled;
       b.onclick = async () => {
         b.disabled = true;
-        const r = await fetch('/api/buy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ money: a }) });
+        const r = await fetch('/api/buy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ money: a, ref }) });
         const j = await r.json();
         if (!r.ok) {
           b.disabled = false;
@@ -86,6 +102,34 @@
         location.href = `/pay/${j.id}`;
       };
       $('#amounts').append(b);
+    }
+
+    // price check: ours live (EUR → USD at today's rate) next to list price and ppq.ai, both checked by hand
+    async function showCompare() {
+      const r = await fetch('/api/compare');
+      if (!r.ok) return;
+      const c = await r.json();
+      if (!c.rows.length) return;
+      const usd = (x) => '$' + Number(x.toFixed(2)); // exact to the cent, no trailing zeros: $4, $4.22, $10.55
+      const pair = (p) => `${usd(p[0])} / ${usd(p[1])}`;
+      $('#off').textContent = `${c.minOff}%+`;
+      $('#ppq-link').href = c.sources.ppq;
+      $('#compare tbody').replaceChildren(...c.rows.map((x) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="name"></td><td></td><td></td><td class="ours"><b></b><span class="off"></span></td>`;
+        const td = tr.querySelectorAll('td');
+        td[0].textContent = x.name.replace(/^Claude /, '');
+        td[0].title = x.model;
+        td[1].textContent = pair(x.list);
+        td[2].textContent = pair(x.ppq);
+        td[3].querySelector('b').textContent = pair(x.ours);
+        td[3].querySelector('.off').textContent = `−${x.off}%`;
+        return tr;
+      }));
+      $('#cmp-note').innerHTML = `USD per 1M input / output tokens. List price = the model maker's own API price; ppq.ai = their public
+        pricing page; both checked ${c.checked}. Ours are live, converted from EUR at today's rate. Why cheaper? We buy capacity from
+        several upstream providers and route every call to one that works (<a href="/network">see where your requests go</a>).`;
+      $('#compare').hidden = false;
     }
   </script>
 </body>

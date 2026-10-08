@@ -168,7 +168,7 @@ async function showTopup(key) {
       if (sub) b.append(Object.assign(document.createElement('small'), { textContent: sub }));
       b.onclick = async () => {
         b.disabled = true;
-        const r = await fetch('/api/buy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ money: a, key }) });
+        const r = await fetch('/api/buy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ money: a, key, ref: localStorage.getItem('s4t-ref') || '' }) });
         const j = await r.json();
         if (!r.ok) {
           b.disabled = false;

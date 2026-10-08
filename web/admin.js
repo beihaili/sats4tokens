@@ -31,6 +31,12 @@ async function load() {
   const refunds = a.orders.filter((o) => o.topup?.needsRefund);
   $('#refunds').hidden = refunds.length === 0;
   $('#refunds').textContent = `Needs refund (top-up paid, key gone): ${refunds.map((o) => `${o.id} ${o.money} ${o.fiat.toUpperCase()} ${o.paid?.sats} sat`).join(' · ')}`;
+  // funnel: views → first visits → orders → paid, per UTC day and ref (which post they came from)
+  $('#funnel-card').hidden = !a.funnel?.length;
+  const tot = (a.funnel ?? []).reduce((t, r) => ({ views: t.views + r.views, visitors: t.visitors + r.visitors, orders: t.orders + r.orders, paid: t.paid + r.paid, money: t.money + r.money }), { views: 0, visitors: 0, orders: 0, paid: 0, money: 0 });
+  $('#funnel').innerHTML = '<thead><tr><th class="name">Day</th><th class="name">Ref</th><th>Views</th><th>New</th><th>Orders</th><th>Paid</th><th>Money</th></tr></thead><tbody>' +
+    (a.funnel ?? []).map((r) => `<tr><td class="name">${r.day.slice(5)}</td><td class="name">${esc(r.ref)}</td><td>${r.views}</td><td>${r.visitors}</td><td>${r.orders}</td><td>${r.paid}</td><td>${r.money ? f(r.money) : ''}</td></tr>`).join('') +
+    `<tr class="vendor"><td class="name">14 days</td><td></td><td>${tot.views}</td><td>${tot.visitors}</td><td>${tot.orders}</td><td>${tot.paid}</td><td>${f(tot.money)}</td></tr></tbody>`;
   const time = (t) => new Date(t).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   $('#orders').innerHTML = a.orders.slice().reverse().slice(0, 30).map((o) => `<tr>
     <td class="muted">${time(o.createdAt)}</td><td>${o.kind === 'keytopup' ? '🔋 ' : o.kind === 'key' ? '🔑 ' : ''}${esc(o.money)} ${esc(o.fiat.toUpperCase())}</td>
