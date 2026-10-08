@@ -108,6 +108,10 @@ services:
       UPSTREAMS_FILE: "/public/upstreams.json"
       # regex of alias suffixes (duplicate routes of one model) left out of /api/models and /network; set in .env
       MODEL_ALIAS_SUFFIX: "${MODEL_ALIAS_SUFFIX:-}"
+      # bonus quota for larger key shop amounts, amount:percent pairs (e.g. 5:5,10:10); empty = none
+      KEY_BONUS: "${KEY_BONUS:-}"
+      # how often keys with NWC auto top-up get their balance checked
+      AUTO_TOPUP_EVERY_S: "${AUTO_TOPUP_EVERY_S:-60}"
       # Node's happy-eyeballs gives each connect attempt 250ms; Minibits is ~265ms RTT from this VPS → ETIMEDOUT
       NODE_OPTIONS: "--network-family-autoselection-attempt-timeout=2000"
     networks: [demo]
