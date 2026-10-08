@@ -2,7 +2,7 @@
 //
 //   GET|POST /submit.php             new-api redirects the customer here (signed EPay params)
 //   GET      /                       key shop: buy an AI API key with bitcoin, no account (web/index.html)
-//   GET      /api/shop               key shop settings {enabled, amounts, fiat, sats, soldOut}
+//   GET      /api/shop               key shop settings {enabled, amounts, fiat, sats, bonus, soldOut}
 //   POST     /api/buy                {money} → new key order {id}; once paid, its page shows the key
 //                                    {money, key} → top-up of a key sold here (its page never shows the key)
 //   POST     /api/autotopup          {key, nwc?, money, below, perDay} → auto top-up over Nostr Wallet Connect on
@@ -30,6 +30,7 @@ import QRCode from 'qrcode';
 import { verify, signed, type Params } from './epay.ts';
 import {
   Ledger, checkSubmit, makeOrder, makeKeyOrder, makeTopupOrder, findKeyOrder, topupBlocked, pendingMoney, moneyLabel, satsFor,
+  parseBonusTiers, creditOf,
   notifyParams, dueForNotify, notifyBackoffMs, type Order,
 } from './ledger.ts';
 import { Gateway, loadSeed } from './gateway.ts';
@@ -59,6 +60,9 @@ const ADMIN_KEY = process.env.ADMIN_KEY || KEY;
 // in the same currency (it is: new-api's top-ups pay `units × Price` through this gateway in FIAT).
 const shop = KeyShop.fromEnv();
 const KEY_AMOUNTS = ['1', '2', '5', '10'];
+// Bonus quota for larger key shop orders (keys, top-ups, auto top-ups; Lightning and Cashu alike): KEY_BONUS="5:5,10:10"
+// = €5 gets 5% more, €10 gets 10% more. Locked into each order when it is made.
+const BONUS = Object.fromEntries(Object.entries(parseBonusTiers(process.env.KEY_BONUS)).filter(([a]) => KEY_AMOUNTS.includes(a)));
 // Pool protection (FIAT): every sold key spends the pool user's quota, so the shop sells (keys and top-ups) only while
 // the pool keeps POOL_RESERVE on top of the order; below POOL_ALERT the log warns (hourly) to top the pool up.
 const POOL_RESERVE = Number(process.env.POOL_RESERVE ?? 10);
@@ -117,7 +121,7 @@ async function poolLeft(): Promise<number | undefined> {
     return undefined;
   }
 }
-const fits = (money: string, left: number | undefined) => left === undefined || Number(money) + POOL_RESERVE <= left;
+const fits = (money: string, left: number | undefined) => left === undefined || creditOf({ money, bonus: BONUS[money] }) + POOL_RESERVE <= left;
 
 /** What the customer's browser may see. No proofs, no token, no notify internals. */
 function publicOrder(o: Order) {
@@ -143,6 +147,7 @@ function publicOrder(o: Order) {
     paid: o.paid,
     returnUrl,
     kind: o.kind,
+    bonus: o.bonus,
     apiKey: o.state === 'PAID' ? o.apiKey : undefined, // the order id is the capability (128 random bits)
     keyError: (o.kind === 'key' && !o.apiKey) || (o.kind === 'keytopup' && !o.notify.done) ? o.notify.lastError : undefined,
     // a top-up's page may be someone else's (a friend paying): only the key's last 4 characters, never `of`
@@ -156,7 +161,7 @@ function publicOrder(o: Order) {
 function topupsOf(key: Order) {
   return ledger.data.orders
     .filter((x) => x.kind === 'keytopup' && x.topup!.of === key.id && x.state === 'PAID')
-    .map((x) => ({ at: x.paid!.at, money: x.money, fiat: x.fiat, applied: !!x.topup!.applied, needsRefund: !!x.topup!.needsRefund, auto: !!x.topup!.auto }));
+    .map((x) => ({ at: x.paid!.at, money: x.money, bonus: x.bonus, fiat: x.fiat, applied: !!x.topup!.applied, needsRefund: !!x.topup!.needsRefund, auto: !!x.topup!.auto }));
 }
 
 // ------------------------------------------------------------------ routes
@@ -209,11 +214,11 @@ async function buy(req: http.IncomingMessage, res: http.ServerResponse): Promise
 async function newShopOrder(money: string, parent?: Order): Promise<Order | string> {
   // the pool check is only here: an order that was made gets its key / top-up once paid, whatever the pool says then
   if (!fits(money, await poolLeft())) return 'sold out right now: we are refilling, try again later or a smaller amount';
-  const opts = { fiat: fiat(), btcPrice: await btcPrice(), now: Date.now(), ttlMs: TTL_MS };
+  const opts = { fiat: fiat(), btcPrice: await btcPrice(), now: Date.now(), ttlMs: TTL_MS, bonus: BONUS[money] };
   const order = parent ? makeTopupOrder(parent, money, opts) : makeKeyOrder(money, opts);
   ledger.data.orders.push(order);
   ledger.save();
-  console.log(`🔑 ${order.id.slice(0, 10)}…: ${parent ? `top-up of token #${order.topup!.tokenId}` : 'key order'} ${order.money} ${order.fiat} = ${order.sats} sat`);
+  console.log(`🔑 ${order.id.slice(0, 10)}…: ${parent ? `top-up of token #${order.topup!.tokenId}` : 'key order'} ${order.money} ${order.fiat}${order.bonus ? ` +${order.bonus}%` : ''} = ${order.sats} sat`);
   return order;
 }
 
@@ -271,7 +276,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     const [price, left] = await Promise.all([within(1500, btcPrice()), within(1500, poolLeft())]);
     const amounts = KEY_AMOUNTS.filter((a) => fits(a, left));
     const sats = price ? Object.fromEntries(amounts.map((a) => [a, satsFor(a, price)])) : undefined;
-    return send(res, 200, { enabled: !!shop, amounts, fiat: fiat(), sats, soldOut: !!shop && amounts.length === 0 });
+    return send(res, 200, { enabled: !!shop, amounts, fiat: fiat(), sats, bonus: BONUS, soldOut: !!shop && amounts.length === 0 });
   }
   if (p === '/api/models') {
     if (!shop) return send(res, 404, { error: 'key shop not enabled' });

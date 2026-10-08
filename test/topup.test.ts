@@ -4,7 +4,7 @@
 // answers success:false "record not found".
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decideTopup, emptyLedger, findKeyOrder, makeKeyOrder, makeTopupOrder, pendingMoney, topupBlocked, type Order } from '../src/ledger.ts';
+import { creditOf, decideTopup, emptyLedger, findKeyOrder, makeKeyOrder, makeTopupOrder, parseBonusTiers, pendingMoney, topupBlocked, type Order } from '../src/ledger.ts';
 import { KeyShop } from '../src/keyshop.ts';
 
 const NOW = 1_759_400_000_000;
@@ -151,6 +151,32 @@ test('topUp: adds money / price × quota_per_unit, keeps every other field', asy
   assert.deepEqual(r, { remaining: 2.2 });
   assert.deepEqual(restart().topup, { ...o.topup, base: 1_000_000, add: 2_000_000 }); // write-ahead was on disk
   assert.equal(fx.puts, 1);
+});
+
+test('parseBonusTiers + creditOf: amount:percent tiers, bad entries ignored', () => {
+  assert.deepEqual(parseBonusTiers('5:5, 10:10'), { 5: 5, 10: 10 });
+  assert.deepEqual(parseBonusTiers('5.0:2.5,x:1,3:0,4:99,'), { 5: 2.5 }); // 0% and >50% are refused
+  assert.deepEqual(parseBonusTiers(undefined), {});
+  assert.equal(creditOf({ money: '10', bonus: 10 }), 11);
+  assert.equal(creditOf({ money: '2' }), 2);
+});
+
+test('bonus: locked into the order, named, counted as pending, added to the key once', async () => {
+  const k = makeKeyOrder('5', { ...opts, bonus: 5 });
+  assert.equal(k.name, 'AI API key · €5 + 5% bonus');
+  assert.equal(k.bonus, 5);
+  assert.equal(k.sats, makeKeyOrder('5', opts).sats); // the bonus is free: same price
+  const data = emptyLedger();
+  data.orders.push(k);
+  assert.equal(pendingMoney(data, NOW), 5.25);
+  // a €10 top-up with 10% puts €11 on the key: 11 / 0.5 € per unit × 500,000 = 11,000,000 quota
+  const fx = fakeNewApi([{ id: 7, remain_quota: 0, used_quota: 1_000_000 }]);
+  const t = paid(makeTopupOrder(soldKey(), '10', { ...opts, bonus: 10 }));
+  assert.equal(t.name, 'Top-up · €10 + 10% bonus for key sk-…b2c3');
+  await shop().topUp(t, () => {});
+  assert.equal(fx.db.get(7)!.remain_quota, 11_000_000);
+  await shop().topUp(t, () => {}); // retry: nothing more
+  assert.equal(fx.db.get(7)!.remain_quota, 11_000_000);
 });
 
 test('topUp: crash after the write-ahead, before the PUT → the retry adds it once', async () => {

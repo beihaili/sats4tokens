@@ -8,7 +8,10 @@ export const money = (x, fiat, digits = 2) => {
   const s = SYMBOLS[fiat];
   return s ? s + n : `${n} ${fiat.toUpperCase()}`;
 };
+/** "+5% bonus" for an amount, from /api/shop's `bonus` tiers ({"5": 5}); '' when none. */
+export const bonusText = (shop, a) => (shop?.bonus?.[String(Number(a))] ? `+${shop.bonus[String(Number(a))]}% bonus` : '');
 let FIAT = 'usd';
+let BONUS = {};
 const fmt = (x) => (x === undefined ? '—' : money(x, FIAT, x < 1 ? 3 : 2));
 const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumSignificantDigits: 3 });
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
@@ -30,6 +33,7 @@ export async function renderModels(box, { calc } = {}) {
     return;
   }
   FIAT = shop.fiat;
+  BONUS = shop.bonus ?? {};
   // the section's hint says "<span class="unit"></span> per 1M tokens"
   for (const u of box.closest('section').querySelectorAll('.unit')) u.textContent = FIAT.toUpperCase();
   const list = await r.json();
@@ -98,11 +102,13 @@ export async function renderModels(box, { calc } = {}) {
 function drawCalc(box, list, picked, amount, amounts, setAmount) {
   const tabs = el('div', { className: 'tabs' });
   for (const a of amounts) {
-    const b = el('button', { textContent: money(Number(a), FIAT), className: Number(a) === amount ? 'on' : '' });
+    const b = el('button', { textContent: money(Number(a), FIAT) + (BONUS[a] ? ` +${BONUS[a]}%` : ''), className: Number(a) === amount ? 'on' : '' });
     b.onclick = () => setAmount(Number(a));
     tabs.append(b);
   }
   const rows = list.filter((m) => picked.has(m.model));
+  const paid = amount;
+  amount = paid * (1 + (BONUS[String(paid)] ?? 0) / 100); // what the key holds: the bonus is spendable like the rest
   const out = el('div', { className: 'scroll' });
   if (!rows.length) {
     out.append(el('p', { className: 'hint', textContent: 'Tick models in the list below to compare them.' }));
@@ -132,7 +138,7 @@ function drawCalc(box, list, picked, amount, amounts, setAmount) {
   const head = el('p', { className: 'calc-head', textContent: 'What one key buys:' });
   const note = el('p', {
     className: 'hint',
-    textContent: `Tokens if the whole ${money(amount, FIAT)} goes to input, or to output. *Chat call = ${CHAT_IN / 1000}K tokens in + ${CHAT_OUT} out. Cached input is cheaper, so real use usually stretches further.`,
+    textContent: `Tokens if the whole ${money(amount, FIAT)}${amount > paid ? ` (${money(paid, FIAT)} + bonus)` : ''} goes to input, or to output. *Chat call = ${CHAT_IN / 1000}K tokens in + ${CHAT_OUT} out. Cached input is cheaper, so real use usually stretches further.`,
   });
   box.replaceChildren(head, tabs, out, note);
 }

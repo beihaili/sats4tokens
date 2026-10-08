@@ -12,12 +12,14 @@ read the order and its key. Treat `/pay/<id>` and `/api/order/<id>` URLs as secr
 ### `GET /api/shop`
 
 ```json
-{ "enabled": true, "amounts": ["1", "2", "5", "10"], "fiat": "eur", "sats": { "1": 1337, "2": 2674, "5": 6685, "10": 13369 }, "soldOut": false }
+{ "enabled": true, "amounts": ["1", "2", "5", "10"], "fiat": "eur", "sats": { "1": 1337, "2": 2674, "5": 6685, "10": 13369 }, "bonus": { "5": 5, "10": 10 }, "soldOut": false }
 ```
 
 `enabled` is false when the key shop isn't configured (then `/api/buy` and `/api/models` return 404).
 `amounts` are in `fiat`, the gateway's `FIAT`; all key shop money below is in that currency. `sats` is what each
 amount costs at the current BTC price (an order locks its own price when it's created); omitted if the price feeds are slow or down.
+`bonus` = extra quota in percent per amount (here €5 → €5.25 on the key, €10 → €11), for new keys, top-ups and auto
+top-ups alike, paid with ⚡ or 🥜; amounts not listed get none. The bonus is locked into an order when it is made.
 
 `amounts` only lists what the key pool can still cover (see `POOL_RESERVE` in the self-hosting guide); when it
 can't cover even the smallest amount, `amounts` is empty and `soldOut` is true. If new-api can't be read in time
@@ -143,6 +145,7 @@ order's invoice is checked first.
 | `topups` | key orders: paid top-ups of this key, `[{at, money, fiat, applied, needsRefund, auto}]` (`auto`: made by auto top-up) |
 | `auto` | key orders: auto top-up settings and state, or `null` when off: `{money, below, perDay, wallet, relay, paused, failures, lastError, spent24h, last: {at, money, state, outcome, applied}}`. `wallet` and `relay` are hints only (the wallet's pubkey prefix, the relay host); `outcome` = `paid` / `declined` / `unknown` (no readable answer: the order stays open until it expires, as it may have been paid) |
 | `topup` | key top-ups: `{key: "sk-…a1b2", applied?: {at, remaining}, needsRefund}`. `applied.remaining` = the key's balance right after (in `fiat`). `needsRefund` is true if the key was deleted before the money could be added: the operator refunds by hand |
+| `bonus` | key shop orders: extra quota in percent of `money` (the key gets `money × (1 + bonus/100)`), absent if none |
 | `kind` | `key` for key orders, `keytopup` for key top-ups; absent for account top-up orders (`CE…` ids) |
 | `returnUrl` | account top-up orders: where to send the customer back after payment (signed) |
 

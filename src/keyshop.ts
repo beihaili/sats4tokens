@@ -15,7 +15,7 @@
 // a crash between "created in new-api" and "saved in our ledger" finds the same token instead of making two.
 // Top-ups (topUp) add quota to a sold key; exactly once via the token's remain + used total, see ledger.ts Topup.
 // Every sold key spends the pool user's quota too, so pool() tells how much is left to sell.
-import { decideTopup, type Order } from './ledger.ts';
+import { creditOf, decideTopup, type Order } from './ledger.ts';
 
 export interface ApiKey {
   key: string; // sk-…
@@ -153,7 +153,7 @@ export class KeyShop {
     const total = (t: any) => Number(t.remain_quota) + Number(t.used_quota);
     if (tp.base === undefined || tp.add === undefined) {
       tp.base = total(t);
-      tp.add = Math.round((Number(o.money) / price) * quotaPerUnit);
+      tp.add = Math.round((creditOf(o) / price) * quotaPerUnit); // bonus included
       save(); // write-ahead: from here on a retry knows what the total was before this top-up
     }
     const missing = decideTopup(total(t), tp.base, tp.add);
@@ -281,7 +281,7 @@ export class KeyShop {
     }));
   }
 
-  /** Create (or find again) the key for a paid order. `money` is in FIAT; it buys money / Price units. */
+  /** Create (or find again) the key for a paid order. `money` (+ its bonus) is in FIAT; it buys credit / Price units. */
   async createKey(o: Order): Promise<ApiKey> {
     const name = `btc-${o.id}`;
     const { quotaPerUnit, price, serverAddress } = await this.status();
@@ -289,7 +289,7 @@ export class KeyShop {
     if (id === undefined) {
       await this.api('POST', '/api/token/', {
         name,
-        remain_quota: Math.round((Number(o.money) / price) * quotaPerUnit),
+        remain_quota: Math.round((creditOf(o) / price) * quotaPerUnit), // bonus included
         unlimited_quota: false,
         expired_time: -1,
       });

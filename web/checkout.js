@@ -1,5 +1,5 @@
 // Checkout page: polls /api/order/:id, shows the lightning invoice or takes a pasted cashu token.
-import { renderModels, money } from '/models.js?v=5';
+import { renderModels, money, bonusText } from '/models.js?v=6';
 const id = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -22,7 +22,7 @@ function render(o) {
     $('#back').hidden = true;
     const t = o.topup;
     $('#done-detail').textContent = `${o.paid.sats} sat received via ${o.paid.via}. ` + (t.applied
-      ? `Added ${money(Number(o.money), o.fiat)} to key ${t.key} · its balance is now ${money(t.applied.remaining, o.fiat, 2)}.`
+      ? `Added ${money(credit(o), o.fiat)}${o.bonus ? ` (incl. ${o.bonus}% bonus)` : ''} to key ${t.key} · its balance is now ${money(t.applied.remaining, o.fiat, 2)}.`
       : t.needsRefund
         ? `Key ${t.key} no longer exists, so nothing was added. You get the money back: keep this page's URL (don't post it publicly) and contact us.`
         : `Adding it to key ${t.key}…${o.keyError ? ' (retrying: ' + o.keyError + ')' : ''}`);
@@ -164,7 +164,8 @@ async function showTopup(key) {
       const b = document.createElement('button');
       b.className = 'primary';
       b.textContent = `+ ${money(Number(a), shop.fiat)}`;
-      if (shop.sats?.[a]) b.append(Object.assign(document.createElement('small'), { textContent: `≈ ${shop.sats[a].toLocaleString('en')} sat` }));
+      const sub = [bonusText(shop, a), shop.sats?.[a] && `≈ ${shop.sats[a].toLocaleString('en')} sat`].filter(Boolean).join(' · ');
+      if (sub) b.append(Object.assign(document.createElement('small'), { textContent: sub }));
       b.onclick = async () => {
         b.disabled = true;
         const r = await fetch('/api/buy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ money: a, key }) });
@@ -182,15 +183,18 @@ async function showTopup(key) {
 }
 // Auto top-up (NWC): the form saves to /api/autotopup with the key as authorization; the order poll brings its state
 // (never the connection string). Settings are copied into the form once; the textarea stays empty after saving.
+const credit = (o) => Number(o.money) * (1 + (o.bonus ?? 0) / 100); // what an order puts on the key
 let autoKey = '';
 let autoFiat = '';
 let autoFilled = false;
-function setupAuto(key, a, fiat) {
-  autoKey = key;
+async function setupAuto(key, a, fiat) {
   autoFiat = fiat;
   const amounts = ['1', '2', '5', '10']; // the shop's amounts (KEY_AMOUNTS)
-  $('#auto-money').replaceChildren(...amounts.map((x) => Object.assign(document.createElement('option'), { value: x, textContent: money(Number(x), fiat) })));
+  const shop = await (await fetch('/api/shop')).json().catch(() => ({}));
+  const label = (x) => money(Number(x), fiat) + (bonusText(shop, x) ? ` (${bonusText(shop, x)})` : '');
+  $('#auto-money').replaceChildren(...amounts.map((x) => Object.assign(document.createElement('option'), { value: x, textContent: label(x) })));
   $('#auto-money').value = '2';
+  autoKey = key; // only now: renderAuto (also called by every poll) fills the form once the options exist
   renderAuto(a);
   $('#auto-save').onclick = () => saveAuto({
     nwc: $('#auto-nwc').value.trim() || undefined,
@@ -245,7 +249,7 @@ function renderTopups(list) {
   $('#topups').hidden = list.length === 0;
   $('#topups').replaceChildren(
     ...list.map((t) => Object.assign(document.createElement('li'), {
-      textContent: `${new Date(t.at).toLocaleString()} · +${money(Number(t.money), t.fiat)}${t.applied ? '' : t.needsRefund ? ' · not added (key was gone)' : ' · adding…'}`,
+      textContent: `${new Date(t.at).toLocaleString()} · +${money(credit(t), t.fiat)}${t.bonus ? ` (incl. ${t.bonus}% bonus)` : ''}${t.applied ? '' : t.needsRefund ? ' · not added (key was gone)' : ' · adding…'}`,
     })),
   );
   if (list.some((t) => t.applied)) loadUsage(); // a top-up just landed: show the new balance now

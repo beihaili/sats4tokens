@@ -50,6 +50,7 @@ endpoint**, capped at exactly what you paid. No signup, no email, no password �
 - **Auto top-up from your own wallet** ([Nostr Wallet Connect](https://nwc.dev)): paste an NWC connection on the key
   page, pick an amount, a threshold and a daily cap. When the key runs low, the gateway sends your wallet one invoice
   for one top-up. Each invoice is sent at most once, and a lost answer never turns into a second payment.
+- **Bonus on larger amounts** (`KEY_BONUS`, ours: €5 +5%, €10 +10%), for new keys and top-ups, Lightning or Cashu.
 - The shop sells only what the pool user's quota can cover (minus a reserve), so a sold key is never left without credit.
 - Both pages list every model the key can call with its price (per 1M tokens in the shop's currency, from new-api's pricing).
 - **Claude Code works too**: the key page has a copy-paste command that points Claude Code at the relay
@@ -167,7 +168,7 @@ signed callback, retried until new-api confirms. `scripts/fake-merchant.ts` stan
 ## Tests
 
 ```sh
-npm test && npm run typecheck      # 56 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization, model aliases, token retries, key top-ups, NWC (NIP-44 vectors, fake relay + wallet), auto top-up
+npm test && npm run typecheck      # 58 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization, model aliases, token retries, key top-ups, NWC (NIP-44 vectors, fake relay + wallet), auto top-up
 npm run edge-checks                # 15 end-to-end checks against testnut (~40 s): bad signatures, underpaid / spent tokens, callback retries, withdraw
 npm run crash-demo -- lightning after-mint   # or: cashu | after-writeahead
 ```

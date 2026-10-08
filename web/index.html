@@ -33,7 +33,7 @@
     </header>
     <section class="card">
       <p>One key works with Claude, GPT, DeepSeek, GLM, Kimi … through one OpenAI-compatible endpoint (and the Anthropic API for Claude Code).
-        The key is limited to exactly what you pay.</p>
+        The key is capped at what you pay (plus a bonus on larger amounts).</p>
       <div id="amounts" class="amounts"></div>
       <p id="err" class="bad" hidden></p>
       <p class="hint">Pay with ⚡ Lightning or 🥜 Cashu ecash. Keep the next page — it is your receipt and shows your key.</p>
@@ -57,7 +57,7 @@
     </section>
   </main>
   <script type="module">
-    import { renderModels, money } from '/models.js?v=5';
+    import { renderModels, money, bonusText } from '/models.js?v=6';
     const $ = (s) => document.querySelector(s);
     const shop = await (await fetch('/api/shop')).json();
     // + calculator: amount × ticked models → tokens (all amounts, even while some are sold out)
@@ -70,7 +70,8 @@
       const b = document.createElement('button');
       b.className = 'primary';
       b.textContent = `Buy a ${money(Number(a), shop.fiat)} key`;
-      if (shop.sats?.[a]) b.append(Object.assign(document.createElement('small'), { textContent: `≈ ${shop.sats[a].toLocaleString('en')} sat` }));
+      const sub = [bonusText(shop, a), shop.sats?.[a] && `≈ ${shop.sats[a].toLocaleString('en')} sat`].filter(Boolean).join(' · ');
+      if (sub) b.append(Object.assign(document.createElement('small'), { textContent: sub }));
       b.disabled = !shop.enabled;
       b.onclick = async () => {
         b.disabled = true;

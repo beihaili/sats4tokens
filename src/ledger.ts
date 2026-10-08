@@ -53,6 +53,7 @@ export interface Order {
   // Key shop orders (no merchant): "notify" is the step that creates the API key in new-api ('key') or adds the paid
   // quota to a key sold earlier ('keytopup').
   kind?: 'key' | 'keytopup';
+  bonus?: number; // key shop: extra quota in percent of `money` (KEY_BONUS tier), locked when the order is made
   apiKey?: ApiKey; // BEARER: whoever has it spends the quota; shown only to the order's own page
   topup?: Topup;
   auto?: AutoTopup; // key orders: auto top-up over Nostr Wallet Connect (holds a BEARER connection string)
@@ -140,6 +141,24 @@ export function moneyLabel(money: string, fiat: string): string {
   return s ? s + money : `${money} ${fiat.toUpperCase()}`;
 }
 
+/**
+ * Bonus tiers from env `KEY_BONUS`, e.g. "5:5,10:10" = a €5 order gets 5% extra quota, €10 gets 10%. Amounts not
+ * listed get none. Bad entries are ignored (logged by the caller as an empty table).
+ */
+export function parseBonusTiers(s: string | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const part of (s ?? '').split(',')) {
+    const m = part.trim().match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+    if (m && Number(m[2]) > 0 && Number(m[2]) <= 50) out[String(Number(m[1]))] = Number(m[2]);
+  }
+  return out;
+}
+
+/** What a key shop order puts on a key, in FIAT: what was paid plus its bonus. */
+export const creditOf = (o: Pick<Order, 'money' | 'bonus'>): number => Number(o.money) * (1 + (o.bonus ?? 0) / 100);
+
+const bonusLabel = (bonus?: number) => (bonus ? ` + ${bonus}% bonus` : '');
+
 export function satsFor(money: string, btcPrice: number): number {
   // toFixed: 1/100000*1e8 is 1000.0000000000001 in floating point, which must not round up to 1001
   return Math.max(1, Math.ceil(Number(((Number(money) / btcPrice) * 1e8).toFixed(6))));
@@ -173,14 +192,14 @@ export function makeOrder(p: Params, o: { fiat: string; btcPrice: number; now: n
  * A key shop order: the customer buys an API key directly, no merchant redirect. The id is 128 random bits
  * because the checkout URL (/pay/:id) is the only thing that later shows the key.
  */
-export function makeKeyOrder(money: string, o: { fiat: string; btcPrice: number; now: number; ttlMs: number }): Order {
+export function makeKeyOrder(money: string, o: { fiat: string; btcPrice: number; now: number; ttlMs: number; bonus?: number }): Order {
   const id = 'CK' + randomBytes(16).toString('hex').toUpperCase();
   return {
     id,
     outTradeNo: id,
     pid: '',
     type: 'bitcoin',
-    name: `AI API key · ${moneyLabel(money, o.fiat)}`,
+    name: `AI API key · ${moneyLabel(money, o.fiat)}${bonusLabel(o.bonus)}`,
     money,
     notifyUrl: '',
     returnUrl: '',
@@ -192,16 +211,17 @@ export function makeKeyOrder(money: string, o: { fiat: string; btcPrice: number;
     state: 'PENDING',
     notify: { done: false, attempts: 0, nextAt: 0 },
     kind: 'key',
+    ...(o.bonus ? { bonus: o.bonus } : {}),
   };
 }
 
 /** A top-up for the key sold by `parent`: same checkout and payment as buying a key, then makeTopupOnce. */
-export function makeTopupOrder(parent: Order, money: string, o: { fiat: string; btcPrice: number; now: number; ttlMs: number }): Order {
+export function makeTopupOrder(parent: Order, money: string, o: { fiat: string; btcPrice: number; now: number; ttlMs: number; bonus?: number }): Order {
   if (parent.kind !== 'key' || !parent.apiKey) throw new Error('not a sold key');
   const keyHint = 'sk-…' + parent.apiKey.key.slice(-4);
   return {
     ...makeKeyOrder(money, o),
-    name: `Top-up · ${moneyLabel(money, o.fiat)} for key ${keyHint}`,
+    name: `Top-up · ${moneyLabel(money, o.fiat)}${bonusLabel(o.bonus)} for key ${keyHint}`,
     kind: 'keytopup',
     topup: { of: parent.id, tokenId: parent.apiKey.tokenId, keyHint },
   };
@@ -227,7 +247,7 @@ export function topupBlocked(data: LedgerData, o: Order): boolean {
 }
 
 /**
- * FIAT promised to key shop orders that new-api doesn't hold as token quota yet: open or settling orders (they may
+ * FIAT (bonus included) promised to key shop orders that new-api doesn't hold as token quota yet: open or settling orders (they may
  * still be paid) and paid ones whose key / top-up isn't made yet. The pool check subtracts it from what's left.
  */
 export function pendingMoney(data: LedgerData, now: number): number {
@@ -237,7 +257,7 @@ export function pendingMoney(data: LedgerData, now: number): number {
     // an auto top-up the customer's wallet refused won't be paid: it doesn't hold pool space until it expires
     const refused = o.topup?.auto?.outcome === 'declined';
     const open = (o.state === 'PENDING' && o.expiresAt > now && !refused) || o.state === 'SETTLING' || (o.state === 'PAID' && !o.notify.done);
-    if (open) sum += Number(o.money);
+    if (open) sum += creditOf(o); // what it will put on a key, bonus included
   }
   return sum;
 }

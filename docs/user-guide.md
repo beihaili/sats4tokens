@@ -9,7 +9,8 @@ on their own domain; replace the URL below with theirs.
 ## 1. Pick an amount
 
 Open the shop and choose **1, 2, 5 or 10** in the shop's currency (e.g. €1–€10). The price in sats is fixed the moment you click
-(spot price, rounded up) and the order is valid for **30 minutes**.
+(spot price, rounded up) and the order is valid for **30 minutes**. Larger amounts come with a bonus, shown on the
+button (e.g. €5 +5%, €10 +10%): the key holds that much more, at no extra cost. The same bonus applies to top-ups.
 
 The bottom of the page lists every model the key can call, with its price per 1M input /
 output tokens. Tick a few models to see roughly how many tokens or chat calls each amount buys.
