@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <title>Pay with Bitcoin · Sats4Tokens</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css?v=8">
+  <link rel="stylesheet" href="/style.css?v=9">
 </head>
 <body>
   <main class="checkout">
@@ -68,6 +68,20 @@
         <p id="topup-msg" class="hint" hidden></p>
         <ul id="topups" class="hint" hidden></ul>
       </div>
+      <div id="auto" class="topup">
+        <div class="usage-head"><b>Auto top-up</b> <span class="hint">from your wallet, over Nostr Wallet Connect</span></div>
+        <p id="auto-state" class="hint"></p>
+        <textarea id="auto-nwc" rows="3" placeholder="nostr+walletconnect://…" autocomplete="off" spellcheck="false"></textarea>
+        <div class="auto-row">Add <select id="auto-money"></select> when less than
+          <input id="auto-below" type="number" min="0.1" max="100" step="0.1" value="0.5"> is left,
+          at most <input id="auto-perday" type="number" min="1" max="500" step="1" value="10"> a day.</div>
+        <button id="auto-save" class="primary">Turn on auto top-up</button>
+        <button id="auto-off" class="link" hidden>Turn auto top-up off</button>
+        <p id="auto-msg" class="bad" hidden></p>
+        <p class="hint">In your wallet (Alby Hub, Coinos, Primal, …) add an app connection that may only <b>pay invoices</b>,
+          with a budget. When this key runs low we send that wallet one invoice for one top-up; nothing else, and never more
+          than your daily cap. The connection is stored on our server until you turn this off.</p>
+      </div>
     </section>
     <section id="prices" class="card" hidden>
       <h2>Models &amp; prices</h2>
@@ -75,6 +89,6 @@
       <div id="models"></div>
     </section>
   </main>
-  <script type="module" src="/checkout.js?v=7"></script>
+  <script type="module" src="/checkout.js?v=8"></script>
 </body>
 </html>

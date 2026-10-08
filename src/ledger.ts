@@ -15,6 +15,7 @@ import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import type { Params } from './epay.ts';
 import type { ApiKey } from './keyshop.ts';
+import type { AutoSend, AutoTopup } from './autotopup.ts';
 
 export type OrderState = 'PENDING' | 'SETTLING' | 'PAID' | 'EXPIRED';
 export type Via = 'lightning' | 'cashu';
@@ -54,6 +55,7 @@ export interface Order {
   kind?: 'key' | 'keytopup';
   apiKey?: ApiKey; // BEARER: whoever has it spends the quota; shown only to the order's own page
   topup?: Topup;
+  auto?: AutoTopup; // key orders: auto top-up over Nostr Wallet Connect (holds a BEARER connection string)
 }
 
 /**
@@ -70,6 +72,7 @@ export interface Topup {
   add?: number; // quota this top-up adds
   applied?: { at: number; remaining: number }; // the key's balance (FIAT) right after
   needsRefund?: string; // couldn't be applied (key deleted in new-api): paid, credited nowhere; a human refunds
+  auto?: AutoSend; // made by auto top-up: was its invoice sent to the customer's wallet, and what it said
 }
 
 export interface LedgerData {
@@ -231,7 +234,9 @@ export function pendingMoney(data: LedgerData, now: number): number {
   let sum = 0;
   for (const o of data.orders) {
     if (o.kind !== 'key' && o.kind !== 'keytopup') continue;
-    const open = (o.state === 'PENDING' && o.expiresAt > now) || o.state === 'SETTLING' || (o.state === 'PAID' && !o.notify.done);
+    // an auto top-up the customer's wallet refused won't be paid: it doesn't hold pool space until it expires
+    const refused = o.topup?.auto?.outcome === 'declined';
+    const open = (o.state === 'PENDING' && o.expiresAt > now && !refused) || o.state === 'SETTLING' || (o.state === 'PAID' && !o.notify.done);
     if (open) sum += Number(o.money);
   }
   return sum;

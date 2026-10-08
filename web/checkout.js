@@ -47,9 +47,11 @@ function render(o) {
       renderModels($('#models'));
       $('#env').value = `OPENAI_BASE_URL=${o.apiKey.baseUrl}\nOPENAI_API_KEY=${o.apiKey.key}`;
       showTopup(o.apiKey.key);
+      setupAuto(o.apiKey.key, o.auto, o.fiat);
       $('#curl').value = `curl ${o.apiKey.baseUrl}/chat/completions \\\n  -H "Authorization: Bearer ${o.apiKey.key}" \\\n  -H "content-type: application/json" \\\n  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hi"}]}'`;
     }
     renderTopups(o.topups ?? []);
+    renderAuto(o.auto);
     return;
   }
   if (o.state === 'PAID') {
@@ -178,6 +180,63 @@ async function showTopup(key) {
   );
   msg('Pays like the key did. The top-up page never shows the key, so you can send its link to someone else to pay.');
 }
+// Auto top-up (NWC): the form saves to /api/autotopup with the key as authorization; the order poll brings its state
+// (never the connection string). Settings are copied into the form once; the textarea stays empty after saving.
+let autoKey = '';
+let autoFiat = '';
+let autoFilled = false;
+function setupAuto(key, a, fiat) {
+  autoKey = key;
+  autoFiat = fiat;
+  const amounts = ['1', '2', '5', '10']; // the shop's amounts (KEY_AMOUNTS)
+  $('#auto-money').replaceChildren(...amounts.map((x) => Object.assign(document.createElement('option'), { value: x, textContent: money(Number(x), fiat) })));
+  $('#auto-money').value = '2';
+  renderAuto(a);
+  $('#auto-save').onclick = () => saveAuto({
+    nwc: $('#auto-nwc').value.trim() || undefined,
+    money: $('#auto-money').value, below: Number($('#auto-below').value), perDay: Number($('#auto-perday').value),
+  });
+  $('#auto-off').onclick = () => saveAuto({ off: true });
+}
+async function saveAuto(body) {
+  const msg = $('#auto-msg');
+  msg.hidden = true;
+  $('#auto-save').disabled = true;
+  try {
+    const r = await fetch('/api/autotopup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: autoKey, ...body }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    $('#auto-nwc').value = '';
+    autoFilled = false;
+    renderAuto(j.auto);
+  } catch (e) {
+    msg.hidden = false;
+    msg.textContent = e.message;
+  } finally {
+    $('#auto-save').disabled = false;
+  }
+}
+function renderAuto(a) {
+  if (!autoKey) return;
+  $('#auto-off').hidden = !a;
+  $('#auto-save').textContent = a ? (a.paused ? 'Save and resume' : 'Save settings') : 'Turn on auto top-up';
+  $('#auto-nwc').placeholder = a ? `Connected: wallet ${a.wallet} via ${a.relay}. Paste a new connection to replace it.` : 'nostr+walletconnect://…';
+  if (a && !autoFilled) {
+    autoFilled = true;
+    $('#auto-money').value = a.money;
+    $('#auto-below').value = a.below;
+    $('#auto-perday').value = a.perDay;
+  }
+  if (!a) return void ($('#auto-state').textContent = 'Off. Never run dry: let your own wallet top this key up when it gets low.');
+  const m = (x) => money(Number(x), autoFiat, 2);
+  const last = a.last
+    ? ` Last: ${new Date(a.last.at).toLocaleString()}, +${m(a.last.money)}, ${a.last.applied ? 'added ✓' : a.last.outcome === 'declined' ? 'wallet did not pay' : a.last.state === 'EXPIRED' ? 'not paid' : 'in progress…'}.`
+    : '';
+  $('#auto-state').innerHTML = esc(a.paused
+    ? `Paused after ${a.failures} failed tries${a.lastError ? ` (${a.lastError})` : ''}. Fix it in your wallet, then save again to resume.`
+    : `On: +${m(a.money)} when below ${m(a.below)}, at most ${m(a.perDay)} a day (${m(a.spent24h)} in the last 24 h).${a.lastError ? ` Note: ${a.lastError}.` : ''}${last}`);
+}
+
 let shownTopups = '';
 function renderTopups(list) {
   const s = JSON.stringify(list);

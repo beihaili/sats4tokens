@@ -124,6 +124,14 @@ export class KeyShop {
     }
   }
 
+  /** A sold key's balance in FIAT, or undefined if its token was deleted (auto top-up reads this). */
+  async remaining(tokenId: number): Promise<number | undefined> {
+    const t = await this.token(tokenId);
+    if (!t) return undefined;
+    const { quotaPerUnit, price } = await this.status();
+    return (Number(t.remain_quota) / quotaPerUnit) * price;
+  }
+
   /**
    * Add a paid top-up to its key, exactly once. Safe to call again after any crash or error: `o.topup.base/add` are
    * saved (write-ahead) before new-api is changed, and only what is still missing of `base + add` gets added.

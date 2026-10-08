@@ -291,6 +291,12 @@ export class Gateway {
     this.watched.set(orderId, Date.now());
   }
 
+  /** Check this order's quote on the next pass (an auto top-up's wallet says it just paid). */
+  checkSoon(orderId: string): void {
+    this.nextPoll.set(orderId, 0);
+    this.watch(orderId);
+  }
+
   /**
    * One watcher pass, called every 2s and at startup. SETTLING orders (crash recovery) are all handled;
    * then at most ONE quote is checked — the most overdue one — and only if QUOTE_GAP_MS has passed.

@@ -72,6 +72,27 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   top-ups run in order (`topupBlocked`: another unfinished top-up of the same token already took its `base`). Token gone
   (`record not found`) → `topup.needsRefund`, listed red on admin.html for a manual refund. Key page: "Top up this key"
   buttons (`showTopup`), `topups` history; `examples/agent-buy-key.ts --topup sk-… <amount>`.
+  **Auto top-up over Nostr Wallet Connect** (since 2026-10-08): `src/nwc.ts` = minimal NIP-47 client (`parseNwc`,
+  `walletInfo` = kind 13194 methods/encryption, `payInvoice` = ONE kind 23194 `pay_invoice` → waits for the wallet-signed
+  23195; NIP-44 v2 if the info event lists `nip44_v2`, else NIP-04; `expiration` tag; secp256k1/schnorr from @noble/curves
+  (cashu-ts already depends on it, now declared), chacha20/HKDF/AES from node:crypto; checked against the NIP-44 spec vectors
+  and nostr-tools both ways). Relay I/O through a `Connect` (default: Node 22's global WebSocket; tests plug in a fake
+  relay + wallet). `src/autotopup.ts`: key order `auto {nwc (BEARER), wallet, relay, money, below, perDay, failures,
+  nextTryAt, lastError, pausedAt}`; auto top-up orders carry `topup.auto {sentAt, outcome: paid|declined|unknown, error}`.
+  `AutoTopups.tick()` every `AUTO_TOPUP_EVERY_S` (60): per key, an open auto order (SETTLING / PAID-not-applied /
+  PENDING unexpired & not declined) blocks a new one; a PENDING one without `sentAt` is sent now (crash before send),
+  one with `sentAt` and no outcome → `unknown` (crash mid-request: never resent). Else `remaining(tokenId)` < `below`,
+  backoff and `autoSpent24h` (paid or maybe-paid auto orders) + money ≤ `perDay` → `newShopOrder` (same pool check as
+  /api/buy; a sold-out reason is shown, not counted as a failure) → `gw.ensureQuote` → save `sentAt` → `payInvoice` →
+  `paid` (`gw.checkSoon`: quote checked next pass) / `declined` (wallet error codes, relay refused) / `unknown` (TIMEOUT,
+  unreadable answer). Failures back off 10 min × n, 3 in a row → paused until the customer saves again; a deleted
+  token pauses it. Declined auto orders don't hold pool space (`pendingMoney`). `POST /api/autotopup {key, nwc?, money,
+  below, perDay}` / `{key, off:true}` / `{key}` (status); saving checks `checkNwc` (only public `wss://` hostnames: no IP,
+  localhost, single-label docker names) and the info event (400 without `pay_invoice`; no info → saved with a note).
+  `publicAuto` = what the key page sees (no connection string; wallet pubkey prefix + relay host); admin JSON drops `auto.nwc`.
+  Key page "Auto top-up" form (`setupAuto`/`renderAuto` in checkout.js). Verified 2026-10-08 locally: testnut + a throwaway
+  fake new-api + a fake NWC wallet on the public relay nos.lol (pay, daily cap stop, refusal `QUOTA_EXCEEDED`, secret
+  absent from admin/order/log), plus the form in the browser.
   **Pool protection**: `KeyShop.pool()` (cached 30s, cleared after createKey/topUp) = pool user quota (`/api/user/self`) −
   Σ `remain_quota` of its limited tokens with status 1/4 (`/api/token/?p=&page_size=100`, paged) → `{quota, owed, available}`
   in FIAT. `poolLeft()` = available − `pendingMoney` (open/settling/paid-not-made key + top-up orders). An amount is sold
@@ -122,7 +143,8 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   The camera stops on tab switch, PAID/EXPIRED and pagehide. All page copy is English only.
   Testing tip: on testnut, opening the ⚡ tab auto-pays the invoice, so a local keyshop run creates a real key on
   the demo new-api — delete it afterwards (`DELETE /api/token/:id`).
-- `test/` — `node:test` units (37; `topup.test.ts` = top-up helpers + `KeyShop.topUp`/`pool` against a fake new-api with rc.22's PUT semantics: crash after write-ahead / after the PUT, calls in between, status 4, refund race, deleted key, paging; `upstreams.test.ts` = anonymize/no host leak/tiers; `keyshop.test.ts` = `aliasesOf`): go-epay signature vectors, submit idempotency, write-ahead settle,
+- `test/` — `node:test` units (56; `autotopup.test.ts` = NWC parse/relay filter, NIP-44 spec vectors, payInvoice against a fake relay +
+  wallet (nip44/nip04, wallet error codes, TIMEOUT, forged answers ignored), decideAuto/caps, engine crash points; `topup.test.ts` = top-up helpers + `KeyShop.topUp`/`pool` against a fake new-api with rc.22's PUT semantics: crash after write-ahead / after the PUT, calls in between, status 4, refund race, deleted key, paging; `upstreams.test.ts` = anonymize/no host leak/tiers; `keyshop.test.ts` = `aliasesOf`): go-epay signature vectors, submit idempotency, write-ahead settle,
   `decideSettle`, notify (`ledger`/`epay` tests), mint capability check (`gateway.test.ts`).
 - `scripts/` — `crash-demo.ts` (kill -9 mid-payment → restart → credited once), `edge-checks.ts` (unhappy paths +
   withdraw), `harness.ts` (shared by those two), `fake-merchant.ts` (stands in for new-api),

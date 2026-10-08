@@ -105,6 +105,24 @@ can send a top-up link to someone else (a friend, a team mate, your agent's wall
 Agents can do it with one call: `POST /api/buy {"money": 2, "key": "sk-…"}`, then pay the order like any other
 (see [api.md](api.md) and `examples/agent-buy-key.ts --topup`).
 
+## 6. Auto top-up from your wallet
+
+If your wallet speaks [Nostr Wallet Connect](https://nwc.dev) (Alby Hub, Coinos, Primal and others), the key can
+top itself up:
+
+1. In the wallet, add an app connection that may only **pay invoices**, and give it a budget (e.g. €20 a month).
+2. Copy its connection string (`nostr+walletconnect://…`), paste it under **Auto top-up** on the key page, pick the
+   amount, the balance to top up at, and a daily cap, then **Turn on auto top-up**.
+
+When the key gets below your threshold, we send that wallet one invoice for one top-up, and the money lands on the
+same key as with a manual top-up. We never ask twice for the same invoice, and never more than your daily cap a
+day. Your wallet's budget is a second limit we can't go past. If the wallet refuses 3 times in a row (e.g. the budget
+is used up), auto top-up pauses and the key page says why; fix it in the wallet and save again.
+
+The connection string is stored on our server until you press **Turn auto top-up off** (that deletes it). Anyone
+who could read it could ask your wallet for payments up to its budget, so keep the budget small. Agents can set it
+up with `POST /api/autotopup` ([api.md](api.md)).
+
 ## FAQ
 
 **The order expired before I paid.** Go back to the shop and create a new one (it gets a fresh price).

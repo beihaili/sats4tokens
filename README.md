@@ -47,6 +47,9 @@ endpoint**, capped at exactly what you paid. No signup, no email, no password �
   and its usage: balance left and the latest calls (time, model, tokens, cost), straight from new-api.
 - **Top up the same key**: "Top up this key" on the key page (or `POST /api/buy {"money": 2, "key": "sk-…"}`) makes a
   normal order that adds the money to that key exactly once. The top-up page never shows the key, so anyone can pay it.
+- **Auto top-up from your own wallet** ([Nostr Wallet Connect](https://nwc.dev)): paste an NWC connection on the key
+  page, pick an amount, a threshold and a daily cap. When the key runs low, the gateway sends your wallet one invoice
+  for one top-up. Each invoice is sent at most once, and a lost answer never turns into a second payment.
 - The shop sells only what the pool user's quota can cover (minus a reserve), so a sold key is never left without credit.
 - Both pages list every model the key can call with its price (per 1M tokens in the shop's currency, from new-api's pricing).
 - **Claude Code works too**: the key page has a copy-paste command that points Claude Code at the relay
@@ -164,7 +167,7 @@ signed callback, retried until new-api confirms. `scripts/fake-merchant.ts` stan
 ## Tests
 
 ```sh
-npm test && npm run typecheck      # 24 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization, model aliases, token retries
+npm test && npm run typecheck      # 56 unit tests, offline: signatures, idempotent orders, write-ahead, decideSettle, retry backoff, mint checks, upstream anonymization, model aliases, token retries, key top-ups, NWC (NIP-44 vectors, fake relay + wallet), auto top-up
 npm run edge-checks                # 15 end-to-end checks against testnut (~40 s): bad signatures, underpaid / spent tokens, callback retries, withdraw
 npm run crash-demo -- lightning after-mint   # or: cashu | after-writeahead
 ```
@@ -177,6 +180,8 @@ src/keyshop.ts   paid key order → capped new-api token (find-or-create by name
 src/gateway.ts   the engine: seed-backed cashu-ts wallet, write-ahead settle, NUT-09 recovery, NUT-17 push
 src/ledger.ts    orders, durable JSON ledger, pure decision logic (no network)
 src/epay.ts      MD5 sign / verify for the top-up form and callback
+src/nwc.ts       Nostr Wallet Connect client (pay_invoice, NIP-44 v2 / NIP-04)
+src/autotopup.ts auto top-up of low keys from the customer's wallet (send-once, daily cap, pause)
 src/price.ts     fiat → BTC with fallbacks
 src/upstreams.ts anonymized upstream network for the /network page (no provider names or hosts)
 web/             key shop, mobile checkout page, upstream network page, operator page
@@ -185,7 +190,8 @@ deploy/demo/     our live EU relay stack (own new-api + gateway, channels copied
 docs/            user guide, self-hosting, HTTP API, internals; slides (PDF) and screenshots (mock orders)
 ```
 
-About 2,800 lines for the gateway and pages, 700 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`.
+About 4,000 lines for the gateway and pages, 1,400 for tests and scripts. Dependencies: `@cashu/cashu-ts`, `qrcode`,
+and `@noble/curves` + `@noble/hashes` (already part of cashu-ts) for Nostr Wallet Connect.
 
 ## Limits and next steps
 

@@ -12,6 +12,8 @@ credits it exactly once.
 | `src/gateway.ts` | the payment engine: seed-backed cashu-ts wallet, write-ahead settle, recovery, NUT-17 push, polling budget |
 | `src/ledger.ts` | order records, the durable ledger file, and the pure decision logic (no network, unit-tested) |
 | `src/keyshop.ts` | paid key order → capped new-api token; usage and model prices |
+| `src/nwc.ts` | Nostr Wallet Connect (NIP-47) client: one `pay_invoice` per call, NIP-44 v2 / NIP-04 |
+| `src/autotopup.ts` | auto top-up: which low keys get an order, send-once rules, caps, pause |
 | `src/price.ts` | fiat → BTC price with fallbacks |
 | `src/upstreams.ts` | anonymized upstream network for `/network`: providers as letters, routing per model, no names or hosts |
 
@@ -154,6 +156,33 @@ between don't change the sum. Two top-ups of one key run one after the other (a 
 the milliseconds between the read and the write is overwritten (a few cents in the customer's favour); a refund
 in that window leaves the sum short, step 3 notices and the retry adds the rest. If the key no longer exists, the
 top-up is marked `needsRefund` for the operator.
+
+### Auto top-up (Nostr Wallet Connect)
+
+`src/nwc.ts` is a small NIP-47 client: it parses `nostr+walletconnect://` strings, reads the wallet's info event
+(kind 13194: methods, and `nip44_v2` or NIP-04 encryption), and sends one `pay_invoice` request (kind 23194, signed
+with the connection's secret, encrypted to the wallet, with an `expiration` tag). Then it waits for the answer
+(kind 23195 tagged with the request id, signed by the wallet). Its NIP-44 code is checked against the spec's test
+vectors and against nostr-tools.
+
+`src/autotopup.ts` runs every `AUTO_TOPUP_EVERY_S`. For each key with auto top-up on, it reads the key's balance
+and, below the threshold, makes a normal top-up order and sends its invoice to the wallet. The rest is the usual
+path: the mint sees the invoice paid, the gateway mints, and the top-up is added once (above). The rules that keep
+it from paying twice:
+
+1. **One request per invoice.** `auto.sentAt` is written to the ledger and fsynced before the request goes out.
+   After a restart, an order with `sentAt` but no answer is marked `unknown` and never sent again. An order
+   without `sentAt` was never sent, so it is sent now.
+2. **One open order per key.** A new order waits until the last one is finished, expired, or `declined` (the wallet
+   answered with an error such as `INSUFFICIENT_BALANCE` or `QUOTA_EXCEEDED`, so it wasn't paid). Silence, or an
+   answer we can't read, means it may have been paid: the order stays open until it expires, and a late payment is
+   still credited.
+3. **Caps.** Orders that were or may have been paid count toward `perDay`. Failures back off (10 minutes × the
+   count), and 3 in a row pause auto top-up until the customer saves again. The wallet's own budget is the outer limit.
+
+The connection string is a spending credential for the customer's wallet. It lives in the ledger (mode 600, like
+the proofs) and never appears in an API answer, the admin JSON or the log. Relays must be public `wss://` hosts
+(no IPs, `localhost` or single-label names), so a connection string can't make the gateway call internal services.
 
 ### The pool
 

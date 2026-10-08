@@ -50,6 +50,34 @@ It returns a top-up order (`kind: "keytopup"`, also a `CK…` id) that is paid e
 an access log, and the top-up order never shows it (only its last 4 characters), so a top-up link can be sent to
 someone else to pay. 404 `unknown key` if the key wasn't sold here.
 
+### `POST /api/autotopup`
+
+Auto top-up of a key sold here, paid by the customer's own wallet over [Nostr Wallet Connect](https://nwc.dev)
+(NIP-47). The key in the body is the authorization, as for top-ups.
+
+```sh
+curl -s -XPOST https://shop.example.com/api/autotopup -H 'content-type: application/json' \
+  -d '{"key": "sk-…", "nwc": "nostr+walletconnect://…", "money": 2, "below": 0.5, "perDay": 10}'
+```
+
+| field | meaning |
+|---|---|
+| `nwc` | connection string from the wallet (needs the `pay_invoice` permission; give it a budget there). Only public `wss://` relays are used. Omit it to change the settings of a saved connection (this also resumes a paused one) |
+| `money` | each top-up, one of the shop's `amounts` |
+| `below` | top up when the key holds less than this (in `fiat`), 0 < below ≤ 100 |
+| `perDay` | at most this much in any 24 hours, from `money` up to 500 |
+
+Saving asks the wallet's relay for its info event: 400 if the wallet says it can't `pay_invoice`; if no info is
+found it is saved anyway with a note. `{"key": "sk-…", "off": true}` turns it off and deletes the connection;
+`{"key": "sk-…"}` returns the status. All three answer `{"auto": …}` (the `auto` field below, or `null`). The
+connection string is never returned.
+
+How it runs: every `AUTO_TOPUP_EVERY_S` (default 60) the gateway reads each such key's balance. Below `below` it
+makes a normal key top-up order (pool check included), creates its invoice and sends the wallet one `pay_invoice`.
+The invoice of an order goes to the wallet at most once. A new order waits until the previous one is finished,
+expired, or clearly refused by the wallet. Orders the wallet may have paid count toward `perDay`. Three failures
+in a row pause it until the settings are saved again.
+
 ### `GET /api/models`
 
 Models a sold key can call, with prices for the pool user's group (cached 5 minutes):
@@ -112,7 +140,8 @@ order's invoice is checked first.
 | `paid` | `via` = `lightning` / `cashu`; `sats` received after mint fees; `fee` = mint fee absorbed |
 | `apiKey` | key orders, once `PAID` and the key is created. `baseUrl` is the endpoint to use |
 | `keyError` | key orders: why creating the key failed so far; key top-ups: why adding the money failed so far (both retried with backoff) |
-| `topups` | key orders: paid top-ups of this key, `[{at, money, fiat, applied, needsRefund}]` |
+| `topups` | key orders: paid top-ups of this key, `[{at, money, fiat, applied, needsRefund, auto}]` (`auto`: made by auto top-up) |
+| `auto` | key orders: auto top-up settings and state, or `null` when off: `{money, below, perDay, wallet, relay, paused, failures, lastError, spent24h, last: {at, money, state, outcome, applied}}`. `wallet` and `relay` are hints only (the wallet's pubkey prefix, the relay host); `outcome` = `paid` / `declined` / `unknown` (no readable answer: the order stays open until it expires, as it may have been paid) |
 | `topup` | key top-ups: `{key: "sk-…a1b2", applied?: {at, remaining}, needsRefund}`. `applied.remaining` = the key's balance right after (in `fiat`). `needsRefund` is true if the key was deleted before the money could be added: the operator refunds by hand |
 | `kind` | `key` for key orders, `keytopup` for key top-ups; absent for account top-up orders (`CE…` ids) |
 | `returnUrl` | account top-up orders: where to send the customer back after payment (signed) |

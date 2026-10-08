@@ -148,3 +148,6 @@ h1 .sub { font-size: 18px; font-weight: 500; color: var(--muted); margin-left: .
 }
 .topup { margin-top: 1.4em; padding-top: .4em; border-top: 1px solid #8883; }
 .topup ul { margin: .4em 0 0; padding-left: 1.2em; }
+.auto-row { margin-top: 8px; line-height: 2.2; }
+.auto-row input, .auto-row select { width: 5.5em; padding: 6px 8px; font: inherit; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+#auto-off { display: block; margin: 10px auto 0; background: none; border: 0; text-decoration: underline; width: auto; color: inherit; }

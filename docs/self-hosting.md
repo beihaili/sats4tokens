@@ -48,6 +48,7 @@ customer ──► reverse proxy ──┬── /v1/*  ──► new-api :3000 
 | `NEWAPI_TOKEN` | key shop | pool user's system access token |
 | `POOL_RESERVE` | | key shop: keep this much (in `FIAT`) of the pool user's quota unsold; an amount is offered only while it fits, default `10` |
 | `POOL_ALERT` | | key shop: log a warning (at most hourly) when the pool can sell less than this, default `30` |
+| `AUTO_TOPUP_EVERY_S` | | key shop: how often keys with auto top-up (Nostr Wallet Connect) get their balance checked, default `60` |
 | `KEY_BASE_URL` | | endpoint shown with each key, e.g. `https://shop.example.com/v1` (default: new-api's server address + `/v1`) |
 | `FIAT` | key shop | order currency, e.g. `eur`; must be the currency of new-api's top-up price `Price` (below); default `cny` |
 | `MINT_URL` | yes | the mint; default `https://testnut.cashu.space` (test mint, fake sats) |

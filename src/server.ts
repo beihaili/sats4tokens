@@ -5,6 +5,8 @@
 //   GET      /api/shop               key shop settings {enabled, amounts, fiat, sats, soldOut}
 //   POST     /api/buy                {money} → new key order {id}; once paid, its page shows the key
 //                                    {money, key} → top-up of a key sold here (its page never shows the key)
+//   POST     /api/autotopup          {key, nwc?, money, below, perDay} → auto top-up over Nostr Wallet Connect on
+//                                    {key, off: true} → turn it off; {key} → its status (never the connection string)
 //   GET      /api/models             key shop: models a key can call + prices (FIAT per 1M tokens, from new-api)
 //   GET      /pay/:id                checkout page (web/checkout.html)
 //   GET      /api/order/:id          order status for the checkout page (polled)
@@ -19,7 +21,8 @@
 //                                    (+ the token itself in the reply if WITHDRAW_TOKEN_OVER_HTTP=1)
 // Background: watcher every 2s (crash recovery; at most one quote check per 8s across all orders — open
 // checkout pages first — paused with backoff on network errors / 429), notify loop every 2s (for key shop
-// orders "notify" means: create the key in new-api or add the top-up to it, see keyshop.ts).
+// orders "notify" means: create the key in new-api or add the top-up to it, see keyshop.ts), auto top-up every
+// AUTO_TOPUP_EVERY_S (keys running low → their wallet pays a top-up over NWC, see autotopup.ts).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -33,6 +36,8 @@ import { Gateway, loadSeed } from './gateway.ts';
 import { btcPrice, fiat } from './price.ts';
 import { KeyShop } from './keyshop.ts';
 import { Network } from './upstreams.ts';
+import { AutoTopups, checkNwc, checkSettings, publicAuto } from './autotopup.ts';
+import { payInvoice, walletInfo } from './nwc.ts';
 
 const PORT = Number(process.env.PORT ?? 8090);
 const PID = process.env.EPAY_PID ?? '1001';
@@ -60,6 +65,8 @@ const POOL_RESERVE = Number(process.env.POOL_RESERVE ?? 10);
 const POOL_ALERT = Number(process.env.POOL_ALERT ?? 30);
 // /network page (optional): UPSTREAMS_FILE from scripts/export-upstreams.ts; live calls come from the key shop pool
 const network = Network.fromEnv(shop);
+// Auto top-up: how often keys with it on get their balance read (one new-api call per such key)
+const AUTO_EVERY_MS = Number(process.env.AUTO_TOPUP_EVERY_S ?? 60) * 1000;
 
 const root = path.resolve(import.meta.dirname, '..', 'web');
 const ledger = new Ledger(path.join(DATA_DIR, 'ledger.json'));
@@ -140,15 +147,16 @@ function publicOrder(o: Order) {
     keyError: (o.kind === 'key' && !o.apiKey) || (o.kind === 'keytopup' && !o.notify.done) ? o.notify.lastError : undefined,
     // a top-up's page may be someone else's (a friend paying): only the key's last 4 characters, never `of`
     topup: o.topup && { key: o.topup.keyHint, applied: o.topup.applied, needsRefund: !!o.topup.needsRefund },
-    // the key's page: its paid top-ups
+    // the key's page: its paid top-ups, and auto top-up settings (without the connection string)
     topups: o.kind === 'key' && o.apiKey ? topupsOf(o) : undefined,
+    auto: o.kind === 'key' && o.apiKey ? (publicAuto(ledger.data, o, Date.now()) ?? null) : undefined,
   };
 }
 
 function topupsOf(key: Order) {
   return ledger.data.orders
     .filter((x) => x.kind === 'keytopup' && x.topup!.of === key.id && x.state === 'PAID')
-    .map((x) => ({ at: x.paid!.at, money: x.money, fiat: x.fiat, applied: !!x.topup!.applied, needsRefund: !!x.topup!.needsRefund }));
+    .map((x) => ({ at: x.paid!.at, money: x.money, fiat: x.fiat, applied: !!x.topup!.applied, needsRefund: !!x.topup!.needsRefund, auto: !!x.topup!.auto }));
 }
 
 // ------------------------------------------------------------------ routes
@@ -192,14 +200,62 @@ async function buy(req: http.IncomingMessage, res: http.ServerResponse): Promise
   if (!KEY_AMOUNTS.includes(String(money))) return send(res, 400, { error: `amount must be one of ${KEY_AMOUNTS.join(', ')}` });
   const parent = key === undefined ? undefined : findKeyOrder(ledger.data, String(key));
   if (key !== undefined && !parent) return send(res, 404, { error: 'unknown key' });
+  const order = await newShopOrder(String(money), parent);
+  if (typeof order === 'string') return send(res, 503, { error: order });
+  return send(res, 200, { id: order.id });
+}
+
+/** A saved key order, or a top-up order for `parent`; or why not (the pool can't take it). Shared with auto top-up. */
+async function newShopOrder(money: string, parent?: Order): Promise<Order | string> {
   // the pool check is only here: an order that was made gets its key / top-up once paid, whatever the pool says then
-  if (!fits(String(money), await poolLeft())) return send(res, 503, { error: 'sold out right now: we are refilling, try again later or a smaller amount' });
+  if (!fits(money, await poolLeft())) return 'sold out right now: we are refilling, try again later or a smaller amount';
   const opts = { fiat: fiat(), btcPrice: await btcPrice(), now: Date.now(), ttlMs: TTL_MS };
-  const order = parent ? makeTopupOrder(parent, String(money), opts) : makeKeyOrder(String(money), opts);
+  const order = parent ? makeTopupOrder(parent, money, opts) : makeKeyOrder(money, opts);
   ledger.data.orders.push(order);
   ledger.save();
   console.log(`🔑 ${order.id.slice(0, 10)}…: ${parent ? `top-up of token #${order.topup!.tokenId}` : 'key order'} ${order.money} ${order.fiat} = ${order.sats} sat`);
-  return send(res, 200, { id: order.id });
+  return order;
+}
+
+/**
+ * Auto top-up settings of a key sold here (the key in the body is the authorization, as for top-ups). Saving checks
+ * the connection string and asks the wallet's relay whether it can pay invoices; it never sends a payment itself.
+ */
+async function autotopup(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  if (!shop) return send(res, 404, { error: 'key shop not enabled' });
+  if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
+  const b = JSON.parse((await readBody(req)) || '{}') as Record<string, unknown>;
+  const k = b.key === undefined ? undefined : findKeyOrder(ledger.data, String(b.key));
+  if (!k) return send(res, 404, { error: 'unknown key' });
+  const view = () => send(res, 200, { auto: publicAuto(ledger.data, k, Date.now()) ?? null });
+  if (b.off) {
+    delete k.auto;
+    ledger.save();
+    console.log(`🔁 ${k.id.slice(0, 10)}…: auto top-up off`);
+    return view();
+  }
+  if (b.nwc === undefined && b.money === undefined) return view();
+  const settings = checkSettings(b, KEY_AMOUNTS);
+  if (typeof settings === 'string') return send(res, 400, { error: settings });
+  const uri = b.nwc === undefined ? k.auto?.nwc : String(b.nwc);
+  if (!uri) return send(res, 400, { error: 'nwc connection string required' });
+  let note: string | undefined;
+  let c;
+  try {
+    c = checkNwc(uri);
+  } catch (e) {
+    return send(res, 400, { error: (e as Error).message });
+  }
+  if (b.nwc !== undefined) {
+    const info = await walletInfo(c).catch(() => undefined);
+    if (info && !info.methods.includes('pay_invoice')) return send(res, 400, { error: "this connection can't pay invoices: give it the pay_invoice permission" });
+    if (!info) note = "couldn't read the wallet's info on its relay; we'll still try when the key runs low";
+  }
+  k.auto = { nwc: uri, wallet: c.wallet, relay: new URL(c.relays[0]).host, ...settings, since: Date.now(), failures: 0, lastError: note };
+  ledger.save();
+  console.log(`🔁 ${k.id.slice(0, 10)}…: auto top-up on (${settings.money} below ${settings.below}, ≤${settings.perDay}/day, relay ${k.auto.relay})`);
+  void auto.tick(); // a key that is already low gets its top-up now
+  return view();
 }
 
 async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -207,6 +263,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   const p = url.pathname;
   if (p === '/submit.php') return submit(req, res, url);
   if (p === '/api/buy') return buy(req, res);
+  if (p === '/api/autotopup') return autotopup(req, res);
   if (p === '/api/shop') {
     // sats: today's price of each amount, for the buy buttons (an order locks its own price when it's made)
     // at most 1.5s: the buy page waits for this, and the price feeds can be slow (then no sats on the buttons)
@@ -288,10 +345,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
 
   if (p === '/admin') {
     if (url.searchParams.get('key') !== ADMIN_KEY) return send(res, 403, 'forbidden', 'text/plain');
-    const orders = ledger.data.orders.map(({ settle, apiKey, ...o }) => ({
+    const orders = ledger.data.orders.map(({ settle, apiKey, auto, ...o }) => ({
       ...o,
       settle: settle && { ...settle, token: undefined },
       apiKey: apiKey && { ...apiKey, key: apiKey.key.slice(0, 7) + '…' }, // bearer; the operator doesn't need it
+      auto: auto && { ...auto, nwc: undefined }, // the customer's wallet connection: bearer, never shown
     }));
     const pool = shop ? await within(5000, shop.pool()) : undefined;
     const pending = pendingMoney(ledger.data, Date.now());
@@ -396,6 +454,20 @@ async function notifyLoop(): Promise<void> {
   }
 }
 
+// ------------------------------------------------------------------ auto top-up
+
+const auto = new AutoTopups({
+  data: () => ledger.data,
+  save: () => ledger.save(),
+  remaining: (tokenId) => shop!.remaining(tokenId),
+  newTopup: (key, money) => newShopOrder(money, key),
+  invoice: async (id) => (await gw.ensureQuote(id)).quote!.request,
+  checkSoon: (id) => gw.checkSoon(id),
+  pay: (c, invoice) => payInvoice(c, invoice),
+  now: () => Date.now(),
+  log: (line) => console.log(line),
+});
+
 // ------------------------------------------------------------------ start
 
 await gw.tick(); // recover anything a crash left in SETTLING before taking new requests
@@ -408,6 +480,7 @@ setInterval(() => {
   void gw.tick().finally(() => (ticking = false));
 }, 2000);
 setInterval(() => void notifyLoop(), 2000);
+if (shop) setInterval(() => void auto.tick(), AUTO_EVERY_MS);
 // so the low-pool warning shows up in the log even with no visitors; the first run also warms the cache /api/shop reads
 void poolLeft();
 setInterval(() => void poolLeft(), 10 * 60_000);
