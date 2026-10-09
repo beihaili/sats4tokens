@@ -50,7 +50,7 @@ export interface ModelPrice {
 }
 
 // new-api's vendor names are the operator's labels (some in Chinese); the page is English
-const VENDOR_NAMES: Record<string, string> = { 智谱: 'Zhipu GLM', 字节跳动: 'ByteDance' };
+const VENDOR_NAMES: Record<string, string> = { 智谱: 'Zhipu GLM', 字节跳动: 'ByteDance', 阿里巴巴: 'Alibaba Qwen', 讯飞: 'iFlytek' };
 
 // MODEL_ALIAS_SUFFIX: regex of name suffixes the operator gives extra routes of one model (e.g. `-a$|-b$`). Such
 // aliases still work with a key, but the public lists (/api/models, /network) leave them out and show their calls

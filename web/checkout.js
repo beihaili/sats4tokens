@@ -1,5 +1,5 @@
 // Checkout page: polls /api/order/:id, shows the lightning invoice or takes a pasted cashu token.
-import { renderModels, money, bonusText } from '/models.js?v=6';
+import { renderModels, money, bonusText } from '/models.js?v=7';
 const id = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);

@@ -17,7 +17,7 @@ const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumSignif
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 
 // ticked on first load (when they exist): one of each kind, from strongest to cheapest
-const DEFAULT_PICKS = ['claude-opus-4-8', 'gpt-6.1-sol', 'deepseek-v4-flash', 'glm-5.3-flash'];
+const DEFAULT_PICKS = ['claude-opus-5-5', 'gpt-6.1-sol', 'gpt-6-astra', 'glm-5.3', 'kimi-k3', 'deepseek-v4-pro'];
 // a "typical chat call" for the calls column: 2K tokens in (question + context), 500 out (answer)
 const CHAT_IN = 2000;
 const CHAT_OUT = 500;
