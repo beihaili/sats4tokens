@@ -111,6 +111,11 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   only while `money + POOL_RESERVE (10) ≤ left`: `/api/shop` filters `amounts` (empty → `soldOut`, buy page says "Sold
   out right now"), `/api/buy` → 503. Fail open (new-api unreadable or >1.5s on `/api/shop` → unfiltered). `POOL_ALERT` (30) →
   hourly `⚠️ key pool low` log line (checked at start and every 10 min). Admin JSON has `pool {…, pending, reserve, alert}`.
+  Homepage look (2026-10-09, `body.home`, styles scoped under `.home` so checkout/admin/network keep theirs): brand = `web/mark.svg`
+  (key mark from `../gallery/logo/`) + wordmark with the orange 4; hero h1 "Claude Code on sats, N% below list price" + a
+  price tag (`#tag`, Opus 5.5 output per 1M from `/api/compare`: list and ppq struck through, the strike line draws once on
+  load, off under prefers-reduced-motion; ours big). The price tag is the page's one loud element: no shadowed card stack,
+  sections split by space and hairlines, buy buttons dark with amount / sats / bonus, orange on hover. System font, tabular figures.
   Homepage (`web/index.html`): og/twitter meta (`og:image` = `/og-card.png`, 1200×630 from `../gallery/og-card.html`;
   absolute URLs on our domain, self-hosters change them), nav (🛰 /network, 📖 user guide, GitHub) and a "Who runs this"
   card (BHBTC relay, privacy, exactly-once, agents). Key page shows `#low` ("Running low" / "used up" → "Top it up ↓") when ≤10% of the key is left.

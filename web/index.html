@@ -18,27 +18,42 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Sats4Tokens: pay from €1 in bitcoin, get a capped API key, use any model">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="/style.css?v=10">
+  <link rel="stylesheet" href="/style.css?v=11">
 </head>
-<body>
+<body class="home">
   <main class="checkout">
-    <header>
-      <h1>🔑 Sats4Tokens</h1>
-      <p class="hero">Claude Code on sats, <b id="off">~60%</b> below list price.</p>
-      <p class="tag">Pay with ⚡ Lightning or 🥜 Cashu, get an API key for Claude, GPT and more. No signup, no email, no KYC.</p>
+    <header class="top">
+      <a class="brand" href="/"><img src="/mark.svg" alt="" width="56" height="35"><span>Sats<i>4</i>Tokens</span></a>
       <nav class="nav">
-        <a href="/network">🛰 Where your requests go</a>
-        <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/user-guide.md">📖 Guide</a>
-        <a href="https://github.com/beihaili/sats4tokens">Open source ↗</a>
+        <a href="/network">Network</a>
+        <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/user-guide.md">Guide</a>
+        <a href="https://github.com/beihaili/sats4tokens">GitHub</a>
       </nav>
     </header>
-    <section class="card">
-      <p>One key works with Claude, GPT, DeepSeek, GLM, Kimi … through one OpenAI-compatible endpoint (and the Anthropic API for Claude Code).
-        The key is capped at what you pay (plus a bonus on larger amounts).</p>
+
+    <section class="hero">
+      <h1>Claude Code on sats, <span id="off">~60%</span> below list price.</h1>
+      <p class="lede">Pay with Lightning or Cashu, get an API key for Claude, GPT and more. No signup, no email, no KYC.</p>
+      <!-- the price tag: filled from /api/compare (Claude Opus 5.5); the struck prices draw their line once on load -->
+      <div id="tag" class="pricetag" hidden>
+        <p class="pt-model"><b id="tag-model">Claude Opus 5.5</b>, per 1M output tokens</p>
+        <div class="pt-row">
+          <div class="pt was"><s id="tag-list"></s><span>Anthropic list</span></div>
+          <div class="pt was"><s id="tag-ppq"></s><span>ppq.ai</span></div>
+          <div class="pt now"><b id="tag-ours"></b><span>Sats4Tokens</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="buy">
+      <h2>Buy a key</h2>
+      <p class="lede">One key works with every model below, through one OpenAI-compatible endpoint (and the Anthropic API for Claude Code).
+        It holds what you pay, plus a bonus on larger amounts.</p>
       <div id="amounts" class="amounts"></div>
       <p id="err" class="bad" hidden></p>
-      <p class="hint">Pay with ⚡ Lightning or 🥜 Cashu ecash. Keep the next page — it is your receipt and shows your key.</p>
+      <p class="hint">You pay on the next page, by Lightning invoice or Cashu token. Keep that page: it is your receipt and shows your key.</p>
     </section>
+
     <section id="compare" class="card" hidden>
       <h2>Same models, fewer sats</h2>
       <div class="scroll"><table class="calls prices cmp">
@@ -47,7 +62,7 @@
       </table></div>
       <p class="hint" id="cmp-note"></p>
     </section>
-    <section class="card about">
+    <section class="about">
       <h2>Who runs this</h2>
       <p>Sats4Tokens is the bitcoin checkout of the BHBTC relay, an AI API relay (its regular console, with an account and
         bitcoin top-ups, is <a href="https://btc.bhbtc.xyz">btc.bhbtc.xyz</a>). The code is <a href="https://github.com/beihaili/sats4tokens">open source</a>.</p>
@@ -59,7 +74,7 @@
         <li><b>For bots and agents:</b> buy, pay and fetch the key over plain HTTP, see the <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/api.md">API</a>.</li>
       </ul>
     </section>
-    <section class="card">
+    <section class="card models">
       <h2>Models &amp; prices</h2>
       <p class="hint"><span class="unit"></span> per 1M tokens. One key works for every model below — tick models to see what a key buys. <span class="badge anthropic">Claude Code</span> = also speaks the Anthropic API. "fast ×2": service_tier fast/priority costs double.</p>
       <div id="models"><p class="hint">Loading…</p></div>
@@ -85,9 +100,10 @@
     for (const a of shop.amounts) {
       const b = document.createElement('button');
       b.className = 'primary';
-      b.textContent = `Buy a ${money(Number(a), shop.fiat)} key`;
-      const sub = [bonusText(shop, a), shop.sats?.[a] && `≈ ${shop.sats[a].toLocaleString('en')} sat`].filter(Boolean).join(' · ');
-      if (sub) b.append(Object.assign(document.createElement('small'), { textContent: sub }));
+      b.append(Object.assign(document.createElement('b'), { textContent: money(Number(a), shop.fiat) }));
+      b.setAttribute('aria-label', `Buy a ${money(Number(a), shop.fiat)} key`);
+      if (shop.sats?.[a]) b.append(Object.assign(document.createElement('small'), { textContent: `≈ ${shop.sats[a].toLocaleString('en')} sat` }));
+      if (bonusText(shop, a)) b.append(Object.assign(document.createElement('em'), { textContent: bonusText(shop, a) }));
       b.disabled = !shop.enabled;
       b.onclick = async () => {
         b.disabled = true;
@@ -112,7 +128,14 @@
       if (!c.rows.length) return;
       const usd = (x) => '$' + Number(x.toFixed(2)); // exact to the cent, no trailing zeros: $4, $4.22, $10.55
       const pair = (p) => `${usd(p[0])} / ${usd(p[1])}`;
-      $('#off').textContent = `${c.minOff}%+`;
+      $('#off').textContent = `${c.minOff}%`;
+      const hero = c.rows.find((x) => x.model === 'claude-opus-5-5') ?? c.rows[0];
+      $('#tag-model').textContent = hero.name;
+      const tag = (x) => '$' + x.toFixed(2); // a price tag shows cents: $20.00, $21.10, $8.14
+      $('#tag-list').textContent = tag(hero.list[1]);
+      $('#tag-ppq').textContent = tag(hero.ppq[1]);
+      $('#tag-ours').textContent = tag(hero.ours[1]);
+      $('#tag').hidden = false;
       $('#ppq-link').href = c.sources.ppq;
       $('#compare tbody').replaceChildren(...c.rows.map((x) => {
         const tr = document.createElement('tr');
