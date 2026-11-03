@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <title>Pay with Bitcoin · Sats4Tokens</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css?v=11">
+  <link rel="stylesheet" href="/style.css?v=12">
 </head>
 <body>
   <main class="checkout">
@@ -19,6 +19,7 @@
       <nav class="tabs">
         <button data-tab="ln" class="on">⚡ Lightning</button>
         <button data-tab="cashu">🥜 Cashu ecash</button>
+        <button data-tab="stable" id="stable-btn" hidden>💵 USDT / USDC</button>
       </nav>
       <div id="tab-ln">
         <a id="ln-link"><img id="qr" alt="lightning invoice QR"></a>
@@ -35,6 +36,20 @@
         </div>
         <p class="hint">Paste an ecash token from <span id="mint" class="mono"></span>, or scan its QR.
           The mint can't see who pays whom — blind signatures.</p>
+      </div>
+      <div id="tab-stable" hidden>
+        <p class="hint">Pick the network you send from:</p>
+        <div id="rails" class="rails"></div>
+        <div id="stable-pay" hidden>
+          <p id="stable-warn" class="warn"></p>
+          <img id="stable-qr" class="qr" alt="receiving address QR">
+          <div class="muted">Send exactly</div>
+          <div class="row stable-amount"><div id="stable-amount" class="amount"></div><button id="copy-amount">Copy</button></div>
+          <div class="muted">To this address</div>
+          <div class="row"><input id="stable-addr" readonly><button id="copy-addr">Copy</button></div>
+          <p id="stable-hint" class="hint"></p>
+        </div>
+        <p id="stable-status" class="hint" hidden></p>
       </div>
       <p id="err" class="bad" hidden></p>
       <p id="status" class="hint">Waiting for payment… <span id="countdown"></span></p>
@@ -89,6 +104,6 @@
       <div id="models"></div>
     </section>
   </main>
-  <script type="module" src="/checkout.js?v=11"></script>
+  <script type="module" src="/checkout.js?v=12"></script>
 </body>
 </html>

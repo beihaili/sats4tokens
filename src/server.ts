@@ -15,6 +15,8 @@
 //   POST     /api/order/:id/invoice  create the lightning invoice (lazily, when the customer picks ⚡)
 //   GET      /api/order/:id/qr.svg   QR of the lightning invoice
 //   POST     /api/order/:id/token    customer pastes a cashu token  {token}
+//   POST     /api/order/:id/stable   customer picks a USDT/USDC network {rail} → our address + exact amount (stable.ts)
+//   GET      /api/order/:id/stable.svg?rail=…  QR of that address
 //   GET      /api/order/:id/usage    key shop: the sold key's balance + latest calls (from new-api)
 //   GET      /network                upstream network page (web/network.html)
 //   GET      /api/network            anonymized upstreams + routing (UPSTREAMS_FILE) + latest calls' nodes
@@ -24,7 +26,8 @@
 // Background: watcher every 2s (crash recovery; at most one quote check per 8s across all orders — open
 // checkout pages first — paused with backoff on network errors / 429), notify loop every 2s (for key shop
 // orders "notify" means: create the key in new-api or add the top-up to it, see keyshop.ts), auto top-up every
-// AUTO_TOPUP_EVERY_S (keys running low → their wallet pays a top-up over NWC, see autotopup.ts).
+// AUTO_TOPUP_EVERY_S (keys running low → their wallet pays a top-up over NWC, see autotopup.ts), stablecoin watcher
+// every 5s (each rail with waiting orders is scanned every 15s, read-only; see chain.ts / stable.ts).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,13 +39,15 @@ import {
   notifyParams, dueForNotify, notifyBackoffMs, type Order,
 } from './ledger.ts';
 import { Gateway, loadSeed } from './gateway.ts';
-import { btcPrice, fiat } from './price.ts';
+import { btcPrice, fiat, usdPerFiat } from './price.ts';
 import { KeyShop } from './keyshop.ts';
 import { Network } from './upstreams.ts';
 import { AutoTopups, checkNwc, checkSettings, publicAuto } from './autotopup.ts';
 import { payInvoice, walletInfo } from './nwc.ts';
-import { compare, usdPerFiat } from './compare.ts';
+import { compare } from './compare.ts';
 import { Funnel, cleanRef } from './funnel.ts';
+import { railsFromEnv } from './chain.ts';
+import { StableWatcher, publicStable, quoteStable } from './stable.ts';
 
 const PORT = Number(process.env.PORT ?? 8090);
 const PID = process.env.EPAY_PID ?? '1001';
@@ -75,6 +80,10 @@ const POOL_ALERT = Number(process.env.POOL_ALERT ?? 30);
 const network = Network.fromEnv(shop);
 // Auto top-up: how often keys with it on get their balance read (one new-api call per such key)
 const AUTO_EVERY_MS = Number(process.env.AUTO_TOPUP_EVERY_S ?? 60) * 1000;
+// USDT/USDC (optional): one rail per network + token whose receiving address is set (STABLE_ADDR_EVM/_TRON/_SOL).
+// Watch only: no keys here. A transfer up to STABLE_LATE_HOURS after the order expired still counts (as Lightning).
+const RAILS = railsFromEnv(process.env);
+const STABLE_LATE_MS = Number(process.env.STABLE_LATE_HOURS ?? 24) * 3600_000;
 
 const root = path.resolve(import.meta.dirname, '..', 'web');
 const ledger = new Ledger(path.join(DATA_DIR, 'ledger.json'));
@@ -132,7 +141,9 @@ const fits = (money: string, left: number | undefined) => left === undefined || 
 /** What the customer's browser may see. No proofs, no token, no notify internals. */
 function publicOrder(o: Order) {
   let returnUrl = '';
-  if (o.state === 'PAID' && o.returnUrl) {
+  // a held order (paid short in stablecoins) must not get the signed return URL: it carries the same signed params as
+  // the "paid" callback, and replaying them to the merchant would credit the full amount
+  if (o.state === 'PAID' && o.returnUrl && !o.stable?.hold) {
     const u = new URL(o.returnUrl);
     for (const [k, v] of Object.entries(signed(notifyParams(o), KEY))) u.searchParams.set(k, v);
     returnUrl = u.toString();
@@ -161,6 +172,9 @@ function publicOrder(o: Order) {
     // the key's page: its paid top-ups, and auto top-up settings (without the connection string)
     topups: o.kind === 'key' && o.apiKey ? topupsOf(o) : undefined,
     auto: o.kind === 'key' && o.apiKey ? (publicAuto(ledger.data, o, Date.now()) ?? null) : undefined,
+    // the stablecoin tab: networks on offer (only those with an address), and this order's quotes / payments
+    rails: RAILS.map((r) => ({ id: r.id, token: r.token, net: r.netName })),
+    stable: publicStable(o, RAILS),
   };
 }
 
@@ -319,7 +333,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     }
   }
 
-  let m = p.match(/^\/api\/order\/(\w+)(\/qr\.svg|\/token|\/invoice|\/usage)?$/);
+  let m = p.match(/^\/api\/order\/(\w+)(\/qr\.svg|\/token|\/invoice|\/usage|\/stable\.svg|\/stable)?$/);
   if (m) {
     const o = ledger.order(m[1]);
     if (!o) return send(res, 404, { error: 'unknown order' });
@@ -332,6 +346,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       const svg = await QRCode.toString('lightning:' + o.quote.request.toUpperCase(), { type: 'svg', margin: 1 });
       return send(res, 200, svg, 'image/svg+xml');
     }
+    if (m[2] === '/stable.svg') {
+      // the address only: wallets and exchange apps read a plain address; the amount is shown (and copied) next to it
+      const q = o.stable?.quotes.find((x) => x.rail === url.searchParams.get('rail'));
+      if (!q) return send(res, 404, { error: 'no quote for that network' });
+      return send(res, 200, await QRCode.toString(q.address, { type: 'svg', margin: 1 }), 'image/svg+xml');
+    }
     if (m[2] === '/usage') {
       // the order id is the capability: whoever may see the key may see what it spent
       if (!shop || !o.apiKey) return send(res, 404, { error: 'no key yet' });
@@ -342,6 +362,23 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       }
     }
     if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
+    if (m[2] === '/stable') {
+      const { rail } = JSON.parse((await readBody(req)) || '{}') as { rail?: unknown };
+      const r = RAILS.find((x) => x.id === rail);
+      if (!r) return send(res, 400, { error: 'unknown network' });
+      try {
+        const fresh = !o.stable?.quotes.some((q) => q.rail === r.id);
+        const rate = o.stable?.usdPerFiat ?? (await usdPerFiat(o.fiat));
+        const q = quoteStable(ledger.data, o, r, rate, Date.now(), STABLE_LATE_MS); // sync: amounts can't clash
+        if (fresh) {
+          ledger.save();
+          console.log(`💵 ${o.kind ? o.id.slice(0, 10) + '…' : o.id}: ${q.amount} ${r.token} on ${r.netName} (${o.money} ${o.fiat} × ${o.stable!.usdPerFiat})`);
+        }
+        return send(res, 200, publicOrder(o));
+      } catch (e) {
+        return send(res, 400, { error: (e as Error).message });
+      }
+    }
     if (m[2] === '/invoice') {
       try {
         return send(res, 200, publicOrder(await gw.ensureQuote(o.id)));
@@ -385,6 +422,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       balance: gw.balance(), nextCounter: ledger.data.nextCounter, mint: gw.mintUrl, tokenOverHttp: TOKEN_OVER_HTTP, orders,
       fiat: fiat(), pool: pool && { ...pool, pending, reserve: POOL_RESERVE, alert: POOL_ALERT },
       funnel: funnel.report(ledger.data.orders, 14, Date.now()),
+      methods: funnel.methods(ledger.data.orders, 14, Date.now()),
+      // rails without RPC URLs (a provider key may sit in the URL); unmatched = confirmed transfers no order claimed
+      stable: RAILS.length || ledger.data.stable ? {
+        lateHours: STABLE_LATE_MS / 3600_000,
+        rails: RAILS.map((r) => ({ id: r.id, net: r.netName, token: r.token, address: r.address, confirmations: r.confirmations, explorer: r.explorer, rpcHost: new URL(r.rpc).host, ...stable?.status.get(r.id) })),
+        unmatched: ledger.data.stable?.unmatched ?? [],
+      } : undefined,
     });
   }
 
@@ -497,6 +541,12 @@ const auto = new AutoTopups({
   log: (line) => console.log(line),
 });
 
+// ------------------------------------------------------------------ stablecoins
+
+const stable = RAILS.length
+  ? new StableWatcher({ data: () => ledger.data, save: () => ledger.save(), now: () => Date.now(), log: (l) => console.log(l), rails: RAILS, lateMs: STABLE_LATE_MS })
+  : undefined;
+
 // ------------------------------------------------------------------ start
 
 await gw.tick(); // recover anything a crash left in SETTLING before taking new requests
@@ -509,6 +559,12 @@ setInterval(() => {
   void gw.tick().finally(() => (ticking = false));
 }, 2000);
 setInterval(() => void notifyLoop(), 2000);
+let stableTicking = false;
+if (stable) setInterval(() => {
+  if (stableTicking) return;
+  stableTicking = true;
+  void stable.tick().catch((e) => console.error('stable tick:', e)).finally(() => (stableTicking = false));
+}, 5000);
 if (shop) setInterval(() => void auto.tick(), AUTO_EVERY_MS);
 setInterval(() => funnel.flush(), 60_000);
 for (const sig of ['SIGTERM', 'SIGINT'] as const) process.on(sig, () => (funnel.flush(), process.exit(0)));
@@ -524,5 +580,5 @@ http
     });
   })
   .listen(PORT, () => {
-    console.log(`gateway on http://127.0.0.1:${PORT}  pid=${PID}  mint=${gw.mintUrl}  balance=${gw.balance()} sat  keyshop=${shop ? shop.url : 'off'}  network=${network ? network.file : 'off'}`);
+    console.log(`gateway on http://127.0.0.1:${PORT}  pid=${PID}  mint=${gw.mintUrl}  balance=${gw.balance()} sat  keyshop=${shop ? shop.url : 'off'}  network=${network ? network.file : 'off'}  stable=${RAILS.map((r) => r.id).join(',') || 'off'}`);
   });

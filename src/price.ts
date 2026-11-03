@@ -43,3 +43,40 @@ export async function btcPrice(): Promise<number> {
   }
   throw new Error(`price feed: ${errors.join('; ')}`);
 }
+
+// ------------------------------------------------------------------ USD per FIAT
+// Stablecoin amounts (USDT/USDC = 1 USD) and the homepage price check. Locked into a stablecoin order when the buyer
+// picks a network. USD_PER_FIAT fixes it (offline tests); else free public feeds in order, 10 min cache, and a rate up
+// to a day old is reused if all fail (fiat pairs move slowly).
+const FX_FRESH_MS = 10 * 60_000;
+const FX_STALE_MS = 24 * 3600_000;
+let fx: { at: number; fiat: string; rate: number } | undefined;
+const FX_SOURCES: Array<[name: string, get: (f: string) => Promise<unknown>]> = [
+  ['frankfurter', async (f) => (await getJson(`https://api.frankfurter.app/latest?from=${f.toUpperCase()}&to=USD`)).rates?.USD],
+  ['coinbase', async (f) => (await getJson(`https://api.coinbase.com/v2/exchange-rates?currency=${f.toUpperCase()}`)).data?.rates?.USD],
+  // BTC's USD and FIAT price on one feed: the ratio is the cross rate
+  ['mempool.space', async (f) => {
+    const p = await getJson('https://mempool.space/api/v1/prices');
+    return p.USD / p[f.toUpperCase()];
+  }],
+];
+
+export async function usdPerFiat(f = FIAT): Promise<number> {
+  f = f.toLowerCase();
+  if (f === 'usd') return 1;
+  if (process.env.USD_PER_FIAT) return Number(process.env.USD_PER_FIAT);
+  if (fx && fx.fiat === f && Date.now() - fx.at < FX_FRESH_MS) return fx.rate;
+  const errors: string[] = [];
+  for (const [name, get] of FX_SOURCES) {
+    try {
+      const rate = Number(await get(f));
+      if (!(rate > 0) || !Number.isFinite(rate)) throw new Error(`no ${f} rate`);
+      fx = { at: Date.now(), fiat: f, rate };
+      return rate;
+    } catch (e) {
+      errors.push(`${name}: ${(e as Error).message}`);
+    }
+  }
+  if (fx && fx.fiat === f && Date.now() - fx.at < FX_STALE_MS) return fx.rate;
+  throw new Error(`fx rate: ${errors.join('; ')}`);
+}

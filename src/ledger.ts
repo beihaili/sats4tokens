@@ -18,10 +18,14 @@ import type { ApiKey } from './keyshop.ts';
 import type { AutoSend, AutoTopup } from './autotopup.ts';
 
 export type OrderState = 'PENDING' | 'SETTLING' | 'PAID' | 'EXPIRED';
-export type Via = 'lightning' | 'cashu';
+/** Paid through the mint (sats). These go through Settle's write-ahead; stablecoins never touch the mint. */
+export type MintVia = 'lightning' | 'cashu';
+/** Paid on chain: a rail id from chain.ts, e.g. 'tron-usdt', 'base-usdc', 'solana-usdc'. */
+export type StableVia = `${string}-usdt` | `${string}-usdc`;
+export type Via = MintVia | StableVia;
 
 export interface Settle {
-  via: Via;
+  via: MintVia;
   keysetId: string;
   counter: number; // first deterministic counter of our outputs
   count: number; // how many outputs
@@ -47,7 +51,8 @@ export interface Order {
   state: OrderState;
   settle?: Settle;
   lastError?: string; // shown on the checkout page (e.g. "token already spent")
-  paid?: { at: number; via: Via; sats: number; fee: number };
+  // stablecoin payments: sats 0 and `amount` = USD received (all transfers), `token`, the last `tx`
+  paid?: { at: number; via: Via; sats: number; fee: number; amount?: string; token?: string; tx?: string };
   tokenHash?: string; // cashu path: tokenFingerprint() of the token that paid, so a retried POST gets the same answer
   notify: { done: boolean; attempts: number; nextAt: number; lastError?: string; doneAt?: number };
   // Key shop orders (no merchant): "notify" is the step that creates the API key in new-api ('key') or adds the paid
@@ -58,8 +63,41 @@ export interface Order {
   apiKey?: ApiKey; // BEARER: whoever has it spends the quota; shown only to the order's own page
   topup?: Topup;
   auto?: AutoTopup; // key orders: auto top-up over Nostr Wallet Connect (holds a BEARER connection string)
+  stable?: StableOrder; // USDT/USDC on chain (stable.ts): created when the buyer picks a network
 }
 
+/** An amount to send on one rail, locked when the buyer picked it. Amounts are unique per rail among waiting orders. */
+export interface StableQuote {
+  rail: string; // chain.ts Rail id
+  amount: string; // "5.42" (USD, 2 decimals): what the page tells the buyer to send
+  units: string; // the same in the token's smallest unit (bigint as a string)
+  decimals: number;
+  address: string; // where to (our receiving address on that network, public)
+  at: number;
+}
+
+/** A confirmed transfer to us, counted once (by `key`): on an order, or in LedgerData.stable.unmatched. */
+export interface StablePayment {
+  rail: string;
+  key: string; // tx (+ log index on EVM): never counted twice
+  tx: string;
+  units: string;
+  decimals: number;
+  at: number; // block time
+  from?: string;
+  countedAt: number;
+}
+
+export interface StableOrder {
+  usdPerFiat: number; // locked at the first quote: amount = money × this, rounded up to the cent
+  quotes: StableQuote[];
+  payments: StablePayment[];
+  seen?: { rail: string; tx: string; amount: string; confirmations: number; need: number }; // waiting for confirmations
+  credited?: string; // micro-USD this order was settled for (min(received, due)), set when it turned PAID
+  ratio?: number; // underpaid key shop order: the share of its credit it gets (received / due)
+  overpaid?: string; // USD received beyond what was credited (a human refunds it)
+  hold?: string; // needs a human: a merchant (console) order paid short is NOT notified
+}
 /**
  * A top-up of a key sold earlier. Its page never shows the key (only `keyHint`), so the link can be sent to someone
  * else to pay. Exactly once rests on new-api keeping `remain_quota + used_quota` = all quota ever given to the token
@@ -82,6 +120,10 @@ export interface LedgerData {
   nextCounter: number; // next unused deterministic counter (positive: 0 means "auto" in cashu-ts)
   orders: Order[];
   proofs: string[]; // serializeProofs() output — BEARER MONEY, never commit data/
+  stable?: {
+    cursors: Record<string, number>; // EVM rails: next block to scan
+    unmatched: StablePayment[]; // confirmed transfers no order could claim (wrong network, odd amount): a human sorts them out
+  };
 }
 
 export const emptyLedger = (): LedgerData => ({ version: 1, nextCounter: 1, orders: [], proofs: [] });
@@ -155,8 +197,12 @@ export function parseBonusTiers(s: string | undefined): Record<string, number> {
   return out;
 }
 
-/** What a key shop order puts on a key, in FIAT: what was paid plus its bonus. */
-export const creditOf = (o: Pick<Order, 'money' | 'bonus'>): number => Number(o.money) * (1 + (o.bonus ?? 0) / 100);
+/**
+ * What a key shop order puts on a key, in FIAT: what was paid plus its bonus. A stablecoin order paid short gets its
+ * share (`stable.ratio` = received / due).
+ */
+export const creditOf = (o: Pick<Order, 'money' | 'bonus'> & { stable?: Pick<StableOrder, 'ratio'> }): number =>
+  Number(o.money) * (1 + (o.bonus ?? 0) / 100) * (o.stable?.ratio ?? 1);
 
 const bonusLabel = (bonus?: number) => (bonus ? ` + ${bonus}% bonus` : '');
 
@@ -323,7 +369,7 @@ export type SettleAction = 'finish' | 'retry' | 'wait' | 'abort' | 'conflict';
  *   5. cashu, inputs PENDING               → wait
  *   6. cashu, inputs SPENT                 → abort   (customer double-spent the token elsewhere)
  */
-export function decideSettle(via: Via, f: SettleFacts): SettleAction {
+export function decideSettle(via: MintVia, f: SettleFacts): SettleAction {
   if (f.restored > 0) return 'finish';
   if (via === 'lightning') return f.quoteState === 'PAID' ? 'retry' : 'conflict';
   if (f.inputState === 'UNSPENT') return 'retry';
@@ -349,4 +395,6 @@ export function notifyParams(o: Order): Params {
   };
 }
 
-export const dueForNotify = (o: Order, now: number): boolean => o.state === 'PAID' && !o.notify.done && o.notify.nextAt <= now;
+// a held order (stablecoin console top-up paid short) waits for a human instead
+export const dueForNotify = (o: Order, now: number): boolean =>
+  o.state === 'PAID' && !o.notify.done && o.notify.nextAt <= now && !o.stable?.hold;

@@ -14,7 +14,9 @@ credits it exactly once.
 | `src/keyshop.ts` | paid key order → capped new-api token; usage and model prices |
 | `src/nwc.ts` | Nostr Wallet Connect (NIP-47) client: one `pay_invoice` per call, NIP-44 v2 / NIP-04 |
 | `src/autotopup.ts` | auto top-up: which low keys get an order, send-once rules, caps, pause |
-| `src/price.ts` | fiat → BTC price with fallbacks |
+| `src/price.ts` | fiat → BTC price, and USD per fiat (stablecoin amounts), with fallbacks |
+| `src/chain.ts` | stablecoin rails from env, address checks, read-only scanners for Tron, EVM chains and Solana |
+| `src/stable.ts` | stablecoin amounts, matching transfers to orders, short/over/late rules, the chain watcher |
 | `src/upstreams.ts` | anonymized upstream network for `/network`: providers as letters, routing per model, no names or hosts |
 
 ## Order lifecycle
@@ -109,6 +111,54 @@ hours of 4 quotes every 2 s; another answered `429` at ~24 quote checks per minu
 - **Capability check.** On start the gateway reads the mint's NUT-06 info and refuses to run without NUT-04
   (bolt11, sat), NUT-07 and NUT-09 — without them a crash mid-payment couldn't be recovered.
 - Invoices are created lazily (only when the ⚡ tab is opened), so Cashu payers leave no quote to watch.
+
+## USDT / USDC
+
+An optional third way to pay, for buyers who hold stablecoins rather than sats. The gateway is **watch-only**: it
+knows our receiving addresses and reads public chain data; it holds no key and sends nothing.
+
+**Rails.** A rail is a network plus a token: `tron-usdt`, `base-usdc`, `solana-usdc`, `solana-usdt` (one more EVM chain
+is configuration only). A rail exists only if its address is set.
+
+**Amounts tell orders apart.** Every buyer sends to the same address and transfers carry no order id, so each order
+waiting on a rail gets a different amount. When the buyer picks a rail, the order's money is converted at the
+current USD rate (locked for the order), rounded up to the cent, and moved up by 0.01 while another waiting order on
+that rail has the same amount. Waiting = open, or expired less than `STABLE_LATE_HOURS` (24) ago.
+
+**Watching.** Every 5 s the watcher looks at rails that have waiting orders (no order, no requests), each at most
+every 15 s (2 min if only expired orders wait), since the oldest waiting quote:
+
+| network | how | final when |
+|---|---|---|
+| Tron | TronGrid TRC-20 transfers to us for the USDT contract; each new tx's block and result from `gettransactioninfobyid` | 19 blocks |
+| EVM (Base, …) | `eth_getLogs` for `Transfer(_, us, _)` on the token contract, from a saved block cursor | 30 blocks on Base |
+| Solana | `getSignaturesForAddress` on our associated token account, each new tx read once for what our account gained | `finalized` |
+
+Only the token's real contract (or mint) counts: a look-alike token with the same symbol is ignored, as are
+reverted transactions and amounts under 0.01 (address-poisoning spam). A transfer still confirming is shown on the
+checkout page ("seen, 6/19") but counts for nothing yet. An RPC error fails the whole pass: nothing is counted, and
+that rail waits 15 s, doubling up to 5 min.
+
+**Matching a confirmed transfer**, each counted once (by tx, plus log index on EVM chains):
+
+1. the waiting order whose amount it is exactly, or exactly what a part-paid order still lacks;
+2. otherwise a paid order whose amount it is exactly (paid twice: noted as overpaid), or the only order waiting on
+   that rail if the transfer brings at least half of what it lacks — but not when both fit;
+3. otherwise nobody: kept as **unmatched** for a human (wrong network, two orders and an odd amount, …).
+
+A transfer stamped before the order's quote (2 min of clock slack) never pays it.
+
+**Then:**
+
+- paid in full → `PAID`, and the same credit step as Lightning: key, top-up, or the callback to the console;
+- paid more → `PAID` in full, the difference noted as `overpaid` (refund by hand);
+- paid less → stays `PENDING` while the order is open (the rest may come); once expired, `PAID` for what arrived: a
+  key gets that share of its credit (`ratio`), an account top-up is **held** (its callback can only say "paid in
+  full", so it isn't sent, and the signed return URL isn't shown either) until a human credits or refunds it;
+- after expiry, within `STABLE_LATE_HOURS`, the same rules apply (a late transfer still pays, like a late invoice).
+
+There is no write-ahead here: a chain transfer can't be paid twice, so turning the order `PAID` and recording the
+transfer happen in one ledger save, and the transfer key keeps it from counting again after a restart.
 
 ## Withdraw
 

@@ -16,7 +16,7 @@ h1 { margin: 0; font-size: 28px; }
 .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
 .tabs button { flex: 1; padding: 10px; border: 1px solid #ddd; background: #fafafa; border-radius: 10px; font-size: 16px; cursor: pointer; }
 .tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
-#qr { display: block; width: 100%; max-width: 320px; margin: 0 auto 12px; }
+#qr, #stable-qr { display: block; width: 100%; max-width: 320px; margin: 0 auto 12px; }
 .row { display: flex; gap: 8px; }
 input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10px; font: 13px ui-monospace, Menlo, monospace; }
 button, .button { padding: 10px 16px; border: 1px solid #ddd; border-radius: 10px; background: #fff; cursor: pointer; font-size: 16px; text-decoration: none; color: inherit; display: inline-block; }
@@ -60,6 +60,15 @@ button:disabled { opacity: .45; cursor: default; }
 .badge.anthropic { border-color: #d97757; color: #d97757; }
 /* phones: drop the cached-price column so model + input + output fit without scrolling */
 @media (max-width: 480px) { .prices .cached { display: none; } .prices code { font-size: .85em; } }
+
+/* USDT / USDC tab */
+.rails { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.rails button { font-size: 15px; padding: 8px 10px; background: #fafafa; }
+.rails button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.warn { background: #fff4e5; border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px 12px; font-size: 15px; margin: 0 0 12px; }
+.stable-amount { align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.stable-amount .amount { margin: 0; }
+.prices .name.nowrap { white-space: nowrap; }
 
 /* cashu tab: camera QR scan */
 #cam { display: block; width: 100%; max-height: 360px; margin-top: 8px; border-radius: 10px; background: #000; object-fit: cover; }

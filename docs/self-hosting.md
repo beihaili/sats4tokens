@@ -48,7 +48,8 @@ customer ──► reverse proxy ──┬── /v1/*  ──► new-api :3000 
 | `NEWAPI_TOKEN` | key shop | pool user's system access token |
 | `POOL_RESERVE` | | key shop: keep this much (in `FIAT`) of the pool user's quota unsold; an amount is offered only while it fits, default `10` |
 | `POOL_ALERT` | | key shop: log a warning (at most hourly) when the pool can sell less than this, default `30` |
-| `USD_PER_FIAT` | | fixed USD per 1 `FIAT` for the homepage price check (offline tests); otherwise from mempool.space |
+| `USD_PER_FIAT` | | fixed USD per 1 `FIAT` for the homepage price check and stablecoin amounts (offline tests); otherwise frankfurter.app (ECB) → Coinbase → mempool.space, 10 min cache |
+| `STABLE_ADDR_TRON` / `STABLE_ADDR_EVM` / `STABLE_ADDR_SOL` | | USDT/USDC receiving addresses (see [Stablecoins](#stablecoins-usdt--usdc-optional)); a network without one is off |
 | `KEY_BONUS` | | key shop: bonus quota for larger amounts, `amount:percent` pairs, e.g. `5:5,10:10` (€5 → €5.25, €10 → €11). Keys, top-ups and auto top-ups, ⚡ and 🥜 alike; default none |
 | `AUTO_TOPUP_EVERY_S` | | key shop: how often keys with auto top-up (Nostr Wallet Connect) get their balance checked, default `60` |
 | `KEY_BASE_URL` | | endpoint shown with each key, e.g. `https://shop.example.com/v1` (default: new-api's server address + `/v1`) |
@@ -143,6 +144,34 @@ before you sell. Don't expose `/admin` publicly beyond what's needed: it only an
 
 Behind a CDN: the gateway sends `cache-control: no-cache` for static files, but some CDNs (Cloudflare) rewrite
 the browser TTL. After changing anything in `web/`, bump the `?v=` query in the HTML so browsers fetch the new file.
+
+## Stablecoins: USDT / USDC (optional)
+
+The checkout gets a third tab when at least one receiving address is set. **Watch only**: the gateway knows public
+addresses and reads the chains; the keys stay in your own wallet, so a broken-into server can't move the money.
+
+| env | default | meaning |
+|---|---|---|
+| `STABLE_ADDR_TRON` | | Tron address (`T…`) → rail `tron-usdt` (USDT TRC-20) |
+| `STABLE_ADDR_EVM` | | one `0x…` address for every EVM chain → `base-usdc` (+ chains in `STABLE_EVM_CHAINS`) |
+| `STABLE_ADDR_SOL` | | Solana **wallet** address → `solana-usdc`, `solana-usdt` (we watch its associated token accounts) |
+| `STABLE_TRON_RPC` | `https://api.trongrid.io` | TronGrid-compatible API |
+| `STABLE_TRON_API_KEY` | | TronGrid key (sent as `TRON-PRO-API-KEY`); free, and the keyless limits are low |
+| `STABLE_BASE_RPC` | `https://mainnet.base.org` | Base JSON-RPC. The public one refuses many `eth_getLogs` calls: use a provider URL (key in the URL) |
+| `STABLE_SOL_RPC` | `https://api.mainnet-beta.solana.com` | Solana JSON-RPC (rate-limited; a provider URL with key is better) |
+| `STABLE_<NET>_CONFIRMATIONS` | Tron `19`, Base `30` | blocks, the transfer's own included. Solana waits for `finalized` |
+| `STABLE_EVM_CHAINS` | | JSON list of more EVM chains (or overrides of `base`): `[{"id":"arbitrum","name":"Arbitrum","rpc":"https://…","confirmations":20,"blockTime":0.25,"explorer":"https://arbiscan.io/tx/","tokens":{"USDC":"0x…"}}]`; a token may be `{"contract":"0x…","decimals":18}`. Each chain also reads `STABLE_<ID>_RPC` / `_CONFIRMATIONS` |
+| `STABLE_RAILS` | all | allow-list, e.g. `tron-usdt,base-usdc,solana-usdc` |
+| `STABLE_LATE_HOURS` | `24` | a transfer that lands this long after its order expired still pays it (as a late Lightning invoice) |
+
+The gateway refuses to start on a malformed address (bad Tron checksum, bad EIP-55 checksum, a Solana token account
+instead of the wallet). Check the addresses the admin page shows against your wallet before going live, then pay a
+small order yourself on each network.
+
+How transfers are matched to orders (one address, no memo: the amount's cents tell orders apart), and what happens
+when someone pays too little, too much or on the wrong network: [how it works](how-it-works.md#usdt--usdc). The
+admin page lists everything that needs a human: console top-ups paid short (**held**, not credited), overpayments,
+and transfers no order could claim (**unmatched**). Refunds are manual, from your own wallet.
 
 ## Money: seed, data directory, mints
 

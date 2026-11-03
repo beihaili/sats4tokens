@@ -161,7 +161,7 @@ order's invoice is checked first.
 | `mint` | the only mint whose Cashu tokens are accepted |
 | `tab` | the checkout's default tab (`ln` / `cashu`) |
 | `lastError` | why the last payment attempt failed (e.g. a rejected token), if any |
-| `paid` | `via` = `lightning` / `cashu`; `sats` received after mint fees; `fee` = mint fee absorbed |
+| `paid` | `via` = `lightning` / `cashu` / a stablecoin rail (`tron-usdt`, `base-usdc`, `solana-usdc`, …); `sats` received after mint fees; `fee` = mint fee absorbed. Stablecoins: `sats` 0, `amount` = USD received, `token`, `tx` |
 | `apiKey` | key orders, once `PAID` and the key is created. `baseUrl` is the endpoint to use |
 | `keyError` | key orders: why creating the key failed so far; key top-ups: why adding the money failed so far (both retried with backoff) |
 | `topups` | key orders: paid top-ups of this key, `[{at, money, fiat, applied, needsRefund, auto}]` (`auto`: made by auto top-up) |
@@ -169,7 +169,9 @@ order's invoice is checked first.
 | `topup` | key top-ups: `{key: "sk-…a1b2", applied?: {at, remaining}, needsRefund}`. `applied.remaining` = the key's balance right after (in `fiat`). `needsRefund` is true if the key was deleted before the money could be added: the operator refunds by hand |
 | `bonus` | key shop orders: extra quota in percent of `money` (the key gets `money × (1 + bonus/100)`), absent if none |
 | `kind` | `key` for key orders, `keytopup` for key top-ups; absent for account top-up orders (`CE…` ids) |
-| `returnUrl` | account top-up orders: where to send the customer back after payment (signed) |
+| `returnUrl` | account top-up orders: where to send the customer back after payment (signed). Empty for a held order (below) |
+| `rails` | stablecoin networks on offer, `[{id, token, net}]` (e.g. `{"id":"tron-usdt","token":"USDT","net":"Tron (TRC-20)"}`); empty when the shop takes none |
+| `stable` | once a network was picked: `{quotes: [{rail, amount, address, token, net, need}], seen?: {rail, tx, amount, confirmations, need}, received?, lacks?, payments: [{rail, amount, tx, url}], ratio?, overpaid?, hold}`. `amount` (USD, = USDT/USDC) is exact; `need` = confirmations (1 = final on Solana); `seen` = a transfer still confirming; `lacks` = what a part-paid open order still needs; `ratio` = share of the credit a key order paid short gets; `hold` = an account top-up paid short, waiting for a human |
 
 Fields that don't apply are omitted (here: `invoice`, `lastError`, `keyError`). An `EXPIRED` order whose invoice is paid within 24 hours still becomes `PAID`.
 
@@ -183,6 +185,17 @@ if the order expired before an invoice was created.
 ### `GET /api/order/:id/qr.svg`
 
 QR code (SVG) of `lightning:<INVOICE>`. 404 until an invoice exists.
+
+### `POST /api/order/:id/stable`
+
+Pick a stablecoin network: `{"rail": "tron-usdt"}`. Returns the order with `stable.quotes` holding our address on
+that network and the exact amount: `money` × USD per `fiat` (locked by the order's first pick), rounded up to the
+cent, plus 0.01 per other order already waiting on that network with the same amount. Idempotent per network; the
+buyer can pick several. 400 `unknown network`, `order expired`, `order is paid`.
+
+### `GET /api/order/:id/stable.svg?rail=…`
+
+QR code (SVG) of the plain address for that network (the amount is shown next to it). 404 before it was picked.
 
 ### `POST /api/order/:id/token`
 
@@ -251,6 +264,11 @@ Both need `?key=<ADMIN_KEY>`; a wrong key gets `403 forbidden`.
 spend, `available` = the difference, `pending` = open orders that may still become keys or top-ups; the shop sells
 an amount only while `amount + reserve ≤ available − pending`, and logs a warning when `available < alert`.
 Absent if new-api didn't answer within 5 seconds. Top-ups with `topup.needsRefund` are listed on the admin page for a manual refund.
+`methods` = the last 14 days per payment method, `[{via, picked, paid, money}]` (`picked` = an invoice or a network
+quote was made; Cashu leaves no trace before it pays). `stable` (when stablecoins are on): `{lateHours, rails: [{id,
+net, token, address, confirmations, explorer, rpcHost, lastScan, lastError, failures}], unmatched: [{rail, tx, units,
+decimals, at, from}]}` (no RPC URLs: they may hold a provider key). Orders carry their `stable` record; the page
+lists held, overpaid and unmatched ones under **Needs a human**.
 
 ### `POST /admin/withdraw?key=…`
 

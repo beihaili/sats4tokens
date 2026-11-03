@@ -22,7 +22,7 @@ You land on the checkout page, `/pay/CK…`.
 
 ## 2. Pay
 
-The checkout has two tabs.
+The checkout has two tabs, three if the shop takes stablecoins.
 
 ### ⚡ Lightning
 
@@ -40,6 +40,23 @@ any wallet can do that). Either:
 
 The token must be worth at least the order amount. **Change is not returned**: send the exact amount
 (the page shows it), or the extra stays with the shop.
+
+### 💵 USDT / USDC
+
+Shown only when the shop has turned it on. Pick the network you send from (for example **USDT on Tron (TRC-20)**,
+**USDC on Base**, **USDC on Solana**); the page then shows our address there (QR + **Copy**) and an exact amount, e.g.
+`5.42 USDT`. The order's euro price is converted at the EUR/USD rate of the moment you pick the network.
+
+- **Only that coin on that network.** The same address on another network, or another token, does not reach the
+  order. We can only return such a transfer by hand, if at all.
+- **Send exactly the amount shown.** Its cents tell your transfer apart from other buyers' (everyone sends to the
+  same address). If your exchange takes its withdrawal fee out of the amount, add the fee on top.
+- The order is paid once the transfer has enough confirmations (about a minute on Tron, final on Solana); the page
+  shows "seen, n/m confirmations" until then. Like ⚡, a transfer that lands after the timer ran out still counts
+  (within a day).
+- Sent too little? The page says what is missing; send the rest to the same address before the timer runs out.
+  After that a key is made for what arrived (e.g. 74% of the order → 74% of the credit). Sent too much? You get the
+  full order; contact us for the difference, with the page's link (keep it private).
 
 ## 3. Use the key
 

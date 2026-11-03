@@ -1,4 +1,5 @@
-// Checkout page: polls /api/order/:id, shows the lightning invoice or takes a pasted cashu token.
+// Checkout page: polls /api/order/:id, shows the lightning invoice, takes a pasted cashu token, or shows the address and
+// exact amount for a USDT/USDC transfer on the network the buyer picks.
 import { renderModels, money, bonusText } from '/models.js?v=7';
 const id = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
@@ -21,7 +22,7 @@ function render(o) {
     $('#done').hidden = false;
     $('#back').hidden = true;
     const t = o.topup;
-    $('#done-detail').textContent = `${o.paid.sats} sat received via ${o.paid.via}. ` + (t.applied
+    $('#done-detail').textContent = `${paidText(o)} ` + (t.applied
       ? `Added ${money(credit(o), o.fiat)}${o.bonus ? ` (incl. ${o.bonus}% bonus)` : ''} to key ${t.key} · its balance is now ${money(t.applied.remaining, o.fiat, 2)}.`
       : t.needsRefund
         ? `Key ${t.key} no longer exists, so nothing was added. You get the money back: keep this page's URL (don't post it publicly) and contact us.`
@@ -34,8 +35,8 @@ function render(o) {
     $('#done').hidden = false;
     $('#back').hidden = true;
     $('#done-detail').textContent = o.apiKey
-      ? `${o.paid.sats} sat received via ${o.paid.via}.`
-      : `${o.paid.sats} sat received via ${o.paid.via}. Creating your key…${o.keyError ? ' (retrying: ' + o.keyError + ')' : ''}`;
+      ? paidText(o)
+      : `${paidText(o)} Creating your key…${o.keyError ? ' (retrying: ' + o.keyError + ')' : ''}`;
     if (o.apiKey && $('#key').hidden) {
       $('#key').hidden = false;
       startUsage();
@@ -57,7 +58,10 @@ function render(o) {
   if (o.state === 'PAID') {
     $('#pay').hidden = true;
     $('#done').hidden = false;
-    $('#done-detail').textContent = `${o.paid.sats} sat received via ${o.paid.via}. Your balance is being credited.`;
+    $('#done .big').textContent = o.stable?.hold ? '⏳ Received' : '✅ Paid';
+    $('#done-detail').textContent = o.stable?.hold
+      ? `${paidText(o)} That is less than this top-up needs, so it was not credited automatically. Keep this page's URL (don't post it publicly) and contact us: we credit or refund it by hand.`
+      : `${paidText(o)} Your balance is being credited.`;
     $('#back').hidden = !o.returnUrl;
     $('#back').href = o.returnUrl;
     if (o.returnUrl && !redirectTimer) redirectTimer = setTimeout(() => (location.href = o.returnUrl), 5000);
@@ -71,7 +75,8 @@ function render(o) {
   }
   $('#pay').hidden = false;
   // first render picks the tab: #cashu / #ln in the URL wins, else the gateway's CHECKOUT_TAB
-  if (!tabShown) showTab(location.hash === '#cashu' ? 'cashu' : location.hash === '#ln' ? 'ln' : o.tab);
+  $('#stable-btn').hidden = !o.rails?.length; // only networks the gateway has an address for
+  if (!tabShown) showTab(location.hash === '#cashu' ? 'cashu' : location.hash === '#ln' ? 'ln' : location.hash === '#stable' && o.rails?.length ? 'stable' : o.tab);
   $('#tab-ln').classList.toggle('loading', !o.invoice);
   if (o.invoice && o.invoice !== shownInvoice) {
     shownInvoice = o.invoice;
@@ -82,6 +87,7 @@ function render(o) {
   const err = o.lastError ?? payError; // payError: the last pasted token's rejection, kept across polls
   $('#err').hidden = !err;
   $('#err').textContent = err ?? '';
+  renderStable(o);
   const left = Math.max(0, Math.round((o.expiresAt - Date.now()) / 1000));
   $('#countdown').textContent = o.state === 'SETTLING' ? '(settling with the mint…)' : `(${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} left)`;
 }
@@ -104,6 +110,7 @@ function showTab(tab) {
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab));
   $('#tab-ln').hidden = tab !== 'ln';
   $('#tab-cashu').hidden = tab !== 'cashu';
+  $('#tab-stable').hidden = tab !== 'stable';
   if (tab !== 'cashu') stopScan();
   if (tab === 'ln' && !invoiceAsked) {
     invoiceAsked = true;
@@ -123,6 +130,81 @@ async function copyBox(box) {
 }
 $('#copyenv').addEventListener('click', () => copyBox($('#env')));
 $('#copyclaude').addEventListener('click', () => copyBox($('#claude')));
+$('#copy-addr').addEventListener('click', () => copyBox($('#stable-addr')));
+$('#copy-amount').addEventListener('click', () => {
+  // the amount is shown big, not in a box: copy it through a throwaway one
+  const box = Object.assign(document.createElement('textarea'), { value: $('#stable-amount').dataset.value });
+  document.body.append(box);
+  copyBox(box).finally(() => box.remove());
+});
+
+/** "1,234 sat received via lightning." or "5.42 USDT received on Tron (TRC-20)." plus what a stablecoin payment's size meant. */
+function paidText(o) {
+  if (!o.paid.amount) return `${o.paid.sats.toLocaleString()} sat received via ${o.paid.via}.`;
+  const s = o.stable ?? {};
+  const net = s.quotes?.find((q) => q.rail === o.paid.via)?.net ?? o.paid.via;
+  let t = `${o.paid.amount} ${o.paid.token} received on ${net}.`;
+  if (s.ratio) t += ` That is ${Math.round(s.ratio * 100)}% of the order, so the key gets ${money(credit(o), o.fiat, 2)}.`;
+  if (s.overpaid) t += ` ${s.overpaid} ${o.paid.token} more than due arrived: keep this page's URL (don't post it publicly) and contact us for a refund.`;
+  return t;
+}
+
+// ---- USDT / USDC: the buyer picks a network; the gateway answers with our address there and an exact amount (its
+// cents tell this order apart from others on the same address). The chain watcher marks the order paid.
+let pickedRail = '';
+let shownRails = '';
+let shownQr = '';
+function renderStable(o) {
+  if (!o.rails?.length) return;
+  const quotes = o.stable?.quotes ?? [];
+  if (!pickedRail && quotes.length) pickedRail = quotes.at(-1).rail; // reload: show the last network picked
+  const key = o.rails.map((r) => r.id).join() + '|' + pickedRail;
+  if (key !== shownRails) {
+    shownRails = key;
+    $('#rails').replaceChildren(...o.rails.map((r) => {
+      const b = document.createElement('button');
+      b.className = r.id === pickedRail ? 'on' : '';
+      b.setAttribute('aria-label', `${r.token} on ${r.net}`);
+      b.append(Object.assign(document.createElement('b'), { textContent: r.token }), ` on ${r.net}`);
+      b.onclick = () => pickRail(r.id);
+      return b;
+    }));
+  }
+  const q = quotes.find((x) => x.rail === pickedRail);
+  $('#stable-pay').hidden = !q;
+  if (q) {
+    if (shownQr !== q.rail) {
+      shownQr = q.rail;
+      $('#stable-qr').src = `/api/order/${id}/stable.svg?rail=${encodeURIComponent(q.rail)}`;
+    }
+    $('#stable-warn').innerHTML = `⚠️ Send only <b>${esc(q.token)} on ${esc(q.net)}</b>. Any other coin, or the same coin on another network, does not reach this order: we can only return it by hand, if at all.`;
+    $('#stable-amount').innerHTML = `${esc(q.amount)} <small>${esc(q.token)}</small>`;
+    $('#stable-amount').dataset.value = q.amount;
+    $('#stable-addr').value = q.address;
+    const wait = q.need > 1 ? `${q.need} confirmations` : 'it is final';
+    $('#stable-hint').textContent = `Send exactly this amount: the cents tell your payment apart from others. If your exchange takes its withdrawal fee out of the amount, add the fee on top. Paid once ${wait}.`;
+  }
+  const s = o.stable;
+  const line = !s ? '' : s.lacks
+    ? `Received ${s.received}; ${s.lacks} still missing. Send the rest to the same address before the time runs out.`
+    : s.seen ? `Transfer of ${s.seen.amount} seen: ${s.seen.need > 1 ? `${s.seen.confirmations}/${s.seen.need} confirmations…` : 'waiting until it is final…'}` : '';
+  $('#stable-status').hidden = !line;
+  $('#stable-status').textContent = line;
+}
+async function pickRail(rail) {
+  pickedRail = rail;
+  payError = '';
+  try {
+    const r = await fetch(`/api/order/${id}/stable`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ rail }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    render(j);
+  } catch (e) {
+    payError = e.message;
+    $('#err').hidden = false;
+    $('#err').textContent = payError;
+  }
+}
 
 // key shop: what the key has spent (balance + latest calls), refreshed every 10s while the key is shown
 const cash = (x, fiat) => money(x, fiat, 6); // €0.997648, €0.002352, €0 — small calls stay visible
@@ -183,7 +265,8 @@ async function showTopup(key) {
 }
 // Auto top-up (NWC): the form saves to /api/autotopup with the key as authorization; the order poll brings its state
 // (never the connection string). Settings are copied into the form once; the textarea stays empty after saving.
-const credit = (o) => Number(o.money) * (1 + (o.bonus ?? 0) / 100); // what an order puts on the key
+// what an order puts on the key (a stablecoin order paid short: its share)
+const credit = (o) => Number(o.money) * (1 + (o.bonus ?? 0) / 100) * (o.stable?.ratio ?? 1);
 let autoKey = '';
 let autoFiat = '';
 let autoFilled = false;

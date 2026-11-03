@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <title>Sats4Tokens · operator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css?v=11">
+  <link rel="stylesheet" href="/style.css?v=12">
 </head>
 <body>
   <main class="checkout admin">
@@ -34,6 +34,15 @@
       </div>
       <p id="out-file" class="hint" hidden></p>
     </section>
+    <section id="stable-card" class="card" hidden>
+      <h2>💵 Stablecoins</h2>
+      <p class="hint">Watch-only: the gateway knows these addresses, never a key. Late transfers count for <span id="late"></span> h after an order expires.</p>
+      <div class="scroll"><table id="rails" class="calls prices"></table></div>
+      <div id="stable-human" hidden>
+        <p class="bad"><b>Needs a human</b></p>
+        <ul id="stable-list" class="hint"></ul>
+      </div>
+    </section>
     <section class="card">
       <div class="muted">Orders (newest first)</div>
       <table id="orders"></table>
@@ -42,8 +51,10 @@
       <h2>Funnel, last 14 days</h2>
       <p class="hint">Homepage loads (beacon, no IP/cookie) and first visits per <code>?ref=</code>, joined with key shop orders made and paid. UTC days.</p>
       <div class="scroll"><table id="funnel" class="calls prices"></table></div>
+      <p class="hint">By payment method (all orders, console top-ups too). Opened = an invoice or a network quote was made; Cashu leaves no trace until it pays.</p>
+      <div class="scroll"><table id="methods" class="calls prices"></table></div>
     </section>
   </main>
-  <script type="module" src="/admin.js?v=3"></script>
+  <script type="module" src="/admin.js?v=4"></script>
 </body>
 </html>

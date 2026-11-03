@@ -2,6 +2,7 @@
 
 Bitcoin checkout for AI APIs: customers pay with Lightning or Cashu ecash and get a capped new-api key
 (key shop), or top up an existing new-api account. No account details, no KYC, exactly-once settlement.
+Optional USDT/USDC on chain (watch-only, `src/chain.ts` + `src/stable.ts`; code done 2026-11-03, **not deployed**).
 bitcoin++ Berlin 2026 (payments edition) hackathon project. MIT license (`LICENSE`, since 2026-10-07).
 
 Naming: the GitHub repo was renamed from `cashu-epay` on 2026-10-02 (old URL redirects) and public copy (README, submission)
@@ -143,11 +144,39 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
 - `README.md` — public overview (no secrets, no tunnel URLs).
 - `src/cli.ts` — operator CLI (`balance`, `withdraw`); goes through HTTP so it never races the server's ledger.
 - `src/price.ts` — fiat→BTC spot price (CoinGecko → Coinbase → mempool.space fallback, 60s cache, reuses a
-  ≤10 min old price if all fail; or fixed `BTC_PRICE`). Locked into the order; sats rounded up.
+  ≤10 min old price if all fail; or fixed `BTC_PRICE`). Locked into the order; sats rounded up. Also `usdPerFiat`
+  (frankfurter/ECB → Coinbase → mempool.space ratio, 10 min cache, ≤1 day stale reuse; `USD_PER_FIAT` fixes it), used by
+  stablecoin quotes and `/api/compare` (compare.ts re-exports it).
+- **USDT / USDC** (since 2026-11-03, not deployed; design: the operator's ops plan, section C). Watch-only: env has only
+  receiving addresses (`STABLE_ADDR_TRON|EVM|SOL`, never keys; real ones only in the server `.env`), no address = rail off
+  (not on the page). `src/chain.ts`: `railsFromEnv` → rails `tron-usdt`, `base-usdc` (+ `STABLE_EVM_CHAINS` JSON, per-chain
+  `STABLE_<ID>_RPC|_CONFIRMATIONS`), `solana-usdc|usdt` (ATA of the wallet derived locally: PDA via sha256 + ed25519
+  off-curve check, cross-checked against mainnet data 11-03); refuses to start on a bad Tron checksum / EIP-55 / a Solana
+  token account. `Scanner` (fetch injectable): Tron = TronGrid `/v1/accounts/:a/transactions/trc20?only_to&contract_address`
+  + `/wallet/gettransactioninfobyid` (block, `receipt.result` SUCCESS) + `/wallet/getblock {detail:false}` (head);
+  EVM = `eth_getLogs` Transfer topic2 = us, durable cursor `LedgerData.stable.cursors` kept below the first unconfirmed
+  block, ≤5 × `maxRange` (2000) per pass, `blockTimestamp` or `eth_getBlockByNumber`; Solana = `getSignaturesForAddress`
+  (commitment confirmed, final = `confirmationStatus` finalized) + `getTransaction` jsonParsed with
+  **`maxSupportedTransactionVersion: 1`** (v1 transactions exist on mainnet; 0 gets error -32015), amount = post − pre of
+  our token account. `src/stable.ts`: `quoteStable` (money × rate rounded up to the cent, +0.01 while another *waiting*
+  order on the rail has it; waiting = PENDING or EXPIRED < `STABLE_LATE_HOURS` 24), `matchTransfer` (exact → paid-twice or
+  only-waiting-order ≥50% of what it lacks, never both → else `LedgerData.stable.unmatched`), `applyPayment` /
+  `settleExpired` (part-paid stays PENDING while open; at expiry — also when gw.tick already set EXPIRED — PAID for what
+  came: key orders `stable.ratio` scales `creditOf`, merchant orders `stable.hold` → `dueForNotify` false and no signed
+  `returnUrl`, since replaying it would credit in full), `overpaid` noted. Dust < 0.01 ignored, transfers before
+  quote − 2 min ignored. `StableWatcher` every 5 s, a rail only while it has waiting quotes (15 s; 2 min late-only),
+  errors back off 15 s → 5 min per rail. Paid = `paid {via: rail, sats: 0, amount, token, tx}`, then the normal notify step.
+  Routes `POST /api/order/:id/stable {rail}`, `GET …/stable.svg?rail=`; order JSON `rails`, `stable` (`publicStable`);
+  admin JSON `stable {rails (no RPC URL: keys may be in it), unmatched}`, `methods` (`Funnel.methods`: picked/paid per via).
+  Tests `test/stable.test.ts` + `test/fixtures/stable/` (recorded response shapes, synthetic addresses).
 - `web/admin.html` — operator page, `/admin.html#key=ADMIN_KEY` (key stays in the hash, out of access logs):
-  balance, orders, one-click withdraw with a Copy button for the token (when the gateway returns it).
+  balance, orders, one-click withdraw with a Copy button for the token (when the gateway returns it); 💵 Stablecoins
+  card (rails, last scan/error, **Needs a human**: held, overpaid, paid-twice, unmatched with explorer links) and the
+  per-method table under the funnel.
 - `web/` — mobile checkout page (Lightning invoice created lazily when the ⚡ tab is opened; opening tab
-  from `CHECKOUT_TAB` or `#ln`/`#cashu`; pasting a whole token pays at once; token errors stay visible across polls).
+  from `CHECKOUT_TAB` or `#ln`/`#cashu`/`#stable`; pasting a whole token pays at once; token errors stay visible across polls).
+  The 💵 USDT / USDC tab shows only with rails: network buttons → address QR, exact amount, copy, "only this coin on
+  this network" warning, seen n/m confirmations, "received X, Y still missing".
   The 🥜 tab has **📷 Scan QR**: camera (needs https) → `BarcodeDetector` where supported, else vendored
   `web/vendor/jsQR.js` (jsQR 1.4.0, Apache-2.0, lazy-loaded); a decoded `cashuA/B…` (also inside `cashu:` or a link)
   pays at once. **Animated NUT-16 QRs** (`ur:bytes/n-m/…` fountain frames; cashu.me shows them for any token with
@@ -160,7 +189,7 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   The camera stops on tab switch, PAID/EXPIRED and pagehide. All page copy is English only.
   Testing tip: on testnut, opening the ⚡ tab auto-pays the invoice, so a local keyshop run creates a real key on
   the demo new-api — delete it afterwards (`DELETE /api/token/:id`).
-- `test/` — `node:test` units (62; `funnel.test.ts` = cleanRef, funnel report/persistence/ref cap, compare rows; `autotopup.test.ts` = NWC parse/relay filter, NIP-44 spec vectors, payInvoice against a fake relay +
+- `test/` — `node:test` units (85; `stable.test.ts` = rails/addresses, amounts/clash, the 3 scanners on fixtures, watcher: paid, confirmations, short, held, over, late, clash, wrong network, RPC errors; `funnel.test.ts` = cleanRef, funnel report/persistence/ref cap, compare rows; `autotopup.test.ts` = NWC parse/relay filter, NIP-44 spec vectors, payInvoice against a fake relay +
   wallet (nip44/nip04, wallet error codes, TIMEOUT, forged answers ignored), decideAuto/caps, engine crash points; `topup.test.ts` = top-up helpers + `KeyShop.topUp`/`pool` against a fake new-api with rc.22's PUT semantics: crash after write-ahead / after the PUT, calls in between, status 4, refund race, deleted key, paging; `upstreams.test.ts` = anonymize/no host leak/tiers; `keyshop.test.ts` = `aliasesOf`): go-epay signature vectors, submit idempotency, write-ahead settle,
   `decideSettle`, notify (`ledger`/`epay` tests), mint capability check (`gateway.test.ts`).
 - `scripts/` — `crash-demo.ts` (kill -9 mid-payment → restart → credited once), `edge-checks.ts` (unhappy paths +

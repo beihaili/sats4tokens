@@ -52,6 +52,9 @@ endpoint**, capped at exactly what you paid. No signup, no email, no password �
   for one top-up. Each invoice is sent at most once, and a lost answer never turns into a second payment.
 - **Bonus on larger amounts** (`KEY_BONUS`, ours: €5 +5%, €10 +10%), for new keys and top-ups, Lightning or Cashu.
 - The shop sells only what the pool user's quota can cover (minus a reserve), so a sold key is never left without credit.
+- **USDT / USDC, optional** (off unless you set an address): a third checkout tab for Tron, Base and Solana. Watch-only,
+  no keys on the server; each waiting order gets a distinct exact amount, and the gateway credits it once the transfer
+  is confirmed. See [how it works](docs/how-it-works.md#usdt--usdc).
 - Both pages list every model the key can call with its price (per 1M tokens in the shop's currency, from new-api's pricing).
 - **Claude Code works too**: the key page has a copy-paste command that points Claude Code at the relay
   (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`). It caps the output tokens because new-api reserves quota for
@@ -152,6 +155,7 @@ EPAY_KEY=demo-key GATEWAY=http://127.0.0.1:8091 npm run cli balance  # or: withd
 | `UPSTREAMS_FILE` | turn on the `/network` page: snapshot from `scripts/export-upstreams.ts` (optional) |
 | `MODEL_ALIAS_SUFFIX` | regex of alias suffixes (e.g. `-alt$`): extra routes of one model stay callable but are left out of `/api/models` and `/network` (optional) |
 | `EPAY_KEY` (required), `EPAY_PID` | signing key / merchant id shared with new-api for top-ups (see below). Keep `ADMIN_KEY` different: this one can sign "paid" callbacks |
+| `STABLE_ADDR_TRON`, `STABLE_ADDR_EVM`, `STABLE_ADDR_SOL` (+ RPCs) | USDT/USDC receiving addresses, watch-only (optional; see [self-hosting](docs/self-hosting.md#stablecoins-usdt--usdc-optional)) |
 | `DATA_DIR`, `ORDER_TTL_MIN`, `CHECKOUT_TAB=ln\|cashu`, `WITHDRAW_TOKEN_OVER_HTTP=1` | storage, order lifetime, default tab, show withdrawn token on the page (https only) |
 
 **Operator** — `/admin.html#key=ADMIN_KEY`: balance, orders, one-click withdraw of the whole balance as
