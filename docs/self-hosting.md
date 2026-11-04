@@ -157,7 +157,7 @@ addresses and reads the chains; the keys stay in your own wallet, so a broken-in
 | `STABLE_ADDR_SOL` | | Solana **wallet** address → `solana-usdc`, `solana-usdt` (we watch its associated token accounts) |
 | `STABLE_TRON_RPC` | `https://api.trongrid.io` | TronGrid-compatible API |
 | `STABLE_TRON_API_KEY` | | TronGrid key (sent as `TRON-PRO-API-KEY`); free, and the keyless limits are low |
-| `STABLE_BASE_RPC` | `https://mainnet.base.org` | Base JSON-RPC. The public one refuses many `eth_getLogs` calls: use a provider URL (key in the URL) |
+| `STABLE_BASE_RPC` | `https://mainnet.base.org` | Base JSON-RPC. The public one refuses many `eth_getLogs` calls: use a provider URL (key in the URL). A free-tier provider may cap `eth_getLogs` at a few blocks (one we tried: 10): then set `"maxRange"` in `STABLE_EVM_CHAINS` (`[{"id":"base","maxRange":10}]`); a pass reads up to 5 ranges, which keeps up with Base's 2 s blocks |
 | `STABLE_SOL_RPC` | `https://api.mainnet-beta.solana.com` | Solana JSON-RPC (rate-limited; a provider URL with key is better) |
 | `STABLE_<NET>_CONFIRMATIONS` | Tron `19`, Base `30` | blocks, the transfer's own included. Solana waits for `finalized` |
 | `STABLE_EVM_CHAINS` | | JSON list of more EVM chains (or overrides of `base`): `[{"id":"arbitrum","name":"Arbitrum","rpc":"https://…","confirmations":20,"blockTime":0.25,"explorer":"https://arbiscan.io/tx/","tokens":{"USDC":"0x…"}}]`; a token may be `{"contract":"0x…","decimals":18}`. Each chain also reads `STABLE_<ID>_RPC` / `_CONFIRMATIONS` |

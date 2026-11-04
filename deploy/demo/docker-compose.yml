@@ -123,6 +123,9 @@ services:
       STABLE_SOL_RPC: "${STABLE_SOL_RPC:-}"
       STABLE_TRON_CONFIRMATIONS: "${STABLE_TRON_CONFIRMATIONS:-}"
       STABLE_BASE_CONFIRMATIONS: "${STABLE_BASE_CONFIRMATIONS:-}"
+      # more EVM chains / overrides as JSON (rpc may hold a key, e.g. maxRange 10 for an Alchemy free-tier app); put it in
+      # .env in single quotes: STABLE_EVM_CHAINS='[{"id":"base","maxRange":10}]'
+      STABLE_EVM_CHAINS: "${STABLE_EVM_CHAINS:-}"
       STABLE_RAILS: "${STABLE_RAILS:-}"
       STABLE_LATE_HOURS: "${STABLE_LATE_HOURS:-24}"
       # Node's happy-eyeballs gives each connect attempt 250ms; Minibits is ~265ms RTT from this VPS → ETIMEDOUT
