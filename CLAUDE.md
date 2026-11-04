@@ -189,7 +189,7 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   The camera stops on tab switch, PAID/EXPIRED and pagehide. All page copy is English only.
   Testing tip: on testnut, opening the ⚡ tab auto-pays the invoice, so a local keyshop run creates a real key on
   the demo new-api — delete it afterwards (`DELETE /api/token/:id`).
-- `test/` — `node:test` units (85; `stable.test.ts` = rails/addresses, amounts/clash, the 3 scanners on fixtures, watcher: paid, confirmations, short, held, over, late, clash, wrong network, RPC errors; `funnel.test.ts` = cleanRef, funnel report/persistence/ref cap, compare rows; `autotopup.test.ts` = NWC parse/relay filter, NIP-44 spec vectors, payInvoice against a fake relay +
+- `test/` — `node:test` units (93; `stable.test.ts` = rails/addresses, amounts/clash, the 3 scanners on fixtures, watcher: paid, confirmations, short, held, over, late, clash, wrong network, RPC errors; `skill.test.ts` = the agent skill against a fake shop/wallet; `funnel.test.ts` = cleanRef, funnel report/persistence/ref cap, compare rows; `autotopup.test.ts` = NWC parse/relay filter, NIP-44 spec vectors, payInvoice against a fake relay +
   wallet (nip44/nip04, wallet error codes, TIMEOUT, forged answers ignored), decideAuto/caps, engine crash points; `topup.test.ts` = top-up helpers + `KeyShop.topUp`/`pool` against a fake new-api with rc.22's PUT semantics: crash after write-ahead / after the PUT, calls in between, status 4, refund race, deleted key, paging; `upstreams.test.ts` = anonymize/no host leak/tiers; `keyshop.test.ts` = `aliasesOf`): go-epay signature vectors, submit idempotency, write-ahead settle,
   `decideSettle`, notify (`ledger`/`epay` tests), mint capability check (`gateway.test.ts`).
 - `scripts/` — `crash-demo.ts` (kill -9 mid-payment → restart → credited once), `edge-checks.ts` (unhappy paths +
@@ -198,6 +198,17 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
 - `examples/agent-buy-key.ts` — no-dependency agent script: buy → pay (Cashu token arg, else prints the bolt11) → poll
   until `apiKey`; `SHOP=` picks the shop; `--topup sk-… <amount>` tops up a key and prints `{added, remaining}`. Verified on
   testnut with a fake new-api (both paths); `--topup` end to end against a throwaway new-api rc.22 container. Typechecked (tsconfig include).
+- `skill/sats4tokens/` — **agent skill preview** (Claude Code + OpenClaw, same `SKILL.md`; not deployed, no server change):
+  `s4t.ts balance|prices|topup <amount>|classify <status> <body>`, engine in `lib.ts`. Tops up the key the agent runs on
+  (same key, no restart). Balance via new-api's own `/v1/dashboard/billing/subscription|usage` with the key (needs
+  `DisplayTokenStatEnabled`, default on; off = it shows the pool user's balance) × `/api/status` price. new-api answers
+  a used-up key with 401 "Invalid token" (same as a wrong key), so 401 → try the top-up and let `/api/buy`'s 404
+  `unknown key` decide; 403 `pre_consume_token_quota_failed` = not enough for this call; `insufficient_user_quota` = the
+  pool is empty (don't pay). Caps in the script (`S4T_MAX_PER_TOPUP` 2, `S4T_MAX_PER_DAY` 5 incl. maybe-paid,
+  `S4T_MIN_INTERVAL_MIN` 10); over a cap it makes the order and hands the `/pay/` link to a human. Local ledger
+  `~/.sats4tokens/state.json` (600): order id saved before paying, an invoice goes to the wallet at most once (errors /
+  timeouts only watched), a Cashu token is saved before sending and only re-sent to its order. Wallets: `manual`,
+  `cashu-skill` (cashubtc/cashu-skill CLI), `nutshell`, via execFile (no shell). Design notes outside the repo.
 - `Dockerfile`, `deploy/demo/` — demo stack on the relay server (see `deploy/demo/README.md`).
 - `docs/` — documentation (`README.md` index, `user-guide.md` buyer guide, `self-hosting.md` deploy guide, `api.md` every
   endpoint, `how-it-works.md` lifecycle/ledger/recovery; English, public: no EPay, no server IP/tunnel/secrets; keep in
