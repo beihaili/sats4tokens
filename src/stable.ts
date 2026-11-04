@@ -258,7 +258,9 @@ export class StableWatcher {
     st.failures = 0;
     st.lastError = undefined;
     st.lastScan = now;
-    this.nextAt.set(rail.id, now + (quotes.some((x) => open(x.o, now)) ? (this.d.pollMs ?? 15_000) : (this.d.latePollMs ?? 120_000)));
+    // A range-limited EVM backlog gets another batch on the next watcher tick.
+    if (state.catchingUp) this.nextAt.delete(rail.id);
+    else this.nextAt.set(rail.id, now + (quotes.some((x) => open(x.o, now)) ? (this.d.pollMs ?? 15_000) : (this.d.latePollMs ?? 120_000)));
     let changed = false;
     data.stable ??= { cursors: {}, unmatched: [] };
     if (state.cursor !== undefined && state.cursor !== data.stable.cursors[rail.id]) {

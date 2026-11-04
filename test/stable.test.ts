@@ -51,7 +51,11 @@ function chain(edit: (fx: { tron: any; base: any; solana: any }) => void = () =>
     if (url.host === 'base.test') {
       if (body.method === 'eth_blockNumber') return json(fx.base.blockNumber);
       if (body.method === 'eth_getLogs') return json(fx.base.logs);
-      if (body.method === 'eth_getBlockByNumber') return json(fx.base.block);
+      if (body.method === 'eth_getBlockByNumber') {
+        const fixture = fx.base.block.result;
+        const seconds = Number(fixture.timestamp) + 2 * (Number(body.params[0]) - Number(fixture.number));
+        return json({ result: { timestamp: '0x' + Math.max(0, seconds).toString(16) } });
+      }
     }
     if (url.host === 'sol.test') {
       if (body.method === 'getSignaturesForAddress') return json(fx.solana.signatures);
@@ -190,6 +194,35 @@ test('evm scanner: Transfer logs to us, removed logs dropped, block time looked 
   await new Scanner(small, c.f).scan(NOW0 - 3600_000, st2, new Set(), NOW0 + 2 * 60_000); // cursor newer than `since`
   assert.equal(c.calls.filter((x) => x.endsWith('eth_getLogs')).length, 5);
   assert.equal(st2.cursor, head - 1000 + 50);
+});
+
+test('BSC outage: faster blocks cannot hide a transfer before the estimated starting block', async () => {
+  const head = 10000;
+  const timestamp = (n: number) => Math.floor((NOW0 + 450 * n) / 1000);
+  const since = timestamp(5000) * 1000;
+  const first = Math.ceil((since - NOW0) / 450);
+  const r = { ...rail(railsFromEnv(ENV), 'base-usdc'), blockTimeS: 0.75, maxRange: 10 };
+  const log = load('base.json').logs.result[0];
+  const scanner = new Scanner(r, async (_url, init) => {
+    const { method, params } = JSON.parse(String(init?.body));
+    let result;
+    if (method === 'eth_blockNumber') result = '0x2710';
+    else if (method === 'eth_getBlockByNumber') result = { timestamp: '0x' + timestamp(Number(params[0])).toString(16) };
+    else {
+      const { fromBlock, toBlock } = params[0];
+      assert.ok(Number(toBlock) - Number(fromBlock) < 10);
+      result = Number(fromBlock) <= first && first <= Number(toBlock)
+        ? [{ ...log, blockNumber: '0x' + first.toString(16), blockTimestamp: '0x' + timestamp(first).toString(16) }] : [];
+    }
+    return Response.json({ result });
+  });
+  for (const cursor of [undefined, first - 100, first]) {
+    const state = { cursor, catchingUp: false };
+    const got = await scanner.scan(since, state, new Set(), NOW0 + 450 * head);
+    assert.equal(got[0]?.tx, log.transactionHash);
+    assert.equal(state.cursor, first + 50);
+    assert.equal(state.catchingUp, true);
+  }
 });
 
 test('solana scanner: our token account gains, failed txs dropped, finalized = confirmed, v1 transactions asked for', async () => {

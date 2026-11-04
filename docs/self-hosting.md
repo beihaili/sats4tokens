@@ -164,6 +164,8 @@ addresses and reads the chains; the keys stay in your own wallet, so a broken-in
 | `STABLE_RAILS` | all | allow-list, e.g. `tron-usdt,base-usdc,solana-usdc` |
 | `STABLE_LATE_HOURS` | `24` | a transfer that lands this long after its order expired still pays it (as a late Lightning invoice) |
 
+On EVM networks, the watcher checks block timestamps before skipping older blocks. It resumes a backlog on each watcher tick until it catches up. The configured block time is only a lookup hint.
+
 The gateway refuses to start on a malformed address (bad Tron checksum, bad EIP-55 checksum, a Solana token account
 instead of the wallet). Check the addresses the admin page shows against your wallet before going live, then pay a
 small order yourself on each network.

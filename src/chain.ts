@@ -242,6 +242,7 @@ export type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 /** Per-rail state the caller keeps durable (EVM: next block to scan). */
 export interface ScanState {
   cursor?: number;
+  catchingUp?: boolean; // more finalized blocks remain after this pass
 }
 
 async function getJson(f: Fetch, url: string, init?: RequestInit): Promise<any> {
@@ -333,9 +334,21 @@ export class Scanner {
     const head = Number(await rpc(this.f, r.rpc, 'eth_blockNumber', []));
     if (!(head > 0)) throw new Error('eth_blockNumber: no head');
     const safeTop = head - r.confirmations + 1; // highest block with enough confirmations
-    // where `since` roughly is, with slack for a wrong block time (older transfers are dropped by `at` below)
-    const back = Math.ceil((((now - since) / 1000) * 1.2) / r.blockTimeS) + 50;
-    let from = Math.max(state.cursor ?? 0, head - back, 0);
+    // The estimate is only a starting probe. Skip blocks only when their chain timestamp
+    // predates the oldest waiting quote. An outage or faster blocks can put the estimate too far ahead.
+    const back = Math.ceil(Math.max(0, now - since) / 1000 / r.blockTimeS) + 50;
+    let from = Math.min(state.cursor ?? 0, head);
+    let upper = Math.max(from, head - back);
+    let probe = upper;
+    while (from < upper) {
+      const block = await rpc(this.f, r.rpc, 'eth_getBlockByNumber', [hex(probe), false]);
+      if (typeof block?.timestamp !== 'string' || !/^0x[0-9a-f]+$/i.test(block.timestamp)) {
+        throw new Error('eth_getBlockByNumber: missing block timestamp');
+      }
+      if (Number(block.timestamp) * 1000 < since) from = probe + 1;
+      else upper = probe;
+      probe = from + Math.floor((upper - from) / 2);
+    }
     const toTopic = '0x' + r.address.slice(2).padStart(64, '0');
     const logs: any[] = [];
     let scanned = from - 1;
@@ -346,7 +359,6 @@ export class Scanner {
       scanned = to;
       from = to + 1;
     }
-    state.cursor = Math.min(scanned, safeTop) + 1;
     const out: Transfer[] = [];
     for (const l of logs) {
       const key = `${l.transactionHash}:${Number(l.logIndex)}`;
@@ -361,6 +373,8 @@ export class Scanner {
       }
       out.push({ rail: r.id, key, tx: l.transactionHash, units, at, confirmations: head - bn + 1, need: r.confirmations, from: '0x' + String(l.topics[1]).slice(26) });
     }
+    state.cursor = Math.min(scanned, safeTop) + 1;
+    state.catchingUp = scanned < safeTop;
     return out;
   }
 
