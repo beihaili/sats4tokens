@@ -112,6 +112,19 @@ services:
       KEY_BONUS: "${KEY_BONUS:-}"
       # how often keys with NWC auto top-up get their balance checked
       AUTO_TOPUP_EVERY_S: "${AUTO_TOPUP_EVERY_S:-60}"
+      # USDT/USDC (watch-only): receiving addresses only, never keys. Empty = that network is off (no tab without any).
+      STABLE_ADDR_EVM: "${STABLE_ADDR_EVM:-}"
+      STABLE_ADDR_TRON: "${STABLE_ADDR_TRON:-}"
+      STABLE_ADDR_SOL: "${STABLE_ADDR_SOL:-}"
+      # RPCs (a provider key may sit in the URL: keep them in .env); empty = public defaults, which rate-limit hard
+      STABLE_TRON_API_KEY: "${STABLE_TRON_API_KEY:-}"
+      STABLE_TRON_RPC: "${STABLE_TRON_RPC:-}"
+      STABLE_BASE_RPC: "${STABLE_BASE_RPC:-}"
+      STABLE_SOL_RPC: "${STABLE_SOL_RPC:-}"
+      STABLE_TRON_CONFIRMATIONS: "${STABLE_TRON_CONFIRMATIONS:-}"
+      STABLE_BASE_CONFIRMATIONS: "${STABLE_BASE_CONFIRMATIONS:-}"
+      STABLE_RAILS: "${STABLE_RAILS:-}"
+      STABLE_LATE_HOURS: "${STABLE_LATE_HOURS:-24}"
       # Node's happy-eyeballs gives each connect attempt 250ms; Minibits is ~265ms RTT from this VPS → ETIMEDOUT
       NODE_OPTIONS: "--network-family-autoselection-attempt-timeout=2000"
     networks: [demo]

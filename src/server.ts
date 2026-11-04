@@ -83,7 +83,7 @@ const AUTO_EVERY_MS = Number(process.env.AUTO_TOPUP_EVERY_S ?? 60) * 1000;
 // USDT/USDC (optional): one rail per network + token whose receiving address is set (STABLE_ADDR_EVM/_TRON/_SOL).
 // Watch only: no keys here. A transfer up to STABLE_LATE_HOURS after the order expired still counts (as Lightning).
 const RAILS = railsFromEnv(process.env);
-const STABLE_LATE_MS = Number(process.env.STABLE_LATE_HOURS ?? 24) * 3600_000;
+const STABLE_LATE_MS = Number(process.env.STABLE_LATE_HOURS || 24) * 3600_000;
 
 const root = path.resolve(import.meta.dirname, '..', 'web');
 const ledger = new Ledger(path.join(DATA_DIR, 'ledger.json'));
