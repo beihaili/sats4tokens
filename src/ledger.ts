@@ -171,7 +171,7 @@ export function checkSubmit(data: LedgerData, p: Params, pid: string): SubmitChe
   if (!/^https?:\/\//.test(p.notify_url)) return { kind: 'reject', reason: 'bad notify_url' };
   const prev = data.orders.find((o) => o.pid === p.pid && o.outTradeNo === p.out_trade_no);
   if (!prev) return { kind: 'new' };
-  if (prev.money !== p.money || prev.notifyUrl !== p.notify_url) {
+  if (prev.money !== p.money || prev.notifyUrl !== p.notify_url || prev.returnUrl !== (p.return_url ?? '') || prev.type !== p.type) {
     return { kind: 'reject', reason: 'out_trade_no reused with different money/notify_url' };
   }
   return { kind: 'existing', order: prev };
@@ -213,7 +213,7 @@ export function satsFor(money: string, btcPrice: number): number {
 }
 
 export function newOrderId(now: number): string {
-  return 'CE' + now.toString(36).toUpperCase() + randomBytes(4).toString('hex').toUpperCase();
+  return 'CE' + now.toString(36).toUpperCase() + randomBytes(16).toString('hex').toUpperCase();
 }
 
 export function makeOrder(p: Params, o: { fiat: string; btcPrice: number; now: number; ttlMs: number }): Order {
