@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Patch new-api's compiled console frontend for the EU relay; the `console` nginx serves the result.
 
-new-api has no option for any of these, so four of the image's JS files are rewritten:
+new-api has no option for these, so three of the image's JS files are rewritten (templates: new-api
+v1.0.0-rc.46, the image the EU relay runs since 2026-11-04; rc.46 shows money in € by itself through
+quota_display_type=CUSTOM, but the custom amount is still typed in top-up units):
   - index.<h>.js   UI language = the visitor's own choice (localStorage) or English, never the browser's
                    (fallbackLng is en; upstream would show Chinese to every zh browser).
   - wallet chunk   the "Custom Amount" field is typed and shown in the display currency (€) instead of top-up
                    units (1 unit = ¥1 = €0.1333 here): € ÷ rate → whole units, the "Pay" box shows the exact
-                   price. Minimum labels too. The rate is the one the wallet already uses (USDExchangeRate = Price).
-  - keys chunk     API Keys page: a "Base URL <server_address>/v1" copy button next to "Create API Key", and the
-                   row menu's "Copy Connection Info" (a JSON blob for setting up another new-api's channel)
-                   becomes "Copy Base URL". Upstream added an "API Addresses" button in 2026-09 (after rc.22).
+                   price. Minimum labels too. The rate is the wallet's own priceRatio prop (= Price).
   - hero chunk     home page animation: its made-up "cost $0.00093" line shows € instead of a hard-coded $.
+The rc.22 API Keys patch (a "Base URL" copy button) is gone: rc.46 has its own "API Addresses" button.
 Patched files get new names (...-eur<sha>.js): Cloudflare and browsers keep /static/js/* for 7 days, so the
 original names can't carry new code. nginx swaps the index name in the HTML (sub_filter, console/patch.conf);
 the patched index points its chunk map at the patched chunks.
@@ -31,47 +31,28 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console")
 SYMBOL = "€"
 EUR = "Math.round({}*C*100)/100"  # units → display money, in the wallet component (C = its exchange rate prop)
 
-# (original, patched) — wallet component eS(): c = amount in units, o = set units, W/B = input text, L = minimum
+# (original, patched) — wallet component eC(): c = amount in units, o = set units, O/W = input text, J = minimum,
+# C = priceRatio (display money per unit), n = React
 WALLET = [
     # input text starts as € and follows c, unless what was typed already means c (so "5" isn't rewritten to "5.07")
-    ('[W,B]=(0,r.useState)(c.toString());(0,r.useEffect)(()=>{B(e=>""===e&&0===c?e:c.toString())},[c]);',
-     '[W,B]=(0,r.useState)(""+' + EUR.format("c") + ');(0,r.useEffect)(()=>{B(e=>""===e&&0===c||'
+    ('[O,W]=(0,n.useState)(c.toString());(0,n.useEffect)(()=>{W(e=>""===e&&0===c?e:c.toString())},[c]);',
+     '[O,W]=(0,n.useState)(""+' + EUR.format("c") + ');(0,n.useEffect)(()=>{W(e=>""===e&&0===c||'
      'Math.round((Number.parseFloat(e)||0)/C)===c?e:""+' + EUR.format("c") + ')},[c,C]);'),
     # typed € → nearest whole unit
     ('void((s=Number.parseInt(a)||0)>=0&&o(s))',
      'void((s=Math.round((Number.parseFloat(a)||0)/C))>=0&&o(s))'),
-    ('min:L,placeholder:`Minimum ${L}`',
-     'min:' + EUR.format("L") + ',step:"any",placeholder:`Minimum ' + SYMBOL + '${' + EUR.format("L") + '}`'),
+    ('min:J,placeholder:Q("Minimum {{amount}}",{amount:J})',
+     'min:' + EUR.format("J") + ',step:"any",placeholder:Q("Minimum {{amount}}",{amount:"' + SYMBOL + '"+'
+     + EUR.format("J") + '})'),
     # pay-method buttons below the minimum
-    ('n=r?O("Minimum topup amount: {{amount}}",{amount:s}):void 0,i=r?`${O("Minimum:")} ${s}`:void 0',
-     'n=r?O("Minimum topup amount: {{amount}}",{amount:"' + SYMBOL + '"+' + EUR.format("s") + '}):void 0,'
-     'i=r?`${O("Minimum:")} ' + SYMBOL + '${' + EUR.format("s") + '}`:void 0'),
-]
-# the console's API address, as upstream's own code finds it (status.server_address, else this origin)
-BASE = ('(function(){try{let e=localStorage.getItem("status");if(e){let t=JSON.parse(e);if(t.server_address)'
-        'return t.server_address}}catch{}return window.location.origin}()).replace(/\\/+$/,"")+"/v1"')
-# API Keys page (module with es() = header buttons and the row actions menu): s = jsx, _ = Button, ep.l = copy,
-# i.oR = toast, all module-level
-KEYS = [
-    ('function es(){let{t:e}=(0,l.Bd)(),{setOpen:t}=p();return(0,s.jsx)("div",{className:"flex gap-2",children:'
-     '(0,s.jsxs)(_.$,{size:"sm",onClick:()=>t("create"),children:[(0,s.jsx)(ea.A,{className:"h-4 w-4"}),'
-     'e("Create API Key")]})})}',
-     'function es(){let{t:e}=(0,l.Bd)(),{setOpen:t}=p(),$u=' + BASE + ';return(0,s.jsxs)("div",'
-     '{className:"flex flex-wrap gap-2",children:[(0,s.jsxs)(_.$,{size:"sm",variant:"outline",title:e("Copy"),'
-     'onClick:async()=>{await (0,ep.l)($u)&&i.oR.success(e("Copied"))},children:[e("Base URL"),'
-     '(0,s.jsx)("code",{className:"font-mono text-xs",children:$u})]}),'
-     '(0,s.jsxs)(_.$,{size:"sm",onClick:()=>t("create"),children:[(0,s.jsx)(ea.A,{className:"h-4 w-4"}),'
-     'e("Create API Key")]})]})}'),
-    ('let e=I();if(!e)return;let t=(0,eq.G1)(e,function(){try{let e=localStorage.getItem("status");if(e){'
-     'let t=JSON.parse(e);if(t.server_address)return t.server_address}}catch{}return window.location.origin}());'
-     'await (0,ep.l)(t)&&i.oR.success(a("Copied"))},children:[a("Copy Connection Info")',
-     'let t=' + BASE + ';await (0,ep.l)(t)&&i.oR.success(a("Copied"))},children:[a("Copy Base URL")'),
+    ('r=n?Q("Minimum topup amount: {{amount}}",{amount:s}):void 0,i=n?`${Q("Minimum:")} ${s}`:void 0',
+     'r=n?Q("Minimum topup amount: {{amount}}",{amount:"' + SYMBOL + '"+' + EUR.format("s") + '}):void 0,'
+     'i=n?`${Q("Minimum:")} ' + SYMBOL + '${' + EUR.format("s") + '}`:void 0'),
 ]
 # home page hero animation (decorative numbers): the hard-coded currency symbol
 HERO = [('["$",(3e-5*d.tokens).toFixed(5)]', '["' + SYMBOL + '",(3e-5*d.tokens).toFixed(5)]')]
 # async chunks to patch: (name, marker found in exactly one chunk, replacements)
-CHUNKS = [("wallet", 'id:"topup-amount"', WALLET), ("keys", 'a("Copy Connection Info")', KEYS),
-          ("hero", "(3e-5*d.tokens).toFixed(5)", HERO)]
+CHUNKS = [("wallet", 'id:"topup-amount"', WALLET), ("hero", "(3e-5*d.tokens).toFixed(5)", HERO)]
 INDEX = [('detection:{order:["localStorage","navigator"]', 'detection:{order:["localStorage"]')]
 
 

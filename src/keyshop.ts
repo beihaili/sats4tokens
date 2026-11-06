@@ -138,7 +138,8 @@ export class KeyShop {
    * Returns the key's balance in FIAT after, or undefined if the token no longer exists (needs a refund).
    * The caller runs top-ups of one key one after another (topupBlocked).
    *
-   * new-api facts this relies on (checked against the image we run, rc.22):
+   * new-api facts this relies on (checked against rc.22, and again end to end against rc.46 on 2026-11-04, the
+   * image the EU relay runs since then):
    *   - PUT /api/token/ writes every editable field from the body (a partial body clears name, group, expiry …),
    *     so we send back the whole GET object with only remain_quota changed;
    *   - a token whose quota ran out has status 4 (exhausted). A PUT with status 1 is refused while it's 4, so the
