@@ -18,7 +18,7 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Sats4Tokens: pay from €1 in bitcoin, get a capped API key, use any model">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="/style.css?v=11">
+  <link rel="stylesheet" href="/style.css?v=ux-20261105">
 </head>
 <body class="home">
   <main class="checkout">
@@ -33,7 +33,7 @@
 
     <section class="hero">
       <h1>Claude Code on sats, <span id="off">~60%</span> below list price.</h1>
-      <p class="lede">Pay with Lightning or Cashu, get an API key for Claude, GPT and more. No signup, no email, no KYC.</p>
+      <p class="lede">Pay with Lightning or Cashu, get an API key for Claude, GPT, DeepSeek, Kimi and more. No signup, no email, no KYC.</p>
       <!-- the price tag: filled from /api/compare (Claude Opus 5.5); the struck prices draw their line once on load -->
       <div id="tag" class="pricetag" hidden>
         <p class="pt-model"><b id="tag-model">Claude Opus 5.5</b>, per 1M output tokens</p>
@@ -49,10 +49,21 @@
       <h2>Buy a key</h2>
       <p class="lede">One key works with every model below, through one OpenAI-compatible endpoint (and the Anthropic API for Claude Code).
         It holds what you pay, plus a bonus on larger amounts.</p>
+      <label class="auto-row hint">Currency <select id="buy-currency" aria-label="Payment currency"><option value="eur">EUR €</option><option value="usd">USD $</option><option value="cny">CNY ¥</option></select></label>
       <div id="amounts" class="amounts"></div>
-      <p id="err" class="bad" hidden></p>
+      <p id="err" class="hint" aria-live="polite" hidden></p>
       <p class="hint">You pay on the next page, by Lightning invoice or Cashu token. Keep that page: it is your receipt and shows your key.</p>
     </section>
+
+    <section class="steps-wrap">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li><b>Pick an amount</b><span>€1 to €500. The key holds what you pay, plus up to 10% bonus.</span></li>
+        <li><b>Pay in bitcoin</b><span>Lightning or Cashu ecash. No account, no email, no KYC.</span></li>
+        <li><b>Copy your key</b><span>It works in Claude Code and any OpenAI-compatible app. That page stays your receipt.</span></li>
+      </ol>
+    </section>
+
 
     <section id="compare" class="card" hidden>
       <h2>Same models, fewer sats</h2>
@@ -62,6 +73,20 @@
       </table></div>
       <p class="hint" id="cmp-note"></p>
     </section>
+    <section class="quickstart">
+      <h2>Run Claude Code on it</h2>
+      <p class="lede">Buy a key, then paste this in a terminal (swap in your own key):</p>
+      <textarea id="cc-cmd" rows="7" readonly spellcheck="false">export ANTHROPIC_BASE_URL=https://sats4tokens.bhbtc.xyz
+export ANTHROPIC_AUTH_TOKEN=sk-your-key
+export ANTHROPIC_MODEL=claude-opus-4-8
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096
+claude</textarea>
+      <button id="cc-copy" class="primary">Copy</button>
+      <p class="hint">Already use Claude Code? That is the whole setup. Any other OpenAI-compatible app uses
+        <code>https://sats4tokens.bhbtc.xyz/v1</code> — <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/user-guide.md">guide</a>.
+        Or <a href="/claude-code-bitcoin">watch the 12-second demo</a>.</p>
+    </section>
+
     <section class="about">
       <h2>Who runs this</h2>
       <p>Sats4Tokens is the bitcoin checkout of the BHBTC relay, an AI API relay (its regular console, with an account and
@@ -76,12 +101,13 @@
     </section>
     <section class="card models">
       <h2>Models &amp; prices</h2>
-      <p class="hint"><span class="unit"></span> per 1M tokens. One key works for every model below — tick models to see what a key buys. <span class="badge anthropic">Claude Code</span> = also speaks the Anthropic API. "fast ×2": service_tier fast/priority costs double.</p>
+      <p class="hint"><span class="unit"></span> per 1M tokens. One key works for every model below — search or filter, tick models to see what a key buys. <span class="badge anthropic">Claude Code</span> = also speaks the Anthropic API. "fast ×2": service_tier fast/priority costs double. <span class="badge">Claude Code only</span> = that route accepts Claude Code clients only.</p>
       <div id="models"><p class="hint">Loading…</p></div>
     </section>
   </main>
   <script type="module">
-    import { renderModels, money, bonusText } from '/models.js?v=7';
+    import { renderModels } from '/models.js?v=9';
+    import { mountShop } from '/shop.js?v=2';
     const $ = (s) => document.querySelector(s);
     // funnel: which post brought this visitor (?ref=x, kept for this browser's later purchases), one beacon per load
     const ref = new URLSearchParams(location.search).get('ref') || localStorage.getItem('s4t-ref') || '';
@@ -90,35 +116,26 @@
     localStorage.setItem('s4t-seen', '1');
     fetch('/api/hit', { method: 'POST', body: JSON.stringify({ ref, first }), keepalive: true }).catch(() => {});
     void showCompare();
-    const shop = await (await fetch('/api/shop')).json();
-    // + calculator: amount × ticked models → tokens (all amounts, even while some are sold out)
-    renderModels($('#models'), { calc: { amounts: shop.amounts.length ? shop.amounts : ['1', '2', '5', '10'] } });
-    if (!shop.enabled || shop.soldOut) {
-      $('#err').hidden = false;
-      $('#err').textContent = shop.soldOut ? 'Sold out right now: we are refilling. Please come back later.' : 'The key shop is not enabled on this gateway.';
-    }
-    for (const a of shop.amounts) {
-      const b = document.createElement('button');
-      b.className = 'primary';
-      b.append(Object.assign(document.createElement('b'), { textContent: money(Number(a), shop.fiat) }));
-      b.setAttribute('aria-label', `Buy a ${money(Number(a), shop.fiat)} key`);
-      if (shop.sats?.[a]) b.append(Object.assign(document.createElement('small'), { textContent: `≈ ${shop.sats[a].toLocaleString('en')} sat` }));
-      if (bonusText(shop, a)) b.append(Object.assign(document.createElement('em'), { textContent: bonusText(shop, a) }));
-      b.disabled = !shop.enabled;
-      b.onclick = async () => {
-        b.disabled = true;
-        const r = await fetch('/api/buy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ money: a, ref }) });
-        const j = await r.json();
-        if (!r.ok) {
-          b.disabled = false;
-          $('#err').hidden = false;
-          $('#err').textContent = j.error;
-          return;
-        }
-        location.href = `/pay/${j.id}`;
-      };
-      $('#amounts').append(b);
-    }
+    renderModels($('#models'), { calc: { amounts: ['1', '10', '100', '500'] } });
+    mountShop({ select: $('#buy-currency'), buttons: $('#amounts'), message: $('#err'), ref, onShop(shop) {
+      if (shop.bitcoinEnabled) {
+        $('.hero .lede').textContent = $('.hero .lede').textContent.replace('Lightning or Cashu', 'Lightning, Cashu or on-chain BTC');
+        $('.buy > p.hint:last-child').textContent = 'Choose your payment method on the next page. Keep that page: it is your receipt and shows your key.';
+      }
+    } });
+
+    // the quick-start command: copy it, confirm in place (clipboard is https-only, so keep a fallback)
+    $('#cc-copy').onclick = async (e) => {
+      const box = $('#cc-cmd');
+      try {
+        await navigator.clipboard.writeText(box.value);
+      } catch {
+        box.select();
+        document.execCommand('copy');
+      }
+      e.target.textContent = 'Copied ✓';
+      setTimeout(() => (e.target.textContent = 'Copy'), 1600);
+    };
 
     // price check: ours live (EUR → USD at today's rate) next to list price and ppq.ai, both checked by hand
     async function showCompare() {

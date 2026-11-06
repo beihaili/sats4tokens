@@ -18,6 +18,8 @@ const el = (tag, props = {}) => Object.assign(document.createElement(tag), props
 
 // ticked on first load (when they exist): one of each kind, from strongest to cheapest
 const DEFAULT_PICKS = ['claude-opus-5-5', 'gpt-6.1-sol', 'gpt-6-astra', 'glm-5.3', 'kimi-k3', 'deepseek-v4-pro'];
+// upstream routes that only accept Claude Code clients (a plain SDK call gets 403); the list is in the UI only
+const CLAUDE_CODE_ONLY = new Set(['claude-opus-4-6', 'claude-opus-4-7', 'claude-opus-4-8']);
 // a "typical chat call" for the calls column: 2K tokens in (question + context), 500 out (answer)
 const CHAT_IN = 2000;
 const CHAT_OUT = 500;
@@ -47,6 +49,7 @@ export async function renderModels(box, { calc } = {}) {
   const cols = calc ? 5 : 4;
   table.innerHTML = `<thead><tr>${calc ? '<th class="pick"></th>' : ''}<th class="name">Model</th><th>Input</th><th>Output</th><th class="cached">Cached</th></tr></thead>`;
   const tbody = el('tbody');
+  const rows = []; // { tr, head?, vendor, model?, cc, cb? } — the toolbar below filters these
   for (const v of [...new Set(list.map((m) => m.vendor))]) {
     const head = el('tr', { className: 'vendor' });
     const cell = el('td', { colSpan: cols, textContent: v });
@@ -56,8 +59,10 @@ export async function renderModels(box, { calc } = {}) {
     }
     head.append(cell);
     tbody.append(head);
+    rows.push({ tr: head, head: true, vendor: v });
     for (const m of list.filter((x) => x.vendor === v)) {
       const tr = el('tr');
+      const row = { tr, vendor: v, model: m.model, cc: m.endpoints.includes('anthropic') };
       if (calc) {
         const cb = el('input', { type: 'checkbox', checked: picked.has(m.model), ariaLabel: `compare ${m.model}` });
         cb.onchange = () => {
@@ -73,9 +78,14 @@ export async function renderModels(box, { calc } = {}) {
         const td = el('td', { className: 'pick' });
         td.append(cb);
         tr.append(td);
+        row.cb = cb;
       }
       const name = el('td', { className: 'name' });
       name.append(el('code', { textContent: m.model }));
+      // the Kiro-routed Opus models answer only Claude Code clients (a plain OpenAI/Anthropic SDK gets 403 upstream)
+      if (CLAUDE_CODE_ONLY.has(m.model)) {
+        name.append(el('span', { className: 'badge', textContent: 'Claude Code only', title: 'This route only accepts Claude Code clients; an OpenAI-compatible call gets 403 from the upstream.' }));
+      }
       if (m.fastTier) name.append(el('span', { className: 'badge', textContent: 'fast ×2' }));
       tr.append(name);
       if (m.perCall !== undefined) {
@@ -85,16 +95,62 @@ export async function renderModels(box, { calc } = {}) {
         tr.append(el('td', { className: 'cached', textContent: fmt(m.cacheRead) }));
       }
       tbody.append(tr);
+      rows.push(row);
     }
   }
   table.append(tbody);
+
+  // 59 models is a long list on a phone: search, a Claude Code filter, and bulk ticking for the calculator
+  const tools = el('div', { className: 'mtools' });
+  const search = el('input', { type: 'search', className: 'msearch', placeholder: `Search ${list.length} models…`, ariaLabel: 'Search models' });
+  const count = el('span', { className: 'mcount', textContent: `${list.length} models` });
+  const chips = el('div', { className: 'mchips' });
+  const chipAll = el('button', { type: 'button', className: 'chip on', textContent: 'All' });
+  const chipCC = el('button', { type: 'button', className: 'chip', textContent: 'Claude Code' });
+  chips.append(chipAll, chipCC);
+  tools.append(search, count, chips);
+  let onlyCC = false;
+  if (calc) {
+    const bulk = el('span', { className: 'mbulk' });
+    const pickShown = el('button', { type: 'button', className: 'link', textContent: 'Select all shown' });
+    const pickNone = el('button', { type: 'button', className: 'link', textContent: 'Clear' });
+    pickShown.onclick = () => {
+      for (const r of rows) if (!r.head && !r.tr.hidden) { picked.add(r.model); r.cb.checked = true; r.tr.classList.add('picked'); }
+      draw();
+    };
+    pickNone.onclick = () => {
+      picked.clear();
+      for (const r of rows) if (r.cb) { r.cb.checked = false; r.tr.classList.remove('picked'); }
+      draw();
+    };
+    bulk.append(pickShown, pickNone);
+    tools.append(bulk);
+  }
+  const apply = () => {
+    const q = search.value.trim().toLowerCase();
+    const seen = new Map();
+    for (const r of rows) {
+      if (r.head) continue;
+      const ok = (!q || r.model.toLowerCase().includes(q) || r.vendor.toLowerCase().includes(q)) && (!onlyCC || r.cc);
+      r.tr.hidden = !ok;
+      if (ok) seen.set(r.vendor, true);
+    }
+    for (const r of rows) if (r.head) r.tr.hidden = !seen.get(r.vendor);
+    const n = rows.filter((r) => !r.head && !r.tr.hidden).length;
+    count.textContent = n === list.length ? `${list.length} models` : `${n} of ${list.length} models`;
+  };
+  search.oninput = apply;
+  chipAll.onclick = () => { onlyCC = false; chipAll.classList.add('on'); chipCC.classList.remove('on'); apply(); };
+  chipCC.onclick = () => { onlyCC = true; chipCC.classList.add('on'); chipAll.classList.remove('on'); apply(); };
+
   const wrap = el('div', { className: 'scroll' });
   wrap.append(table);
+  apply();
   if (calc) {
     draw();
-    box.replaceChildren(calcBox, wrap);
+    box.replaceChildren(calcBox, tools, wrap);
   } else {
-    box.replaceChildren(wrap);
+    box.replaceChildren(tools, wrap);
   }
 }
 
@@ -136,6 +192,7 @@ function drawCalc(box, list, picked, amount, amounts, setAmount) {
     out.append(t);
   }
   const head = el('p', { className: 'calc-head', textContent: 'What one key buys:' });
+  if (rows.length) head.append(el('span', { className: 'mcount', textContent: ` ${rows.length} selected` }));
   const note = el('p', {
     className: 'hint',
     textContent: `Tokens if the whole ${money(amount, FIAT)}${amount > paid ? ` (${money(paid, FIAT)} + bonus)` : ''} goes to input, or to output. *Chat call = ${CHAT_IN / 1000}K tokens in + ${CHAT_OUT} out. Cached input is cheaper, so real use usually stretches further.`,

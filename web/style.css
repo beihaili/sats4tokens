@@ -16,7 +16,7 @@ h1 { margin: 0; font-size: 28px; }
 .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
 .tabs button { flex: 1; padding: 10px; border: 1px solid #ddd; background: #fafafa; border-radius: 10px; font-size: 16px; cursor: pointer; }
 .tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
-#qr, #stable-qr { display: block; width: 100%; max-width: 320px; margin: 0 auto 12px; }
+#qr, #btc-qr, #stable-qr { display: block; width: 100%; max-width: 320px; margin: 0 auto 12px; }
 .row { display: flex; gap: 8px; }
 input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10px; font: 13px ui-monospace, Menlo, monospace; }
 button, .button { padding: 10px 16px; border: 1px solid #ddd; border-radius: 10px; background: #fff; cursor: pointer; font-size: 16px; text-decoration: none; color: inherit; display: inline-block; }
@@ -236,3 +236,74 @@ h1 .sub { font-size: 18px; font-weight: 500; color: var(--muted); margin-left: .
   .home .top { flex-wrap: wrap; margin-bottom: 28px; }
   .home .nav { width: 100%; gap: 4px 16px; font-size: 14px; }
 }
+
+.tabs:has(#btc-btn:not([hidden])) { display: grid; grid-template-columns: 1fr 1fr; }
+
+/* Desktop shop: keep each buying decision on its own horizontal row. */
+@media (min-width: 960px) {
+  .home .checkout { max-width: 1360px; padding: 24px clamp(38px, 4.5vw, 76px) 72px; }
+  .home .top { margin: 0; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .home .hero {
+    display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, .85fr);
+    align-content: center; align-items: end; column-gap: clamp(40px, 6vw, 96px);
+    padding: clamp(44px, 4.8vw, 72px) 0;
+  }
+  .home .hero h1 { font-size: clamp(46px, 4.6vw, 66px); line-height: 1.02; letter-spacing: -.052em; }
+  .home .hero .lede { grid-column: 1; align-self: start; font-size: 17px; max-width: 33em; margin-top: 18px; }
+  .home .pricetag {
+    grid-column: 2; grid-row: 1 / 3; align-self: center; margin: 0; border: 0;
+    padding: 22px 26px; border-radius: 14px; background: #fff;
+    box-shadow: 0 1px 3px #17181c0c;
+  }
+  .home .pt-model { margin: 0 0 14px; padding-bottom: 12px; border-bottom: 1px dashed #c7cbd1; }
+  .home .pt-row { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; row-gap: 5px; align-items: center; }
+  .home .pt.was { grid-column: 1; flex-direction: row-reverse; justify-content: space-between; align-items: baseline; }
+  .home .pt.was s { font-size: 18px; }
+  .home .pt.now { grid-column: 2; grid-row: 1 / 3; padding-left: 18px; border-left: 1px solid var(--line); gap: 2px; }
+  .home .pt.now b { font-size: clamp(40px, 3.8vw, 56px); }
+  .home .buy { display: grid; grid-template-columns: 1fr auto; margin: 0; border-top: 1px solid var(--line); padding: 26px 0 30px; }
+  .home .buy h2, .home #compare h2, .home .about h2 { font-size: 26px; letter-spacing: -.035em; }
+  .home .buy h2 { align-self: center; }
+  .home .buy label { grid-column: 2; grid-row: 1; align-self: center; margin: 0; }
+  .home .buy .lede { grid-column: 1 / -1; max-width: 74ch; font-size: 15px; }
+  .home .buy .amounts, .home .buy > .hint:not(label) { grid-column: 1 / -1; }
+  .home .amounts { gap: 12px; margin-top: 20px; }
+  .home .amounts button.primary {
+    display: grid; grid-template-columns: 1fr auto; align-content: center; justify-items: start;
+    text-align: left; min-height: 84px; padding: 13px 17px; border-radius: 10px;
+  }
+  .home .amounts button b { font-size: 28px; line-height: 1.1; }
+  .home .amounts button small { grid-column: 1 / -1; grid-row: 2; }
+  .home .amounts button em { grid-column: 2; grid-row: 1; align-self: center; }
+  .home .amounts button:disabled { opacity: 1; color: #656973; background: transparent; border: 1px dashed #abb0b9; }
+  .home .amounts button:disabled em { color: inherit; }
+  .home #compare, .home .about { display: grid; grid-template-columns: minmax(200px, .55fr) minmax(0, 1.45fr); gap: 12px 48px; margin: 0; padding: 30px 0; border-top: 1px solid var(--line); }
+  .home #compare .hint, .home .about ul { grid-column: 2; margin: 0; }
+  .home .about p { margin: 0; }
+  .home .card.models { margin: 12px 0 0; padding: 26px; }
+}
+
+/* how it works + Claude Code quick start (2026-11-05, homepage) */
+.home .steps-wrap { margin-top: 44px; }
+.home .steps-wrap h2, .home .quickstart h2 { font-size: 22px; letter-spacing: -.02em; margin: 0 0 14px; }
+.home .steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+.home .steps li { counter-increment: step; display: grid; gap: 3px; padding-top: 12px; border-top: 2px solid var(--fg); }
+.home .steps li::before { content: "0" counter(step); font-weight: 800; font-size: 12px; color: var(--accent); letter-spacing: .06em; }
+.home .steps b { font-size: 16px; }
+.home .steps span { color: var(--muted); font-size: 14px; line-height: 1.45; }
+.home .quickstart { margin-top: 44px; padding-top: 26px; border-top: 1px solid var(--line); }
+.home .quickstart .lede { margin-top: 6px; }
+.home .quickstart textarea { margin: 14px 0 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #f7f8fa; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+.home .quickstart .primary { width: auto; margin: 0; padding: 8px 16px; border-radius: 10px; font-size: 15px; }
+.home .quickstart .hint { margin: 12px 0 0; }
+@media (max-width: 640px) { .home .steps { grid-template-columns: 1fr; gap: 16px; } }
+
+/* model list toolbar: search + filters + bulk picking (home and key page) */
+.mtools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 6px 0 10px; }
+.msearch { flex: 1 1 170px; min-width: 0; padding: 8px 10px; border: 1px solid #8884; border-radius: 9px; background: transparent; color: inherit; font: inherit; font-size: 14px; }
+.mcount { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.mchips { display: flex; gap: 6px; }
+.chip { padding: 5px 11px; border: 1px solid #8884; border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.chip.on { background: var(--fg); border-color: var(--fg); color: #fff; }
+.mbulk { display: flex; gap: 12px; margin-left: auto; }
+.mbulk .link { font-size: 13px; }

@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <title>Pay with Bitcoin · Sats4Tokens</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css?v=12">
+  <link rel="stylesheet" href="/style.css?v=14">
 </head>
 <body>
   <main class="checkout">
@@ -19,6 +19,7 @@
       <nav class="tabs">
         <button data-tab="ln" class="on">⚡ Lightning</button>
         <button data-tab="cashu">🥜 Cashu ecash</button>
+        <button data-tab="bitcoin" id="btc-btn" hidden>₿ BTC on-chain</button>
         <button data-tab="stable" id="stable-btn" hidden>💵 USDT / USDC</button>
       </nav>
       <div id="tab-ln">
@@ -36,6 +37,17 @@
         </div>
         <p class="hint">Paste an ecash token from <span id="mint" class="mono"></span>, or scan its QR.
           The mint can't see who pays whom — blind signatures.</p>
+      </div>
+      <div id="tab-bitcoin" hidden>
+        <p class="hint" id="btc-status"></p>
+        <div id="btc-details" hidden>
+          <a id="btc-link"><img id="btc-qr" alt="Bitcoin payment QR"></a>
+          <div class="muted">Bitcoin mainnet · Send exactly</div>
+          <div class="row"><input id="btc-amount" readonly aria-label="Amount in BTC"><button id="btc-copy-amount">Copy</button></div>
+          <div class="muted">To this address</div>
+          <div class="row"><input id="btc-address" readonly aria-label="Bitcoin address"><button id="btc-copy-address">Copy</button></div>
+          <p class="hint">Your wallet adds the network fee.</p>
+        </div>
       </div>
       <div id="tab-stable" hidden>
         <p class="hint">Pick the network you send from:</p>
@@ -62,13 +74,15 @@
     <section id="key" class="card" hidden>
       <div class="big">🔑 Your API key</div>
       <p class="hint">Capped at what you paid (plus any bonus). No account — this key is the account. Save it (or keep this page's URL).</p>
+      <p class="hint">Stuck, or paid but no key? DM <a href="https://x.com/sats4tokens">@sats4tokens</a> or open an
+        <a href="https://github.com/beihaili/sats4tokens/issues">issue</a> — keep this page's link private.</p>
       <textarea id="env" rows="3" readonly></textarea>
       <button id="copyenv" class="primary">Copy</button>
-      <p class="hint">Works with any OpenAI-compatible app. Test it:</p>
-      <textarea id="curl" rows="8" readonly></textarea>
-      <p class="hint">Or run <b>Claude Code</b> on this key — paste in a terminal:</p>
+      <p class="hint"><b>Run Claude Code on this key</b> — paste in a terminal (this machine only, for this session):</p>
       <textarea id="claude" rows="6" readonly></textarea>
-      <button id="copyclaude">Copy</button>
+      <button id="copyclaude" class="primary">Copy Claude Code setup</button>
+      <p class="hint">Any other OpenAI-compatible app: base URL and key above, or test with:</p>
+      <textarea id="curl" rows="6" readonly></textarea>
       <div class="usage-head"><b>Usage</b> <span id="balance" class="hint"></span>
         <button id="refresh" class="link">↻ Refresh</button></div>
       <p id="low" class="hint" hidden></p>
@@ -79,6 +93,7 @@
       <p id="nocalls" class="hint">No calls yet.</p>
       <div id="topup" class="topup">
         <div class="usage-head"><b>Top up this key</b> <span class="hint">same key, more balance</span></div>
+        <label class="auto-row hint">Currency <select id="topup-currency" aria-label="Payment currency"><option value="eur">EUR €</option><option value="usd">USD $</option><option value="cny">CNY ¥</option></select></label>
         <div id="topup-amounts" class="amounts"></div>
         <p id="topup-msg" class="hint" hidden></p>
         <ul id="topups" class="hint" hidden></ul>
@@ -100,10 +115,10 @@
     </section>
     <section id="prices" class="card" hidden>
       <h2>Models &amp; prices</h2>
-      <p class="hint"><span class="unit"></span> per 1M tokens. This key works for every model below. <span class="badge anthropic">Claude Code</span> = also speaks the Anthropic API. "fast ×2": service_tier fast/priority costs double.</p>
+      <p class="hint"><span class="unit"></span> per 1M tokens. This key works for every model below. <span class="badge anthropic">Claude Code</span> = also speaks the Anthropic API. "fast ×2": service_tier fast/priority costs double. <span class="badge">Claude Code only</span> = that route accepts Claude Code clients only.</p>
       <div id="models"></div>
     </section>
   </main>
-  <script type="module" src="/checkout.js?v=12"></script>
+  <script type="module" src="/checkout.js?v=16"></script>
 </body>
 </html>

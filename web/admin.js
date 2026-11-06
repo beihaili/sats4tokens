@@ -45,7 +45,7 @@ async function load() {
     <td class="muted">${time(o.createdAt)}</td><td>${o.kind === 'keytopup' ? '🔋 ' : o.kind === 'key' ? '🔑 ' : ''}${esc(o.money)} ${esc(o.fiat.toUpperCase())}</td>
     <td>${!o.paid ? `<span class="muted">${o.sats} sat${(o.stable?.quotes ?? []).map((q) => ` · ${esc(q.amount)} ${esc(q.rail)}`).join('')}</span>`
       : o.paid.amount ? `${esc(o.paid.amount)} ${esc(o.paid.token)} 💵 <span class="muted">${esc(o.paid.via)}</span>` : `${o.paid.sats} sat ${icon(o.paid.via)}`}</td>
-    <td class="${o.state === 'PAID' ? 'ok' : 'muted'}">${esc(o.state)}${o.paid && !o.notify.done && !o.stable?.hold ? ' · notify…' : ''}${o.topup?.needsRefund ? ' · needs refund' : ''}${o.stable?.hold ? ' · <span class="bad">held</span>' : ''}${o.stable?.ratio ? ` · short, ${Math.round(o.stable.ratio * 100)}% credit` : ''}${o.stable?.overpaid ? ` · <span class="bad">overpaid ${esc(o.stable.overpaid)}</span>` : ''}${o.stable?.payments?.length && o.state === 'PENDING' ? ' · part-paid' : ''}</td></tr>`).join('');
+    <td class="${o.state === 'PAID' ? 'ok' : 'muted'}">${esc(o.state)}${o.paid && !o.notify.done && !o.stable?.hold ? ' · notify…' : ''}${o.bitcoin?.review ? ' · <span class="bad">BTC review: ' + esc(o.bitcoin.review) + '</span>' : ''}${o.topup?.needsRefund ? ' · needs refund' : ''}${o.stable?.hold ? ' · <span class="bad">held</span>' : ''}${o.stable?.ratio ? ` · short, ${Math.round(o.stable.ratio * 100)}% credit` : ''}${o.stable?.overpaid ? ` · <span class="bad">overpaid ${esc(o.stable.overpaid)}</span>` : ''}${o.stable?.payments?.length && o.state === 'PENDING' ? ' · part-paid' : ''}</td></tr>`).join('');
 }
 
 const icon = (via) => (via === 'cashu' ? '🥜' : via === 'lightning' ? '⚡' : '💵');

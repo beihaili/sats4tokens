@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <title>Claude Code without a credit card — Sats4Tokens</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Run Claude Code without a credit card. Pay from €1 in bitcoin (Lightning or Cashu) and get an API key in about 30 seconds. No signup, no email, no KYC.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Sats4Tokens">
+  <meta property="og:title" content="Claude Code without a credit card">
+  <meta property="og:description" content="Pay from €1 in bitcoin, get an API key that works in Claude Code. No signup, no KYC.">
+  <meta property="og:url" content="https://sats4tokens.bhbtc.xyz/claude-code-bitcoin">
+  <link rel="canonical" href="https://sats4tokens.bhbtc.xyz/claude-code-bitcoin">
+  <meta property="og:image" content="https://sats4tokens.bhbtc.xyz/og-card.png">
+  <link rel="stylesheet" href="/style.css?v=ux-20261105">
+  <style>
+    .landing .demo { margin: 30px auto 0; max-width: 320px; }
+    .landing .demo video { width: 100%; height: auto; display: block; border-radius: 18px; border: 1px solid var(--line); background: #111; }
+    .landing .demo figcaption { margin-top: 8px; text-align: center; color: var(--muted); font-size: 13px; }
+    .landing .steps-title { font-size: 22px; letter-spacing: -.02em; margin: 40px 0 12px; }
+    .landing .faq { margin-top: 40px; padding-top: 26px; border-top: 1px solid var(--line); }
+    .landing .faq h2 { font-size: 22px; letter-spacing: -.02em; margin: 0 0 10px; }
+    .landing .faq details { border-bottom: 1px solid var(--line); padding: 14px 0; }
+    .landing .faq summary { cursor: pointer; font-weight: 600; font-size: 16px; }
+    .landing .faq p { margin: 8px 0 0; color: var(--muted); font-size: 15px; line-height: 1.5; }
+    .landing .trust { list-style: none; padding: 0; margin: 26px 0 0; display: grid; gap: 10px; }
+    .landing .trust li { color: #3d4049; font-size: 15px; }
+    .landing .trust b { color: var(--fg); }
+    .landing .mini { margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+    .landing .mini a { color: var(--fg); }
+  </style>
+</head>
+<body class="home landing">
+  <main class="checkout">
+    <header class="top">
+      <a class="brand" href="/"><img src="/mark.svg" alt="" width="56" height="35"><span>Sats<i>4</i>Tokens</span></a>
+      <nav class="nav">
+        <a href="/">All models</a>
+        <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/user-guide.md">Guide</a>
+        <a href="https://github.com/beihaili/sats4tokens">GitHub</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1>Claude Code without a credit card.</h1>
+      <p class="lede">Pay from €1 in bitcoin — Lightning or Cashu — and get an API key for Claude, GPT, Gemini,
+        DeepSeek and Kimi in about 30 seconds. No signup, no email, no KYC.</p>
+    </section>
+
+    <section class="buy">
+      <h2>Buy a key</h2>
+      <p class="lede">About 60% below list price on the Claude models — and cheap workhorses like DeepSeek V4,
+        Kimi K3, GLM 5.3 and Qwen. One key for all of them, through one OpenAI-compatible endpoint
+        (and the Anthropic API for Claude Code).</p>
+      <label class="auto-row hint">Currency <select id="buy-currency" aria-label="Payment currency"><option value="eur">EUR €</option><option value="usd">USD $</option><option value="cny">CNY ¥</option></select></label>
+      <div id="amounts" class="amounts"></div>
+      <p id="err" class="hint" aria-live="polite" hidden></p>
+      <p class="hint">You pay on the next page. Keep that page: it is your receipt and shows your key.</p>
+    </section>
+
+    <figure class="demo">
+      <video src="/demo.mp4" poster="/demo-poster.jpg" width="780" height="1744" controls muted loop playsinline
+        autoplay preload="metadata" aria-label="12-second demo: pay €1 in sats, get a key, run Claude Code"></video>
+      <figcaption>A demo order with a fake invoice — no real key. 12 seconds.</figcaption>
+    </figure>
+
+    <h2 class="steps-title">How it works</h2>
+    <ol class="steps">
+      <li><b>Pick an amount</b><span>From €1. Larger amounts include a bonus.</span></li>
+      <li><b>Pay in bitcoin</b><span>Lightning invoice or a Cashu token. No card, no account.</span></li>
+      <li><b>Paste one line</b><span>Claude Code runs on the key immediately.</span></li>
+    </ol>
+
+    <section class="quickstart">
+      <h2>Run Claude Code on it</h2>
+      <p class="lede">After you pay, paste this in a terminal (swap in your own key):</p>
+      <textarea id="cc-cmd" rows="7" readonly spellcheck="false">export ANTHROPIC_BASE_URL=https://sats4tokens.bhbtc.xyz
+export ANTHROPIC_AUTH_TOKEN=sk-your-key
+export ANTHROPIC_MODEL=claude-opus-4-8
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096
+claude</textarea>
+      <button id="cc-copy" class="primary">Copy</button>
+      <p class="hint">Already use Claude Code? That is the whole setup. Any other OpenAI-compatible app uses
+        <code>https://sats4tokens.bhbtc.xyz/v1</code> — <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/user-guide.md">guide</a>.</p>
+    </section>
+
+    <ul class="trust">
+      <li><b>No account, no card.</b> The key is the account. A Cashu mint can't link ecash to the wallet that paid it.</li>
+      <li><b>Every payment counts once.</b> If the server crashes mid-payment, reopening the page shows the same key, never a second charge.</li>
+      <li><b>No lock-in.</b> The same key works in Claude Code, Cursor, any OpenAI-compatible app, and for agents over plain HTTP.</li>
+    </ul>
+
+    <section class="faq">
+      <h2>Questions</h2>
+      <details>
+        <summary>How is it 60% cheaper?</summary>
+        <p>We buy capacity from several upstream providers and route each call to one that works, so we pay wholesale
+          instead of list price. The price comparison on the <a href="/">shop page</a> is updated with the model makers'
+          prices and ppq.ai's, with the date checked.</p>
+      </details>
+      <details>
+        <summary>Do I need an account or an email?</summary>
+        <p>No. Pay, get the key, that's it. The <code>/pay/…</code> page is your receipt — bookmark it, because it is the
+          only way back to the key.</p>
+      </details>
+      <details>
+        <summary>How do I pay?</summary>
+        <p>Lightning (scan the invoice with any wallet) or a Cashu token (paste it, or scan its QR). USDT/USDC on Tron,
+          Base, BSC or Solana is available on the checkout page too.</p>
+      </details>
+      <details>
+        <summary>What if a payment doesn't produce a key?</summary>
+        <p>The page says so and retries by itself; it never charges twice. If it still doesn't, DM
+          <a href="https://x.com/sats4tokens">@sats4tokens</a> or open an
+          <a href="https://github.com/beihaili/sats4tokens/issues">issue</a> with the order link (keep it private).</p>
+      </details>
+      <details>
+        <summary>Which models can I use?</summary>
+        <p>All of them — the full list with live prices is on the <a href="/">shop page</a>. <code>claude-opus-4-8</code> is
+          a good default for Claude Code; <code>deepseek-flash</code> and <code>gemini-3.1-flash-lite</code> are the cheap
+          workhorses for scripts and agents.</p>
+      </details>
+    </section>
+
+    <p class="mini">Sats4Tokens is the bitcoin checkout of the BHBTC relay. The code is
+      <a href="https://github.com/beihaili/sats4tokens">open source</a> — payments settle exactly once, and no account or
+      email is stored.</p>
+  </main>
+  <script type="module">
+    import { mountShop } from '/shop.js?v=2';
+    const $ = (s) => document.querySelector(s);
+    const ref = new URLSearchParams(location.search).get('ref') || 'landing-cc';
+    fetch('/api/hit', { method: 'POST', body: JSON.stringify({ ref, first: !localStorage.getItem('s4t-seen') }), keepalive: true }).catch(() => {});
+    localStorage.setItem('s4t-seen', '1');
+    mountShop({ select: $('#buy-currency'), buttons: $('#amounts'), message: $('#err'), ref });
+    $('#cc-copy').onclick = async (e) => {
+      const box = $('#cc-cmd');
+      try { await navigator.clipboard.writeText(box.value); } catch { box.select(); document.execCommand('copy'); }
+      e.target.textContent = 'Copied ✓';
+      setTimeout(() => (e.target.textContent = 'Copy'), 1600);
+    };
+  </script>
+</body>
+</html>
