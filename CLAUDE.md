@@ -2,7 +2,7 @@
 
 Bitcoin checkout for AI APIs: customers pay with Lightning or Cashu ecash and get a capped new-api key
 (key shop), or top up an existing new-api account. No account details, no KYC, exactly-once settlement.
-Optional USDT/USDC on chain (watch-only, `src/chain.ts` + `src/stable.ts`; code done 2026-11-03, **not deployed**).
+Optional USDT/USDC on chain (watch-only, `src/chain.ts` + `src/stable.ts`; live on the EU relay since 2026-11-04: Tron, Base, BSC, Solana).
 bitcoin++ Berlin 2026 (payments edition) hackathon project. MIT license (`LICENSE`, since 2026-10-07).
 
 Naming: the GitHub repo was renamed from `cashu-epay` on 2026-10-02 (old URL redirects) and public copy (README, submission)
@@ -59,7 +59,8 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   **Model aliases**: `MODEL_ALIAS_SUFFIX` (regex, server `.env` only, so upstream-named suffixes stay out of the repo)
   → `aliasesOf()`: a name matching it whose base name is also listed is hidden from `/api/models` and `/network`
   (routes dropped, node model lists and live calls mapped to the base name). Still callable with a key. Variants
-  priced differently (`-max`, `-max-all`) are real models, not aliases.
+  priced differently (`-max`, `-max-all`) are real models, not aliases. The EU shop also uses it (since 2026-11-05)
+  to hide the legacy `deepseek-v4-flash` as an alias of DeepSeek's official id `deepseek-flash`; both names route.
   **Key top-ups** (since 2026-10-07): `POST /api/buy {money, key}` (key in the body, ±`sk-`; `findKeyOrder` = only keys
   sold here, else 404 `unknown key`) → order `kind:'keytopup'` (`makeTopupOrder`: `CK…` id, name `Top-up · €2 for key sk-…a1b2`,
   `topup {of, tokenId, keyHint}`; `publicOrder` never returns `of` or the key, so the link can go to a third party). On PAID the
@@ -119,7 +120,11 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   sections split by space and hairlines, buy buttons dark with amount / sats / bonus, orange on hover. System font, tabular figures.
   Homepage (`web/index.html`): og/twitter meta (`og:image` = `/og-card.png`, 1200×630 from `../gallery/og-card.html`;
   absolute URLs on our domain, self-hosters change them), nav (🛰 /network, 📖 user guide, GitHub) and a "Who runs this"
-  card (BHBTC relay, privacy, exactly-once, agents). Key page shows `#low` ("Running low" / "used up" → "Top it up ↓") when ≤10% of the key is left.
+  card (BHBTC relay, privacy, exactly-once, agents). Since 2026-11-05 it also has a 3-step "How it works" under the buy
+  buttons, a copyable Claude Code quick start (placeholder key, `#cc-cmd`), and the models table has search / All / Claude
+  Code filters plus "Select all shown / Clear" for the calculator. `web/claude-code-bitcoin.html` (served at
+  `/claude-code-bitcoin`) is the ad landing page; its 11s `web/demo.mp4` + `demo-poster.jpg` are recorded with
+  `../gallery/record.mjs` against `mock-server.mjs` (fake order/key, no real credentials). Key page shows `#low` ("Running low" / "used up" → "Top it up ↓") when ≤10% of the key is left.
   Static files are sent `cache-control: no-cache`, but Cloudflare (stable URL) rewrites the browser TTL to 4h: after changing
   `web/*.js|css`, bump the `?v=` in the HTML/`import` URLs or browsers keep the old file. The key page also has a **Claude Code** one-liner: `ANTHROPIC_BASE_URL=<root, no /v1>
   ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
@@ -147,7 +152,7 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   ≤10 min old price if all fail; or fixed `BTC_PRICE`). Locked into the order; sats rounded up. Also `usdPerFiat`
   (frankfurter/ECB → Coinbase → mempool.space ratio, 10 min cache, ≤1 day stale reuse; `USD_PER_FIAT` fixes it), used by
   stablecoin quotes and `/api/compare` (compare.ts re-exports it).
-- **USDT / USDC** (since 2026-11-03, not deployed; design: the operator's ops plan, section C). Watch-only: env has only
+- **USDT / USDC** (code 2026-11-03, live on the EU relay 2026-11-04; design: the operator's ops plan, section C). Watch-only: env has only
   receiving addresses (`STABLE_ADDR_TRON|EVM|SOL`, never keys; real ones only in the server `.env`), no address = rail off
   (not on the page). `src/chain.ts`: `railsFromEnv` → rails `tron-usdt`, `base-usdc` (+ `STABLE_EVM_CHAINS` JSON, per-chain
   `STABLE_<ID>_RPC|_CONFIRMATIONS`), `solana-usdc|usdt` (ATA of the wallet derived locally: PDA via sha256 + ed25519
@@ -240,3 +245,19 @@ PayMethods `[{"name":"Bitcoin","color":"#f7931a","type":"bitcoin"}]`, payment co
 - Public repo: no server IP, tunnel URLs, keys, passwords or upstream provider names (suffixes go in `MODEL_ALIAS_SUFFIX`
   in the server `.env`), no "EPay" in public copy. Order ids (`CK…`), `/pay/` URLs and sold keys are bearer secrets.
 - Screenshots/images only from `../gallery/` mocks, never from a real `/pay/` page.
+
+Bitcoin mainnet checkout uses an optional dedicated Core wallet (src/bitcoin.ts).
+The RPC watcher settles exact, on-time receipts under the gateway lock; then
+the existing notify/key/top-up path runs. See docs/self-hosting.md for configuration.
+
+
+Manual shop tiers now come from src/shop-pricing.ts (1/10/100/500, 0/5/10/10%).
+GET /api/shop?currency=eur|usd|cny serves selected denominations. newShopOrder
+serializes pool checks and reservations; large tiers fail closed if pool is unknown.
+Cross-currency orders keep account money/fiat and persist purchase metadata.
+Existing NWC settings retain account units and KEY_BONUS.
+
+Multi-merchant account top-ups: `src/merchants.ts`, `EPAY_MERCHANTS` (secret JSON), pinned callback
+URLs, independent signing keys, per-order fiat; shared ledger prevents cross-site transfer reuse.
+Types lightning/usdc restrict account checkout to Lightning + Base/Solana native USDC.
+`STABLE_BASE_FINALIZED=1` fails closed unless the RPC supplies finalized block height.

@@ -8,9 +8,9 @@ on their own domain; replace the URL below with theirs.
 
 ## 1. Pick an amount
 
-Open the shop and choose **1, 2, 5 or 10** in the shop's currency (e.g. €1–€10). The price in sats is fixed the moment you click
+Open the shop and choose **1, 10, 100 or 500** in EUR, USD or CNY (EUR by default). The price in sats is fixed the moment you click
 (spot price, rounded up) and the order is valid for **30 minutes**. Larger amounts come with a bonus, shown on the
-button (e.g. €5 +5%, €10 +10%): the key holds that much more, at no extra cost. The same bonus applies to top-ups.
+button (10 +5%, 100/500 +10%; 1 has no bonus): the key holds that much more, at no extra cost. The same bonus applies to top-ups.
 
 The bottom of the page lists every model the key can call, with its price per 1M input /
 output tokens. Tick a few models to see roughly how many tokens or chat calls each amount buys.
@@ -75,7 +75,7 @@ export OPENAI_API_KEY=sk-...
 ```sh
 curl https://sats4tokens.bhbtc.xyz/v1/chat/completions \
   -H "Authorization: Bearer sk-..." -H "Content-Type: application/json" \
-  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hello"}]}'
+  -d '{"model":"deepseek-flash","messages":[{"role":"user","content":"hello"}]}'
 ```
 
 **Python (OpenAI SDK)**:
@@ -84,7 +84,7 @@ curl https://sats4tokens.bhbtc.xyz/v1/chat/completions \
 from openai import OpenAI
 
 client = OpenAI(base_url="https://sats4tokens.bhbtc.xyz/v1", api_key="sk-...")
-r = client.chat.completions.create(model="deepseek-v4-flash",
+r = client.chat.completions.create(model="deepseek-flash",
                                    messages=[{"role": "user", "content": "hello"}])
 print(r.choices[0].message.content)
 ```
@@ -112,8 +112,7 @@ When less than 10% is left, the key page says so; once it is used up, calls fail
 
 ## 5. Top up the key
 
-No need to buy a new key: under the usage on the key page, **Top up this key** has the same amounts (€1, €2,
-€5, €10). Pick one and you get a normal checkout for it; pay with ⚡ or 🥜 as before. Once it is paid the money is
+No need to buy a new key: under the usage on the key page, **Top up this key** has the same amounts (1, 10, 100, 500) and a currency selector. Pick one and you get a normal checkout for it; pay with ⚡ or 🥜 as before. Once it is paid the money is
 added to the same key, so nothing in your app or Claude Code changes (a key that was used up works again). The
 key page lists your top-ups.
 
@@ -164,3 +163,9 @@ it). If you still have the key itself, it keeps working.
 
 **Is it private?** The shop learns nothing about you beyond the payment. With Cashu the mint signs blinded
 messages and can't link your wallet to the shop. The relay sees your API calls like any API provider does.
+
+## Need help?
+
+- DM **[@sats4tokens](https://x.com/sats4tokens)** on X — the fastest way for payment problems.
+- Open an issue on [GitHub](https://github.com/beihaili/sats4tokens/issues) for bugs or anything public.
+- Keep your `/pay/…` link and any key in the message private: anyone with them can spend the balance.

@@ -36,7 +36,7 @@ real-name account, and every API call ends up tied to an ID card.
 
 ## Key shop: pay, get a key
 
-Open `/`, pick €1 / €2 / €5 / €10 (amounts and currency are configurable), pay with ⚡ or 🥜, and the checkout page shows an API key **with its
+Open `/`, pick 1 / 10 / 100 / 500 in EUR, USD or CNY (EUR by default), pay with ⚡ or 🥜, and the checkout page shows an API key **with its
 endpoint**, capped at exactly what you paid. No signup, no email, no password — **the key is the account**.
 
 - The key is a new-api token of one pool user, with its own hard quota: €1 buys exactly the quota €1 buys in the relay's console.
@@ -50,7 +50,7 @@ endpoint**, capped at exactly what you paid. No signup, no email, no password �
 - **Auto top-up from your own wallet** ([Nostr Wallet Connect](https://nwc.dev)): paste an NWC connection on the key
   page, pick an amount, a threshold and a daily cap. When the key runs low, the gateway sends your wallet one invoice
   for one top-up. Each invoice is sent at most once, and a lost answer never turns into a second payment.
-- **Bonus on larger amounts** (`KEY_BONUS`, ours: €5 +5%, €10 +10%), for new keys and top-ups, Lightning or Cashu.
+- **Bonus on larger amounts** (10 +5%, 100/500 +10%; 1 has no bonus), for new keys and top-ups, Lightning or Cashu.
 - The shop sells only what the pool user's quota can cover (minus a reserve), so a sold key is never left without credit.
 - **USDT / USDC, optional** (off unless you set an address): a third checkout tab for Tron, Base and Solana. Watch-only,
   no keys on the server; each waiting order gets a distinct exact amount, and the gateway credits it once the transfer

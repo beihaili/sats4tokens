@@ -12,25 +12,24 @@ read the order and its key. Treat `/pay/<id>` and `/api/order/<id>` URLs as secr
 ### `GET /api/shop`
 
 ```json
-{ "enabled": true, "amounts": ["1", "2", "5", "10"], "fiat": "eur", "sats": { "1": 1337, "2": 2674, "5": 6685, "10": 13369 }, "bonus": { "5": 5, "10": 10 }, "soldOut": false }
+{ "enabled": true, "amounts": ["1", "10", "100", "500"], "fiat": "eur", "sats": { "1": 1000, "10": 10000, "100": 100000, "500": 500000 }, "bonus": { "10": 5, "100": 10, "500": 10 }, "soldOut": false }
 ```
 
-`enabled` is false when the key shop isn't configured (then `/api/buy` and `/api/models` return 404).
-`amounts` are in `fiat`, the gateway's `FIAT`; all key shop money below is in that currency. `sats` is what each
-amount costs at the current BTC price (an order locks its own price when it's created); omitted if the price feeds are slow or down.
-`bonus` = extra quota in percent per amount (here €5 → €5.25 on the key, €10 → €11), for new keys, top-ups and auto
-top-ups alike, paid with ⚡ or 🥜; amounts not listed get none. The bonus is locked into an order when it is made.
+`GET /api/shop?currency=eur|usd|cny` returns offers in the requested currency.
+The UI starts with EUR. Omitting currency uses the configured account FIAT for existing callers.
+`accountFiat` and `accountRate` describe the account conversion, and `sats` is an indicative quote.
+The order locks the exchange rate when created. 1 has no bonus, 10 has 5%, and 100/500 have 10%.
 
-`amounts` only lists what the key pool can still cover (see `POOL_RESERVE` in the self-hosting guide); when it
-can't cover even the smallest amount, `amounts` is empty and `soldOut` is true. If new-api can't be read in time
-the list isn't filtered.
+Only affordable tiers are returned. If the quota pool cannot be checked, 100/500 are unavailable.
+If currency conversion is unavailable the endpoint returns 503.
+`autoBonus` describes the existing NWC settings, which retain their authorized denominations and legacy bonus configuration.
 
 ### `POST /api/buy`
 
 Create a key order. The price in sats is locked now; no mint call is made yet.
 
 ```sh
-curl -s -XPOST https://shop.example.com/api/buy -H 'content-type: application/json' -d '{"money": 1}'
+curl -s -XPOST https://shop.example.com/api/buy -H 'content-type: application/json' -d '{"money": 1, "currency": "eur"}'
 ```
 ```json
 { "id": "CK3F9A…" }
@@ -44,7 +43,7 @@ amount, or later).
 of making a new one:
 
 ```sh
-curl -s -XPOST https://shop.example.com/api/buy -H 'content-type: application/json' -d '{"money": 2, "key": "sk-…"}'
+curl -s -XPOST https://shop.example.com/api/buy -H 'content-type: application/json' -d '{"money": 10, "currency": "eur", "key": "sk-…"}'
 ```
 
 It returns a top-up order (`kind: "keytopup"`, also a `CK…` id) that is paid exactly like a key order. When it is
@@ -86,7 +85,7 @@ Models a sold key can call, with prices for the pool user's group (cached 5 minu
 
 ```json
 [
-  { "model": "deepseek-v4-flash", "vendor": "DeepSeek", "input": 0.14, "output": 0.28, "cacheRead": 0.028,
+  { "model": "deepseek-flash", "vendor": "DeepSeek", "input": 0.14, "output": 0.28, "cacheRead": 0.028,
     "fastTier": false, "endpoints": ["openai"] },
   { "model": "some-image-model", "vendor": "…", "perCall": 0.04, "fastTier": false, "endpoints": ["openai"] }
 ]
@@ -230,7 +229,7 @@ IPs or channels.
   "fiat": "eur",
   "totalCalls": 3,
   "calls": [
-    { "time": 1790928700, "model": "deepseek-v4-flash", "promptTokens": 812, "completionTokens": 240,
+    { "time": 1790928700, "model": "deepseek-flash", "promptTokens": 812, "completionTokens": 240,
       "cost": 0.0041, "seconds": 2 }
   ]
 }
@@ -295,3 +294,17 @@ the same request with a different amount is rejected) and answers `302 /pay/<id>
 
 After payment the gateway calls `notify_url` with signed parameters (`trade_status=TRADE_SUCCESS`) until it
 answers `success`, backing off from 5 s to 10 min between attempts.
+
+An order with `bitcoinEnabled` accepts `POST /api/order/:id/bitcoin` to allocate
+its receiving address and return the updated public order. Retrying an open
+order returns the same address. `GET /api/order/:id/bitcoin.svg` encodes the
+address and exact BTC amount. Poll the existing order endpoint for
+`bitcoin.received` (sats), `confirmations`, `need`, `review` and the normal
+paid/key/top-up result. A browser-reported transaction never authorizes credit.
+
+
+A cross-currency order stores `purchase.currency`, `purchase.amount` and
+`purchase.accountRate`. Its existing `money` and `fiat` fields remain account
+units, so quota issuance, pool reservations, stablecoin conversion and refunds
+use the same locked principal. Historical orders retain their stored amounts
+and bonuses. Existing callers may still submit 2 or 5 without a currency field.
