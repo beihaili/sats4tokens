@@ -476,3 +476,24 @@ test('funnel: payment methods picked and paid', () => {
     { via: 'base-usdc', picked: 1, paid: 0, money: 0 },
   ]);
 });
+
+test('Base finalized mode: sequencer depth alone cannot credit; finalized RPC fails closed', async () => {
+  const c = chain();
+  const r = rail(railsFromEnv({ ...ENV, STABLE_BASE_FINALIZED: '1', STABLE_BASE_CONFIRMATIONS: '1' }), 'base-usdc');
+  const bn = Number(c.fx.base.logs.result.find((l: any) => !l.removed).blockNumber);
+  let finalized: number | undefined = bn - 1;
+  const f: Fetch = async (url, init) => {
+    const body = JSON.parse(String(init?.body));
+    if (body.method === 'eth_getBlockByNumber' && body.params[0] === 'finalized') return new Response(JSON.stringify({ result: finalized === undefined ? null : { number: '0x' + finalized.toString(16) } }));
+    return c.f(url, init);
+  };
+  const s = new Scanner(r, f); const state: { cursor?: number; catchingUp?: boolean } = {};
+  const before = await s.scan(NOW0, state, new Set());
+  assert.ok(before.length); assert.equal(before[0].confirmations, 0);
+  assert.ok(state.cursor! <= bn);
+  finalized = bn + 100;
+  const after = await s.scan(NOW0, state, new Set());
+  assert.ok(after[0].confirmations >= after[0].need);
+  finalized = undefined;
+  await assert.rejects(s.scan(NOW0, state, new Set()), /finalized/);
+});

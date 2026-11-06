@@ -26,6 +26,7 @@ export interface Rail {
   rpc: string;
   apiKey?: string; // Tron: TRON-PRO-API-KEY header (EVM/Solana providers put their key in the URL)
   confirmations: number; // blocks incl. the transfer's own; Solana: 1 = finalized
+  finalized?: boolean; // EVM: credit only blocks at/below the finalized head
   blockTimeS: number; // EVM: rough block time, to find the first block to scan
   maxRange: number; // EVM: blocks per eth_getLogs call (providers cap the range)
   explorer: string; // tx URL prefix
@@ -111,6 +112,7 @@ export function railsFromEnv(env: Record<string, string | undefined>): Rail[] {
         rails.push({
           id: `${c.id}-${token.toLowerCase()}`, net: c.id, netName: c.name, kind: 'evm', token, contract: contract.toLowerCase(),
           decimals: typeof t === 'string' ? 6 : t!.decimals, address: evm.toLowerCase(), rpc: env[`STABLE_${k}_RPC`] || c.rpc,
+          finalized: env[`STABLE_${k}_FINALIZED`] === '1',
           confirmations: num(env[`STABLE_${k}_CONFIRMATIONS`], c.confirmations), blockTimeS: c.blockTime || 2,
           maxRange: c.maxRange ?? 2000, explorer: c.explorer,
         });
@@ -333,7 +335,12 @@ export class Scanner {
     const r = this.rail;
     const head = Number(await rpc(this.f, r.rpc, 'eth_blockNumber', []));
     if (!(head > 0)) throw new Error('eth_blockNumber: no head');
-    const safeTop = head - r.confirmations + 1; // highest block with enough confirmations
+    let safeTop = head - r.confirmations + 1;
+    if (r.finalized) {
+      const block = await rpc(this.f, r.rpc, 'eth_getBlockByNumber', ['finalized', false]);
+      if (!/^0x[0-9a-f]+$/i.test(block?.number ?? '')) throw new Error('Missing finalized block');
+      safeTop = Math.min(safeTop, Number(block.number));
+    } // highest block with enough confirmations
     // The estimate is only a starting probe. Skip blocks only when their chain timestamp
     // predates the oldest waiting quote. An outage or faster blocks can put the estimate too far ahead.
     const back = Math.ceil(Math.max(0, now - since) / 1000 / r.blockTimeS) + 50;
@@ -371,7 +378,7 @@ export class Scanner {
         at = Number((await rpc(this.f, r.rpc, 'eth_getBlockByNumber', [hex(bn), false])).timestamp) * 1000;
         this.blockTime.set(bn, at);
       }
-      out.push({ rail: r.id, key, tx: l.transactionHash, units, at, confirmations: head - bn + 1, need: r.confirmations, from: '0x' + String(l.topics[1]).slice(26) });
+      out.push({ rail: r.id, key, tx: l.transactionHash, units, at, confirmations: r.finalized && bn > safeTop ? 0 : head - bn + 1, need: r.confirmations, from: '0x' + String(l.topics[1]).slice(26) });
     }
     state.cursor = Math.min(scanned, safeTop) + 1;
     state.catchingUp = scanned < safeTop;
