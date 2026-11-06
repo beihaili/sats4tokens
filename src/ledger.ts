@@ -43,6 +43,7 @@ export interface Order {
   notifyUrl: string;
   returnUrl: string;
   fiat: string;
+  purchase?: { currency: string; amount: string; accountRate: number }; // customer denomination, locked at creation
   btcPrice: number; // fiat per BTC, locked at creation
   sats: number; // amount due
   createdAt: number;
