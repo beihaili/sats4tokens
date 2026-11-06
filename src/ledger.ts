@@ -22,7 +22,7 @@ export type OrderState = 'PENDING' | 'SETTLING' | 'PAID' | 'EXPIRED';
 export type MintVia = 'lightning' | 'cashu';
 /** Paid on chain: a rail id from chain.ts, e.g. 'tron-usdt', 'base-usdc', 'solana-usdc'. */
 export type StableVia = `${string}-usdt` | `${string}-usdc`;
-export type Via = MintVia | StableVia;
+export type Via = MintVia | StableVia | 'bitcoin';
 
 export interface Settle {
   via: MintVia;
@@ -63,6 +63,7 @@ export interface Order {
   apiKey?: ApiKey; // BEARER: whoever has it spends the quota; shown only to the order's own page
   topup?: Topup;
   auto?: AutoTopup; // key orders: auto top-up over Nostr Wallet Connect (holds a BEARER connection string)
+  bitcoin?: { address: string; need: number; received: number; confirmations: number; review?: string };
   stable?: StableOrder; // USDT/USDC on chain (stable.ts): created when the buyer picks a network
 }
 
@@ -304,7 +305,9 @@ export function pendingMoney(data: LedgerData, now: number): number {
     // an auto top-up the customer's wallet refused won't be paid: it doesn't hold pool space until it expires
     const refused = o.topup?.auto?.outcome === 'declined';
     const open = (o.state === 'PENDING' && o.expiresAt > now && !refused) || o.state === 'SETTLING' || (o.state === 'PAID' && !o.notify.done);
-    if (open) sum += creditOf(o); // what it will put on a key, bonus included
+    const awaitingBitcoin = (o.state === 'EXPIRED' || o.state === 'PENDING') &&
+      o.bitcoin?.received === o.sats && !o.bitcoin?.review;
+    if (open || awaitingBitcoin) sum += creditOf(o); // what it will put on a key, bonus included
   }
   return sum;
 }

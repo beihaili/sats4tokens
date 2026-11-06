@@ -118,6 +118,7 @@ export class Funnel {
     for (const o of orders) {
       if (dayOf(o.createdAt) < from) continue;
       const picked = new Set<string>(o.stable?.quotes.map((q) => q.rail) ?? []);
+      if (o.bitcoin) picked.add('bitcoin');
       if (o.quote) picked.add('lightning');
       if (o.paid) picked.add(o.paid.via);
       for (const v of picked) row(v).picked++;

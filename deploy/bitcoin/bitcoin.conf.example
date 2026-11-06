@@ -1,0 +1,15 @@
+chain=main
+server=1
+listen=0
+listenonion=0
+prune=5500
+dbcache=128
+maxmempool=64
+maxconnections=12
+par=1
+rpcbind=0.0.0.0
+rpcallowip=0.0.0.0/0
+# RPC is reachable only inside the isolated Docker network; no ports are published.
+# Local administration uses the generated cookie in /data/.cookie.
+rpcwhitelistdefault=0
+# The operator adds salted rpcauth and an explicit whitelist for the gateway.
