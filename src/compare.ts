@@ -37,24 +37,5 @@ export function compare(models: ModelPrice[], usdPerFiat: number): Compare {
   return { checked: CHECKED, sources: SOURCES, usdPerFiat, rows, minOff: rows.length ? Math.min(...rows.map((r) => r.off)) : 0 };
 }
 
-let fx: { at: number; fiat: string; rate: number } | undefined;
-/**
- * USD per 1 unit of `fiat` (cached 1h): the ratio of BTC's USD and fiat prices on mempool.space, which quotes both.
- * USD_PER_FIAT in env overrides it (offline tests); a rate up to a day old is reused if the feed is down.
- */
-export async function usdPerFiat(fiat: string): Promise<number> {
-  if (fiat === 'usd') return 1;
-  if (process.env.USD_PER_FIAT) return Number(process.env.USD_PER_FIAT);
-  if (fx && fx.fiat === fiat && Date.now() - fx.at < 3600_000) return fx.rate;
-  try {
-    const r = await fetch('https://mempool.space/api/v1/prices', { signal: AbortSignal.timeout(5000) });
-    const p = (await r.json()) as Record<string, number>;
-    const rate = p.USD / p[fiat.toUpperCase()];
-    if (!(rate > 0)) throw new Error(`no ${fiat} quote`);
-    fx = { at: Date.now(), fiat, rate };
-    return rate;
-  } catch (e) {
-    if (fx && fx.fiat === fiat && Date.now() - fx.at < 86400_000) return fx.rate;
-    throw new Error(`fx rate: ${(e as Error).message}`);
-  }
-}
+/** USD per 1 unit of `fiat`: lives in price.ts (stablecoin checkout uses the same rate). */
+export { usdPerFiat } from './price.ts';

@@ -36,6 +36,14 @@ export interface FunnelRow {
   money: number; // FIAT paid (without bonus)
 }
 
+/** Payment methods over the same window: which ones buyers opened and which ones paid (all orders, console top-ups too). */
+export interface MethodRow {
+  via: string; // 'lightning', 'cashu', or a stablecoin rail ('tron-usdt', 'base-usdc', …)
+  picked: number; // orders that opened it: an invoice, a quote on that rail; Cashu leaves no trace until it pays
+  paid: number;
+  money: number; // FIAT credited (a stablecoin order paid short counts its share)
+}
+
 export class Funnel {
   file: string;
   data: Stats;
@@ -96,5 +104,30 @@ export class Funnel {
       }
     }
     return [...rows.values()].sort((a, b) => b.day.localeCompare(a.day) || b.views - a.views || a.ref.localeCompare(b.ref));
+  }
+
+  /** Orders of the last `days` days per payment method, most paid first. */
+  methods(orders: Order[], days: number, now: number): MethodRow[] {
+    const from = dayOf(now - (days - 1) * 86400_000);
+    const rows = new Map<string, MethodRow>();
+    const row = (via: string) => {
+      let r = rows.get(via);
+      if (!r) rows.set(via, (r = { via, picked: 0, paid: 0, money: 0 }));
+      return r;
+    };
+    for (const o of orders) {
+      if (dayOf(o.createdAt) < from) continue;
+      const picked = new Set<string>(o.stable?.quotes.map((q) => q.rail) ?? []);
+      if (o.bitcoin) picked.add('bitcoin');
+      if (o.quote) picked.add('lightning');
+      if (o.paid) picked.add(o.paid.via);
+      for (const v of picked) row(v).picked++;
+      if (o.state === 'PAID' && o.paid) {
+        const r = row(o.paid.via);
+        r.paid++;
+        r.money += Number(o.money) * (o.stable?.ratio ?? 1);
+      }
+    }
+    return [...rows.values()].sort((a, b) => b.paid - a.paid || b.picked - a.picked || a.via.localeCompare(b.via));
   }
 }

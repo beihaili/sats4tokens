@@ -12,25 +12,24 @@ read the order and its key. Treat `/pay/<id>` and `/api/order/<id>` URLs as secr
 ### `GET /api/shop`
 
 ```json
-{ "enabled": true, "amounts": ["1", "2", "5", "10"], "fiat": "eur", "sats": { "1": 1337, "2": 2674, "5": 6685, "10": 13369 }, "bonus": { "5": 5, "10": 10 }, "soldOut": false }
+{ "enabled": true, "amounts": ["1", "10", "100", "500"], "fiat": "eur", "sats": { "1": 1000, "10": 10000, "100": 100000, "500": 500000 }, "bonus": { "10": 5, "100": 10, "500": 10 }, "soldOut": false }
 ```
 
-`enabled` is false when the key shop isn't configured (then `/api/buy` and `/api/models` return 404).
-`amounts` are in `fiat`, the gateway's `FIAT`; all key shop money below is in that currency. `sats` is what each
-amount costs at the current BTC price (an order locks its own price when it's created); omitted if the price feeds are slow or down.
-`bonus` = extra quota in percent per amount (here €5 → €5.25 on the key, €10 → €11), for new keys, top-ups and auto
-top-ups alike, paid with ⚡ or 🥜; amounts not listed get none. The bonus is locked into an order when it is made.
+`GET /api/shop?currency=eur|usd|cny` returns offers in the requested currency.
+The UI starts with EUR. Omitting currency uses the configured account FIAT for existing callers.
+`accountFiat` and `accountRate` describe the account conversion, and `sats` is an indicative quote.
+The order locks the exchange rate when created. 1 has no bonus, 10 has 5%, and 100/500 have 10%.
 
-`amounts` only lists what the key pool can still cover (see `POOL_RESERVE` in the self-hosting guide); when it
-can't cover even the smallest amount, `amounts` is empty and `soldOut` is true. If new-api can't be read in time
-the list isn't filtered.
+Only affordable tiers are returned. If the quota pool cannot be checked, 100/500 are unavailable.
+If currency conversion is unavailable the endpoint returns 503.
+`autoBonus` describes the existing NWC settings, which retain their authorized denominations and legacy bonus configuration.
 
 ### `POST /api/buy`
 
 Create a key order. The price in sats is locked now; no mint call is made yet.
 
 ```sh
-curl -s -XPOST https://shop.example.com/api/buy -H 'content-type: application/json' -d '{"money": 1}'
+curl -s -XPOST https://shop.example.com/api/buy -H 'content-type: application/json' -d '{"money": 1, "currency": "eur"}'
 ```
 ```json
 { "id": "CK3F9A…" }
@@ -44,7 +43,7 @@ amount, or later).
 of making a new one:
 
 ```sh
-curl -s -XPOST https://shop.example.com/api/buy -H 'content-type: application/json' -d '{"money": 2, "key": "sk-…"}'
+curl -s -XPOST https://shop.example.com/api/buy -H 'content-type: application/json' -d '{"money": 10, "currency": "eur", "key": "sk-…"}'
 ```
 
 It returns a top-up order (`kind: "keytopup"`, also a `CK…` id) that is paid exactly like a key order. When it is
@@ -86,7 +85,7 @@ Models a sold key can call, with prices for the pool user's group (cached 5 minu
 
 ```json
 [
-  { "model": "deepseek-v4-flash", "vendor": "DeepSeek", "input": 0.14, "output": 0.28, "cacheRead": 0.028,
+  { "model": "deepseek-flash", "vendor": "DeepSeek", "input": 0.14, "output": 0.28, "cacheRead": 0.028,
     "fastTier": false, "endpoints": ["openai"] },
   { "model": "some-image-model", "vendor": "…", "perCall": 0.04, "fastTier": false, "endpoints": ["openai"] }
 ]
@@ -161,7 +160,7 @@ order's invoice is checked first.
 | `mint` | the only mint whose Cashu tokens are accepted |
 | `tab` | the checkout's default tab (`ln` / `cashu`) |
 | `lastError` | why the last payment attempt failed (e.g. a rejected token), if any |
-| `paid` | `via` = `lightning` / `cashu`; `sats` received after mint fees; `fee` = mint fee absorbed |
+| `paid` | `via` = `lightning` / `cashu` / a stablecoin rail (`tron-usdt`, `base-usdc`, `solana-usdc`, …); `sats` received after mint fees; `fee` = mint fee absorbed. Stablecoins: `sats` 0, `amount` = USD received, `token`, `tx` |
 | `apiKey` | key orders, once `PAID` and the key is created. `baseUrl` is the endpoint to use |
 | `keyError` | key orders: why creating the key failed so far; key top-ups: why adding the money failed so far (both retried with backoff) |
 | `topups` | key orders: paid top-ups of this key, `[{at, money, fiat, applied, needsRefund, auto}]` (`auto`: made by auto top-up) |
@@ -169,7 +168,9 @@ order's invoice is checked first.
 | `topup` | key top-ups: `{key: "sk-…a1b2", applied?: {at, remaining}, needsRefund}`. `applied.remaining` = the key's balance right after (in `fiat`). `needsRefund` is true if the key was deleted before the money could be added: the operator refunds by hand |
 | `bonus` | key shop orders: extra quota in percent of `money` (the key gets `money × (1 + bonus/100)`), absent if none |
 | `kind` | `key` for key orders, `keytopup` for key top-ups; absent for account top-up orders (`CE…` ids) |
-| `returnUrl` | account top-up orders: where to send the customer back after payment (signed) |
+| `returnUrl` | account top-up orders: where to send the customer back after payment (signed). Empty for a held order (below) |
+| `rails` | stablecoin networks on offer, `[{id, token, net}]` (e.g. `{"id":"tron-usdt","token":"USDT","net":"Tron (TRC-20)"}`); empty when the shop takes none |
+| `stable` | once a network was picked: `{quotes: [{rail, amount, address, token, net, need}], seen?: {rail, tx, amount, confirmations, need}, received?, lacks?, payments: [{rail, amount, tx, url}], ratio?, overpaid?, hold}`. `amount` (USD, = USDT/USDC) is exact; `need` = confirmations (1 = final on Solana); `seen` = a transfer still confirming; `lacks` = what a part-paid open order still needs; `ratio` = share of the credit a key order paid short gets; `hold` = an account top-up paid short, waiting for a human |
 
 Fields that don't apply are omitted (here: `invoice`, `lastError`, `keyError`). An `EXPIRED` order whose invoice is paid within 24 hours still becomes `PAID`.
 
@@ -183,6 +184,17 @@ if the order expired before an invoice was created.
 ### `GET /api/order/:id/qr.svg`
 
 QR code (SVG) of `lightning:<INVOICE>`. 404 until an invoice exists.
+
+### `POST /api/order/:id/stable`
+
+Pick a stablecoin network: `{"rail": "tron-usdt"}`. Returns the order with `stable.quotes` holding our address on
+that network and the exact amount: `money` × USD per `fiat` (locked by the order's first pick), rounded up to the
+cent, plus 0.01 per other order already waiting on that network with the same amount. Idempotent per network; the
+buyer can pick several. 400 `unknown network`, `order expired`, `order is paid`.
+
+### `GET /api/order/:id/stable.svg?rail=…`
+
+QR code (SVG) of the plain address for that network (the amount is shown next to it). 404 before it was picked.
 
 ### `POST /api/order/:id/token`
 
@@ -217,7 +229,7 @@ IPs or channels.
   "fiat": "eur",
   "totalCalls": 3,
   "calls": [
-    { "time": 1790928700, "model": "deepseek-v4-flash", "promptTokens": 812, "completionTokens": 240,
+    { "time": 1790928700, "model": "deepseek-flash", "promptTokens": 812, "completionTokens": 240,
       "cost": 0.0041, "seconds": 2 }
   ]
 }
@@ -251,6 +263,11 @@ Both need `?key=<ADMIN_KEY>`; a wrong key gets `403 forbidden`.
 spend, `available` = the difference, `pending` = open orders that may still become keys or top-ups; the shop sells
 an amount only while `amount + reserve ≤ available − pending`, and logs a warning when `available < alert`.
 Absent if new-api didn't answer within 5 seconds. Top-ups with `topup.needsRefund` are listed on the admin page for a manual refund.
+`methods` = the last 14 days per payment method, `[{via, picked, paid, money}]` (`picked` = an invoice or a network
+quote was made; Cashu leaves no trace before it pays). `stable` (when stablecoins are on): `{lateHours, rails: [{id,
+net, token, address, confirmations, explorer, rpcHost, lastScan, lastError, failures}], unmatched: [{rail, tx, units,
+decimals, at, from}]}` (no RPC URLs: they may hold a provider key). Orders carry their `stable` record; the page
+lists held, overpaid and unmatched ones under **Needs a human**.
 
 ### `POST /admin/withdraw?key=…`
 
@@ -277,3 +294,17 @@ the same request with a different amount is rejected) and answers `302 /pay/<id>
 
 After payment the gateway calls `notify_url` with signed parameters (`trade_status=TRADE_SUCCESS`) until it
 answers `success`, backing off from 5 s to 10 min between attempts.
+
+An order with `bitcoinEnabled` accepts `POST /api/order/:id/bitcoin` to allocate
+its receiving address and return the updated public order. Retrying an open
+order returns the same address. `GET /api/order/:id/bitcoin.svg` encodes the
+address and exact BTC amount. Poll the existing order endpoint for
+`bitcoin.received` (sats), `confirmations`, `need`, `review` and the normal
+paid/key/top-up result. A browser-reported transaction never authorizes credit.
+
+
+A cross-currency order stores `purchase.currency`, `purchase.amount` and
+`purchase.accountRate`. Its existing `money` and `fiat` fields remain account
+units, so quota issuance, pool reservations, stablecoin conversion and refunds
+use the same locked principal. Historical orders retain their stored amounts
+and bonuses. Existing callers may still submit 2 or 5 without a currency field.

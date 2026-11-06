@@ -8,9 +8,9 @@ on their own domain; replace the URL below with theirs.
 
 ## 1. Pick an amount
 
-Open the shop and choose **1, 2, 5 or 10** in the shop's currency (e.g. €1–€10). The price in sats is fixed the moment you click
+Open the shop and choose **1, 10, 100 or 500** in EUR, USD or CNY (EUR by default). The price in sats is fixed the moment you click
 (spot price, rounded up) and the order is valid for **30 minutes**. Larger amounts come with a bonus, shown on the
-button (e.g. €5 +5%, €10 +10%): the key holds that much more, at no extra cost. The same bonus applies to top-ups.
+button (10 +5%, 100/500 +10%; 1 has no bonus): the key holds that much more, at no extra cost. The same bonus applies to top-ups.
 
 The bottom of the page lists every model the key can call, with its price per 1M input /
 output tokens. Tick a few models to see roughly how many tokens or chat calls each amount buys.
@@ -22,7 +22,7 @@ You land on the checkout page, `/pay/CK…`.
 
 ## 2. Pay
 
-The checkout has two tabs.
+The checkout has two tabs, three if the shop takes stablecoins.
 
 ### ⚡ Lightning
 
@@ -41,6 +41,23 @@ any wallet can do that). Either:
 The token must be worth at least the order amount. **Change is not returned**: send the exact amount
 (the page shows it), or the extra stays with the shop.
 
+### 💵 USDT / USDC
+
+Shown only when the shop has turned it on. Pick the network you send from (for example **USDT on Tron (TRC-20)**,
+**USDC on Base**, **USDC on Solana**); the page then shows our address there (QR + **Copy**) and an exact amount, e.g.
+`5.42 USDT`. The order's euro price is converted at the EUR/USD rate of the moment you pick the network.
+
+- **Only that coin on that network.** The same address on another network, or another token, does not reach the
+  order. We can only return such a transfer by hand, if at all.
+- **Send exactly the amount shown.** Its cents tell your transfer apart from other buyers' (everyone sends to the
+  same address). If your exchange takes its withdrawal fee out of the amount, add the fee on top.
+- The order is paid once the transfer has enough confirmations (about a minute on Tron, final on Solana); the page
+  shows "seen, n/m confirmations" until then. Like ⚡, a transfer that lands after the timer ran out still counts
+  (within a day).
+- Sent too little? The page says what is missing; send the rest to the same address before the timer runs out.
+  After that a key is made for what arrived (e.g. 74% of the order → 74% of the credit). Sent too much? You get the
+  full order; contact us for the difference, with the page's link (keep it private).
+
 ## 3. Use the key
 
 The paid page shows the key, the endpoint (e.g. `https://sats4tokens.bhbtc.xyz/v1`) and
@@ -58,7 +75,7 @@ export OPENAI_API_KEY=sk-...
 ```sh
 curl https://sats4tokens.bhbtc.xyz/v1/chat/completions \
   -H "Authorization: Bearer sk-..." -H "Content-Type: application/json" \
-  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hello"}]}'
+  -d '{"model":"deepseek-flash","messages":[{"role":"user","content":"hello"}]}'
 ```
 
 **Python (OpenAI SDK)**:
@@ -67,7 +84,7 @@ curl https://sats4tokens.bhbtc.xyz/v1/chat/completions \
 from openai import OpenAI
 
 client = OpenAI(base_url="https://sats4tokens.bhbtc.xyz/v1", api_key="sk-...")
-r = client.chat.completions.create(model="deepseek-v4-flash",
+r = client.chat.completions.create(model="deepseek-flash",
                                    messages=[{"role": "user", "content": "hello"}])
 print(r.choices[0].message.content)
 ```
@@ -95,8 +112,7 @@ When less than 10% is left, the key page says so; once it is used up, calls fail
 
 ## 5. Top up the key
 
-No need to buy a new key: under the usage on the key page, **Top up this key** has the same amounts (€1, €2,
-€5, €10). Pick one and you get a normal checkout for it; pay with ⚡ or 🥜 as before. Once it is paid the money is
+No need to buy a new key: under the usage on the key page, **Top up this key** has the same amounts (1, 10, 100, 500) and a currency selector. Pick one and you get a normal checkout for it; pay with ⚡ or 🥜 as before. Once it is paid the money is
 added to the same key, so nothing in your app or Claude Code changes (a key that was used up works again). The
 key page lists your top-ups.
 
@@ -147,3 +163,9 @@ it). If you still have the key itself, it keeps working.
 
 **Is it private?** The shop learns nothing about you beyond the payment. With Cashu the mint signs blinded
 messages and can't link your wallet to the shop. The relay sees your API calls like any API provider does.
+
+## Need help?
+
+- DM **[@sats4tokens](https://x.com/sats4tokens)** on X — the fastest way for payment problems.
+- Open an issue on [GitHub](https://github.com/beihaili/sats4tokens/issues) for bugs or anything public.
+- Keep your `/pay/…` link and any key in the message private: anyone with them can spend the balance.

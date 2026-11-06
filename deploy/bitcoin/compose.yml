@@ -1,0 +1,23 @@
+name: sats4tokens-bitcoin
+services:
+  bitcoin:
+    build: .
+    image: sats4tokens-bitcoin:32.1
+    restart: unless-stopped
+    init: true
+    mem_limit: 1g
+    cpus: 0.5
+    pids_limit: 128
+    stop_grace_period: 2m
+    volumes:
+      - ./data:/data
+    networks:
+      - bitcoin
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+networks:
+  bitcoin:
+    name: sats4tokens-bitcoin

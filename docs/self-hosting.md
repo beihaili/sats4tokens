@@ -48,8 +48,9 @@ customer ──► reverse proxy ──┬── /v1/*  ──► new-api :3000 
 | `NEWAPI_TOKEN` | key shop | pool user's system access token |
 | `POOL_RESERVE` | | key shop: keep this much (in `FIAT`) of the pool user's quota unsold; an amount is offered only while it fits, default `10` |
 | `POOL_ALERT` | | key shop: log a warning (at most hourly) when the pool can sell less than this, default `30` |
-| `USD_PER_FIAT` | | fixed USD per 1 `FIAT` for the homepage price check (offline tests); otherwise from mempool.space |
-| `KEY_BONUS` | | key shop: bonus quota for larger amounts, `amount:percent` pairs, e.g. `5:5,10:10` (€5 → €5.25, €10 → €11). Keys, top-ups and auto top-ups, ⚡ and 🥜 alike; default none |
+| `USD_PER_FIAT` | | fixed USD per 1 `FIAT` for the homepage price check and stablecoin amounts (offline tests); otherwise frankfurter.app (ECB) → Coinbase → mempool.space, 10 min cache |
+| `STABLE_ADDR_TRON` / `STABLE_ADDR_EVM` / `STABLE_ADDR_SOL` | | USDT/USDC receiving addresses (see [Stablecoins](#stablecoins-usdt--usdc-optional)); a network without one is off |
+| `KEY_BONUS` | | Legacy 2/5 API and existing NWC bonus configuration. Manual offers use 1/10/100/500 with 0/5/10/10 percent. |
 | `AUTO_TOPUP_EVERY_S` | | key shop: how often keys with auto top-up (Nostr Wallet Connect) get their balance checked, default `60` |
 | `KEY_BASE_URL` | | endpoint shown with each key, e.g. `https://shop.example.com/v1` (default: new-api's server address + `/v1`) |
 | `FIAT` | key shop | order currency, e.g. `eur`; must be the currency of new-api's top-up price `Price` (below); default `cny` |
@@ -144,6 +145,36 @@ before you sell. Don't expose `/admin` publicly beyond what's needed: it only an
 Behind a CDN: the gateway sends `cache-control: no-cache` for static files, but some CDNs (Cloudflare) rewrite
 the browser TTL. After changing anything in `web/`, bump the `?v=` query in the HTML so browsers fetch the new file.
 
+## Stablecoins: USDT / USDC (optional)
+
+The checkout gets a third tab when at least one receiving address is set. **Watch only**: the gateway knows public
+addresses and reads the chains; the keys stay in your own wallet, so a broken-into server can't move the money.
+
+| env | default | meaning |
+|---|---|---|
+| `STABLE_ADDR_TRON` | | Tron address (`T…`) → rail `tron-usdt` (USDT TRC-20) |
+| `STABLE_ADDR_EVM` | | one `0x…` address for every EVM chain → `base-usdc` (+ chains in `STABLE_EVM_CHAINS`) |
+| `STABLE_ADDR_SOL` | | Solana **wallet** address → `solana-usdc`, `solana-usdt` (we watch its associated token accounts) |
+| `STABLE_TRON_RPC` | `https://api.trongrid.io` | TronGrid-compatible API |
+| `STABLE_TRON_API_KEY` | | TronGrid key (sent as `TRON-PRO-API-KEY`); free, and the keyless limits are low |
+| `STABLE_BASE_RPC` | `https://mainnet.base.org` | Base JSON-RPC. The public one refuses many `eth_getLogs` calls: use a provider URL (key in the URL). A free-tier provider may cap `eth_getLogs` at a few blocks (one we tried: 10): then set `"maxRange"` in `STABLE_EVM_CHAINS` (`[{"id":"base","maxRange":10}]`); a pass reads up to 5 ranges, which keeps up with Base's 2 s blocks |
+| `STABLE_SOL_RPC` | `https://api.mainnet-beta.solana.com` | Solana JSON-RPC (rate-limited; a provider URL with key is better) |
+| `STABLE_<NET>_CONFIRMATIONS` | Tron `19`, Base `30` | blocks, the transfer's own included. Solana waits for `finalized` |
+| `STABLE_EVM_CHAINS` | | JSON list of more EVM chains (or overrides of `base`): `[{"id":"arbitrum","name":"Arbitrum","rpc":"https://…","confirmations":20,"blockTime":0.25,"explorer":"https://arbiscan.io/tx/","tokens":{"USDC":"0x…"}}]`; a token may be `{"contract":"0x…","decimals":18}`. Each chain also reads `STABLE_<ID>_RPC` / `_CONFIRMATIONS` |
+| `STABLE_RAILS` | all | allow-list, e.g. `tron-usdt,base-usdc,solana-usdc` |
+| `STABLE_LATE_HOURS` | `24` | a transfer that lands this long after its order expired still pays it (as a late Lightning invoice) |
+
+On EVM networks, the watcher checks block timestamps before skipping older blocks. It resumes a backlog on each watcher tick until it catches up. The configured block time is only a lookup hint.
+
+The gateway refuses to start on a malformed address (bad Tron checksum, bad EIP-55 checksum, a Solana token account
+instead of the wallet). Check the addresses the admin page shows against your wallet before going live, then pay a
+small order yourself on each network.
+
+How transfers are matched to orders (one address, no memo: the amount's cents tell orders apart), and what happens
+when someone pays too little, too much or on the wrong network: [how it works](how-it-works.md#usdt--usdc). The
+admin page lists everything that needs a human: console top-ups paid short (**held**, not credited), overpayments,
+and transfers no order could claim (**unmatched**). Refunds are manual, from your own wallet.
+
 ## Money: seed, data directory, mints
 
 `DATA_DIR` holds `seed.hex` (the wallet seed), `ledger.json` (orders and the ecash proofs you own) and
@@ -218,3 +249,52 @@ npm run edge-checks                  # end-to-end against testnut (~40 s)
 
 On testnut, invoices are paid automatically by the mint about 2 s after they are created, so opening the ⚡ tab
 pays the order. If you point a local gateway at a real new-api with the key shop on, delete the test keys it creates.
+
+### Bitcoin on-chain checkout
+
+Set `BTC_RPC_URL` to a private Bitcoin Core wallet RPC endpoint ending in
+`/wallet/<wallet-name>`, plus `BTC_RPC_USER` and `BTC_RPC_PASSWORD`. Use a
+dedicated, synced mainnet descriptor wallet with an active receiving descriptor
+and a backed-up signing wallet. A watch-only receiving wallet suffices. Restrict
+the gateway RPC account to getnewaddress, listreceivedbyaddress, gettransaction, getblockchaininfo and getwalletinfo.
+Use a local socket tunnel or protected network for HTTP Basic authentication.
+
+The on-chain tab is enabled only with wallet configuration and orders of at
+least 330 sats. Each order gets one native SegWit address. The default is three
+confirmations; set BTC_CONFIRMATIONS to a positive integer to change the threshold
+for new addresses. The watcher reconciles wallet receipts every 15 seconds, even
+when the customer closes checkout. Confirmation after expiry is accepted when the
+node first saw the full payment before expiry. Late, underpaid, overpaid and
+cross-method receipts require operator reconciliation. Inspect bitcoin.review in
+the authenticated admin order data. Bitcoin funds remain in the wallet.
+
+
+Manual currency conversion uses independent cached USD cross rates. For offline
+testing, USD_PER_EUR and USD_PER_CNY provide explicit rates. USD_PER_FIAT applies
+only to the account currency. Keep FIAT aligned with the upstream account unit.
+The deployment compose file forwards the four BTC wallet settings. Existing
+auto top-up amounts and daily caps continue in account currency.
+
+For a validated Taproot receiving descriptor, set BTC_ADDRESS_TYPE=bech32m.
+The gateway refuses new addresses or settlement while the node is synchronizing,
+the tip is more than two hours old, a rescan is running, or the wallet is blank
+or contains private keys. Readiness needs getblockchaininfo and getwalletinfo RPC access.
+
+### Multiple relay accounts
+
+One gateway ledger can serve several merchants. Keep the existing `EPAY_PID` / `EPAY_KEY`
+as the primary merchant. `EPAY_MERCHANTS` is a JSON array of additional merchants:
+`[{"pid":"1002","key":"<independent secret of at least 32 characters>","fiat":"cny","notifyUrl":"https://relay.example/api/user/epay/notify","returnUrl":"https://relay.example/usage-logs"}]`.
+Do not commit this value. Extra merchants require exact HTTPS callback and return URLs.
+`EPAY_NOTIFY_URL` / `EPAY_RETURN_URL` optionally pin the primary merchant endpoints too.
+Order idempotency is scoped by merchant id; callbacks use that merchant's key. BTC quotes
+and stablecoin FX use the order's currency. All merchants share transfer deduplication and
+unique pending amounts in one ledger: do not run independent watchers on the same addresses.
+
+For relay top-ups configure payment types `lightning` and `usdc`. These orders offer only
+Lightning and native USDC on Base/Solana; Cashu, Bitcoin on-chain and other stablecoin rails
+are rejected by the server as well as hidden in checkout. The legacy `bitcoin` method and
+key shop keep their existing payment options. Keep old merchant keys until all callbacks finish.
+`STABLE_BASE_FINALIZED=1` requires the Base RPC finalized block in addition to confirmation
+depth; if unavailable, no transfer is credited. This can take about 20 minutes. Solana waits
+for finalized signatures. Verify production RPC support before enabling.
