@@ -21,7 +21,9 @@
       background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; margin-right: .4em; }
     .claim .row { display: flex; gap: 8px; align-items: center; }
     .claim .row input { flex: 1; min-width: 0; }
-    .claim #error { margin: 10px 0 0; }
+    .claim #error, .claim #wallet-msg { margin: 10px 0 0; }
+    .claim #unisat-btn { margin-top: 4px; }
+    .claim .or { margin: 14px 0 6px; }
   </style>
 </head>
 <body>
@@ -35,6 +37,9 @@
 
     <section id="s1" class="card" hidden>
       <h2><span class="step-n">1</span>Your bitcoin address</h2>
+      <button id="unisat-btn" class="primary">Connect UniSat and sign</button>
+      <p id="wallet-msg" class="bad" hidden></p>
+      <p class="hint or">Or type an address and sign the message in any wallet:</p>
       <div class="row">
         <input id="addr" placeholder="bc1q…, bc1p…, 1… or 3…" autocomplete="off" autocapitalize="off" spellcheck="false">
         <button id="get">Get message</button>
@@ -73,6 +78,6 @@
     </section>
     <p class="hint"><a href="/">← Buy a key with sats instead</a></p>
   </main>
-  <script type="module" src="/claim.js?v=2"></script>
+  <script type="module" src="/claim.js?v=3"></script>
 </body>
 </html>
