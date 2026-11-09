@@ -25,6 +25,8 @@ async function rules() {
     return;
   }
   const btc = (r.minSats / 1e8).toLocaleString('en', { maximumFractionDigits: 8 });
+  // the threshold is the operator's setting (PROOF_MIN_SATS): the page never hard-codes it
+  $('#tagline').textContent = `Sign a message with an address that holds ${btc} BTC, get a free AI API key. No account, no KYC.`;
   $('#rules').innerHTML = `
     <ol class="steps">
       <li>An address that held at least <b>${btc} BTC</b> (${r.minSats.toLocaleString('en')} sat) at block
