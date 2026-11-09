@@ -25,6 +25,8 @@ async function rules() {
     return;
   }
   const btc = (r.minSats / 1e8).toLocaleString('en', { maximumFractionDigits: 8 });
+  // the threshold is the operator's setting (PROOF_MIN_SATS): the page never hard-codes it
+  $('#tagline').textContent = `Sign a message with an address that holds ${btc} BTC, get a free AI API key. No account, no KYC.`;
   $('#rules').innerHTML = `
     <ol class="steps">
       <li>An address that held at least <b>${btc} BTC</b> (${r.minSats.toLocaleString('en')} sat) at block
@@ -36,7 +38,8 @@ async function rules() {
   else $('#rules').insertAdjacentHTML('beforeend', `<p class="bad">${r.left ? 'Today\'s keys are gone: come back tomorrow.' : 'All trial keys are gone.'}</p>`);
 }
 
-$('#get').onclick = async () => {
+/** Message to sign for the address in the box; true if we got one (else the error is shown). */
+async function getChallenge() {
   say('');
   $('#get').disabled = true;
   try {
@@ -46,11 +49,50 @@ $('#get').onclick = async () => {
     $('#exp').textContent = 'valid until ' + new Date(issued.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     $('#s2').hidden = false;
     $('#s2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return true;
   } catch (e) {
+    issued = undefined;
     $('#s2').hidden = false;
     say(e.message);
+    return false;
   } finally {
     $('#get').disabled = false;
+  }
+}
+$('#get').onclick = () => void getChallenge();
+
+// ---- UniSat (browser extension / its app's browser): address → our message → wallet signs → claim, in one click.
+// bc1q / bc1p sign BIP-322 simple (the only proof a Taproot address can give); 1… / 3… sign the classic
+// "Bitcoin Signed Message" (BIP-137). The gateway accepts both, so nothing here is trusted: it re-checks everything.
+const walletSay = (html, bad = true) => {
+  $('#wallet-msg').innerHTML = html;
+  $('#wallet-msg').className = bad ? 'bad' : 'hint';
+  $('#wallet-msg').hidden = !html;
+};
+$('#unisat-btn').onclick = async () => {
+  walletSay('');
+  const w = window.unisat; // injected by the extension (or UniSat's in-app browser)
+  if (typeof w?.requestAccounts !== 'function' || typeof w?.signMessage !== 'function') {
+    return walletSay('UniSat isn\'t installed in this browser. <a href="https://unisat.io/download" target="_blank" rel="noopener">Get UniSat</a>, or sign by hand below.');
+  }
+  const btn = $('#unisat-btn');
+  btn.disabled = true;
+  try {
+    btn.textContent = 'Connecting to UniSat…';
+    const [address] = await w.requestAccounts();
+    if (!address) throw new Error('UniSat didn\'t share an address.');
+    $('#addr').value = address;
+    if (!(await getChallenge())) return;
+    btn.textContent = 'Sign the message in UniSat…';
+    const type = /^bc1[qp]/i.test(address) ? 'bip322-simple' : 'ecdsa';
+    $('#sig').value = await w.signMessage(issued.message, type);
+    btn.textContent = 'Checking…';
+    await claim();
+  } catch (e) {
+    walletSay(e?.code === 4001 ? 'You cancelled in UniSat.' : (e?.message || String(e)).replace(/</g, '&lt;'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Connect UniSat and sign';
   }
 };
 $('#addr').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#get').click(); });
@@ -68,7 +110,8 @@ $('#copy-msg').onclick = async () => {
   setTimeout(() => ($('#copy-msg').textContent = 'Copy message'), 1500);
 };
 
-$('#claim').onclick = async () => {
+$('#claim').onclick = () => void claim();
+async function claim() {
   say('');
   if (!issued || !$('#msg').value) return say('Get a message for this address first (step 1).');
   if (!$('#sig').value.trim()) return say('Paste the signature from your wallet.');
@@ -82,6 +125,6 @@ $('#claim').onclick = async () => {
     $('#claim').disabled = false;
     $('#claim').textContent = 'Get my trial key';
   }
-};
+}
 
 void rules();

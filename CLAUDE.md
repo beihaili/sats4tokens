@@ -148,7 +148,11 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   (one lookup at a time) → `heldSince(snapshot)` ≥ min → `makeKey` under `submitSerial` (pool `fits`, limits re-checked,
   order PAID `via:'proof'` sats 0, `ref = proof-<ref>`, claim pushed, one save) → the notify loop makes the key as usual.
   `LedgerData.proof {secret, claims: [{tag, at}]}`: tag = HMAC(secret, address), never the address. Checkout shows
-  "Free trial". Tests `test/btcproof.test.ts` (12). Local check: `proof-local` in `../.claude/launch.json` =
+  "Free trial". The page's tagline takes the threshold from `/api/proof`. **UniSat button** (`#unisat-btn`; never id
+  `unisat`: a named element would shadow `window.unisat`): `requestAccounts` → challenge → `signMessage(msg,
+  'bip322-simple')` for bc1q/bc1p, `'ecdsa'` (BIP-137) for 1…/3… → claim; code 4001 = "You cancelled". No wallet
+  library on the page; the gateway re-checks everything. `scripts/fake-proof.mjs` `/wallet` plays UniSat locally (both
+  signature types; snippet in its header). Tests `test/btcproof.test.ts` (12). Local check: `proof-local` in `../.claude/launch.json` =
   `scripts/fake-proof.mjs` (fake new-api + explorer) + gateway on :8097; sign challenges with `scripts/proof-signer.ts
   sign 1 <message>` (deterministic throwaway keys, wallet 1 eligible, 2 got its coins after the snapshot). Verified
   2026-11-08 in the browser: wrong key → 400, right key → /pay/ shows the key, repeat → 409, late coins → 403, P2WSH → 400.
