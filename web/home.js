@@ -127,6 +127,7 @@ async function loadQuote() {
     if (cur !== state.currency) return; // a newer currency switch won
     if (!r.ok) throw new Error(q.error);
     quote = q;
+    if (q.support) { $('#support a').href = q.support; $('#support').hidden = false; }
     if (q.bitcoinEnabled) $('#methods').textContent = 'Lightning, Cashu ecash or on-chain BTC';
     const ok = q.enabled ? q.amounts : [];
     // keep the buyer's amount when it still exists in this currency, else the smallest one on sale

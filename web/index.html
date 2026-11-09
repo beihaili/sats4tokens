@@ -18,7 +18,7 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Sats4Tokens: pay from €1 in bitcoin, get a capped API key, use any model">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="/style.css?v=ux-20261108">
+  <link rel="stylesheet" href="/style.css?v=support-20261109">
 </head>
 <body class="home">
   <main class="checkout">
@@ -147,6 +147,7 @@
         <li><b>For bots and agents:</b> buy, pay and fetch the key over plain HTTP, see the <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/api.md">API</a>.</li>
       </ul>
     </section>
+    <p id="support" class="hint support" hidden>Questions? <a target="_blank" rel="noopener">Ask us on Telegram</a></p>
   </main>
   <!-- pinned order bar: always shows what you are buying and the button to pay for it -->
   <div id="bar" class="paybar" hidden>
@@ -154,7 +155,7 @@
     <button id="bar-btn" type="button" class="primary">Pay →</button>
   </div>
   <script type="module">
-    import { mountHome } from '/home.js?v=1';
+    import { mountHome } from '/home.js?v=2';
     const $ = (s) => document.querySelector(s);
     // funnel: which post brought this visitor (?ref=x, kept for this browser's later purchases), one beacon per load
     let ref = new URLSearchParams(location.search).get('ref') || '';

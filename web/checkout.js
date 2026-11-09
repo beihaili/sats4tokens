@@ -11,6 +11,7 @@ let payError = '';
 let redirectTimer = 0;
 
 function render(o) {
+  renderSupport(o);
   if (o.state === 'PAID' || o.state === 'EXPIRED') stopScan(); // the pay card is hidden from here on
   $('#order').innerHTML = `
     <div class="muted">${esc(o.name)} · order <span class="mono">${esc(o.kind ? o.id.slice(0, 10) + '…' : o.id)}</span></div>
@@ -209,6 +210,18 @@ $('#copy-amount').addEventListener('click', () => {
   document.body.append(box);
   copyBox(box).finally(() => box.remove());
 });
+
+// The operator's help channel (SUPPORT_URL on the gateway), worded for where the buyer is. Every "contact us" on this
+// page points here.
+function renderSupport(o) {
+  const p = $('#support');
+  p.hidden = !o.support;
+  if (!o.support) return;
+  p.querySelector('a').href = o.support;
+  p.querySelector('span').textContent = o.state === 'EXPIRED' ? "Payment didn't go through? We'll help you finish it:"
+    : o.state === 'PAID' ? 'Questions, or trouble topping up?'
+    : 'Payment not going through? Try another tab above, or';
+}
 
 /** "1,234 sat received via lightning." or "5.42 USDT received on Tron (TRC-20)." plus what a stablecoin payment's size meant. */
 function paidText(o) {

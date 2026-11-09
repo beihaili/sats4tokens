@@ -144,6 +144,7 @@ services:
       STABLE_EVM_CHAINS: "${STABLE_EVM_CHAINS:-}"
       STABLE_RAILS: "${STABLE_RAILS:-}"
       STABLE_LATE_HOURS: "${STABLE_LATE_HOURS:-24}"
+      SUPPORT_URL: "${SUPPORT_URL:-}" # help link on the checkout, key and home pages (e.g. a Telegram group); empty = none
       # Node's happy-eyeballs gives each connect attempt 250ms; Minibits is ~265ms RTT from this VPS → ETIMEDOUT
       NODE_OPTIONS: "--network-family-autoselection-attempt-timeout=2000"
     networks: [demo]
