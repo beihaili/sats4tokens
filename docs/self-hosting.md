@@ -233,8 +233,8 @@ a Bitcoin button on new-api's top-up page. In new-api → payment settings:
 new-api redirects the customer to the gateway's `/submit.php` with a signed form; the customer pays on the same
 checkout page; the gateway then calls new-api's signed callback until new-api confirms. new-api charges
 `units × Price` for a top-up and only accepts whole units, so set `Price` in the gateway's `FIAT`: e.g. with
-model prices in CNY (1 unit = ¥1) and `FIAT=eur`, `Price` = 0.1333 (€1 = ¥7.5). The key shop uses the same
-`Price` (a €1 key holds 7.5 units), so a key costs what the same top-up would. To show prices in that currency
+model prices in USD (1 unit = $1) and `FIAT=eur`, `Price` = 0.9 (€0.90 per unit). The key shop uses the same
+`Price` (a €1 key holds about 1.1 units), so a key costs what the same top-up would. To show prices in that currency
 in new-api too, set its display to custom with the symbol and the same rate.
 
 ## Operating
