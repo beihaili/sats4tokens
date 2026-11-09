@@ -307,3 +307,130 @@ h1 .sub { font-size: 18px; font-weight: 500; color: var(--muted); margin-left: .
 .chip.on { background: var(--fg); border-color: var(--fg); color: #fff; }
 .mbulk { display: flex; gap: 12px; margin-left: auto; }
 .mbulk .link { font-size: 13px; }
+
+/* ------------------------------------------------------------------ guided homepage (2026-11-08)
+   The buy flow reads top to bottom: 1 models → 2 amount → 3 app → 4 pay. Every step has a default, the selection is
+   always visible (orange outline + check), and a pinned bar keeps the Pay button on screen. */
+.home .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 28px; counter-reset: none; }
+.home .flow a { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; padding: 12px 12px 12px 10px;
+  border-radius: 12px; background: var(--card); border: 1px solid var(--line); color: var(--fg); text-decoration: none; transition: border-color .15s; }
+.home .flow a:hover { border-color: var(--accent); }
+.home .flow i { grid-row: 1 / 3; width: 28px; height: 28px; border-radius: 50%; background: var(--fg); color: #fff; font-style: normal;
+  font-weight: 800; font-size: 14px; display: grid; place-items: center; }
+.home .flow b { font-size: 15px; line-height: 1.25; }
+.home .flow span { color: var(--muted); font-size: 12.5px; line-height: 1.3; }
+.home .start { display: inline-block; margin-top: 16px; padding: 12px 22px; border-radius: 12px; background: var(--accent); color: #fff;
+  font-weight: 700; text-decoration: none; font-size: 17px; }
+.home .start:hover { background: #e2840f; }
+
+.home .step { margin-top: 44px; padding-top: 26px; border-top: 1px solid var(--line); scroll-margin-top: 12px; }
+.home .step h2 { font-size: 24px; letter-spacing: -.025em; margin: 2px 0 0; }
+.home .step .lede { font-size: 15.5px; margin-top: 6px; }
+.home .step-no { margin: 0; color: var(--accent); font-weight: 800; font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; }
+.home .step-head .auto-row { display: inline-block; margin-top: 10px; }
+.home .step-body { margin-top: 16px; }
+.home .step .hint { margin: 10px 0 0; }
+.home .next { display: inline-block; margin-top: 18px; color: var(--muted); font-size: 14px; font-weight: 600; text-decoration: none; }
+.home .next:hover { color: var(--accent); }
+
+/* step 1: model cards (toggle) */
+.home .picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 10px; }
+.home .pickcard { position: relative; display: grid; gap: 3px; align-content: start; text-align: left; padding: 12px 34px 12px 13px;
+  border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); font-size: 14px; line-height: 1.3; width: 100%; }
+.home .pickcard:hover { border-color: #b9bdc6; }
+.home .pickcard code { font: 600 14px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+.home .pickcard .pc-label { color: var(--fg); }
+.home .pickcard .pc-meta { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.home .pickcard .badge { margin-left: .4em; }
+.home .pc-check { position: absolute; top: 11px; right: 11px; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid #b9bdc6; }
+.home .pickcard.on { border-color: var(--accent); background: #fff8ef; box-shadow: 0 0 0 1px var(--accent) inset; }
+.home .pickcard.on .pc-check { background: var(--accent); border-color: var(--accent); }
+.home .pickcard.on .pc-check::after { content: ""; position: absolute; left: 5px; top: 1.5px; width: 4px; height: 9px; border: solid #fff;
+  border-width: 0 2.2px 2.2px 0; transform: rotate(45deg); }
+.home .allmodels { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.home .allmodels summary { cursor: pointer; padding: 12px 14px; font-weight: 600; font-size: 15px; }
+.home .allmodels[open] summary { border-bottom: 1px solid var(--line); }
+.home .allmodels .models { padding: 4px 14px 14px; }
+
+/* step 2: amount cards (select one) */
+.home .amountcards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.home .amountcard { display: grid; gap: 2px; align-content: start; text-align: left; padding: 13px 14px; border: 1.5px solid var(--line);
+  border-radius: 12px; background: var(--card); width: 100%; font-variant-numeric: tabular-nums; position: relative; }
+.home .amountcard:hover:not(:disabled) { border-color: #b9bdc6; }
+.home .amountcard b { font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+.home .amountcard em { position: absolute; top: 12px; right: 12px; font-style: normal; font-size: 12px; font-weight: 700; color: var(--save); }
+.home .amountcard small { color: var(--muted); font-size: 13px; }
+.home .amountcard .est { font-size: 13.5px; font-weight: 600; color: var(--fg); margin-top: 4px; min-height: 1.3em; }
+.home .amountcard.on { border-color: var(--accent); background: #fff8ef; box-shadow: 0 0 0 1px var(--accent) inset; }
+.home .amountcard:disabled { opacity: 1; color: var(--muted); border-style: dashed; background: transparent; }
+.home .amountcard:disabled .est { color: var(--muted); font-weight: 500; }
+.home #estimate { margin: 16px 0 0; padding: 0; border: 0; }
+.home #estimate:empty { display: none; }
+.home #estimate .hint { font-size: 12.5px; }
+
+/* step 3: where you use it (radio cards) + setup preview */
+.home .uses { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.home .usecard { display: grid; gap: 3px; align-content: start; text-align: left; padding: 12px 13px; border: 1.5px solid var(--line);
+  border-radius: 12px; background: var(--card); width: 100%; font-size: 13px; line-height: 1.35; }
+.home .usecard b { font-size: 15.5px; }
+.home .usecard span { color: var(--muted); }
+.home .usecard:hover { border-color: #b9bdc6; }
+.home .usecard.on { border-color: var(--accent); background: #fff8ef; box-shadow: 0 0 0 1px var(--accent) inset; }
+.home #use-warn { margin: 12px 0 0; font-size: 14px; }
+.home #setup { margin: 8px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #f7f8fa;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; white-space: pre; overflow-x: auto; }
+.home .setup-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.home .setup-row button { padding: 8px 18px; border-radius: 10px; font-size: 15px; background: var(--fg); color: #fff; border-color: var(--fg); }
+.home .setup-row .hint { margin: 0; flex: 1 1 260px; font-size: 13px; }
+.home .setup-row code, .home .after code { font-size: 12px; background: #eceef2; border-radius: 4px; padding: 0 4px; }
+
+/* step 4: summary + pay */
+.home .summary { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; padding: 14px 16px; border-radius: 12px;
+  background: var(--card); border: 1px solid var(--line); font-size: 15px; }
+.home .summary dt { color: var(--muted); }
+.home .summary dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.home .paybtn { margin-top: 14px; padding: 15px 20px; border-radius: 12px; font-size: 19px; font-weight: 700; }
+.home .paybtn:hover:not(:disabled) { background: #e2840f; }
+.home #pay-msg { margin: 10px 0 0; }
+.home .after { margin: 18px 0 0; padding-left: 1.3em; display: grid; gap: 8px; font-size: 15px; color: #3d4049; }
+.home .after b { color: var(--fg); }
+.home .step a:not(.next) { color: var(--fg); text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 2px; }
+
+/* the pinned order bar */
+.paybar { position: fixed; z-index: 10; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(640px, calc(100% - 20px));
+  display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 16px; border-radius: 14px; background: var(--fg); color: #fff;
+  box-shadow: 0 8px 28px #0003; }
+.paybar .bar-text { display: grid; min-width: 0; line-height: 1.3; }
+.paybar .bar-text b { font-size: 16px; }
+.paybar .bar-text span { font-size: 12.5px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.paybar .primary { width: auto; margin: 0 0 0 auto; padding: 11px 18px; border-radius: 10px; font-weight: 700; white-space: nowrap; flex: none; }
+.home { padding-bottom: 72px; }
+
+@media (max-width: 720px) {
+  .home .flow { grid-template-columns: 1fr 1fr; }
+  .home .amountcards, .home .uses { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 400px) {
+  .home .picks { grid-template-columns: 1fr 1fr; }
+  .home .pickcard { padding: 10px 28px 10px 10px; }
+  .home .pickcard code { font-size: 12.5px; }
+  .home .pc-check { top: 9px; right: 8px; }
+  .home .amountcard b { font-size: 22px; }
+  .home .amountcard em { position: static; }
+}
+@media (min-width: 960px) {
+  .home .hero .flow, .home .hero .start { grid-column: 1 / -1; }
+  .home .hero .start { justify-self: start; }
+  .home .step { display: grid; grid-template-columns: minmax(220px, .5fr) minmax(0, 1.5fr); gap: 12px 48px; margin: 0; padding: 34px 0; }
+  .home .step-head { align-self: start; position: sticky; top: 16px; }
+  .home .step-body { margin: 0; }
+  .home .step h2 { font-size: 26px; letter-spacing: -.035em; }
+  .home .paybtn { max-width: 420px; }
+}
+
+/* key page: one setup tab per client */
+.setup-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 4px; }
+.setup-tabs button { padding: 8px 4px; font-size: 14px; }
+#setup { white-space: pre; overflow-x: auto; }
+@media (max-width: 420px) { .setup-tabs { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { .home #setup, #setup { white-space: pre-wrap; word-break: break-all; } }

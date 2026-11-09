@@ -18,7 +18,7 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Sats4Tokens: pay from €1 in bitcoin, get a capped API key, use any model">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="/style.css?v=ux-20261105">
+  <link rel="stylesheet" href="/style.css?v=ux-20261108">
 </head>
 <body class="home">
   <main class="checkout">
@@ -43,27 +43,89 @@
           <div class="pt now"><b id="tag-ours"></b><span>Sats4Tokens</span></div>
         </div>
       </div>
+      <!-- the whole purchase at a glance; each step below has a default, so a buyer can pay right away -->
+      <nav class="flow" aria-label="How buying works">
+        <a href="#s1"><i>1</i><b>Pick models</b><span>see prices</span></a>
+        <a href="#s2"><i>2</i><b>Choose an amount</b><span>from €1</span></a>
+        <a href="#s3"><i>3</i><b>Choose your app</b><span>Claude Code, Codex …</span></a>
+        <a href="#s4"><i>4</i><b>Pay &amp; paste</b><span>key in seconds</span></a>
+      </nav>
+      <a class="start" href="#s1">Get a key ↓</a>
     </section>
 
-    <section class="buy">
-      <h2>Buy a key</h2>
-      <p class="lede">One key works with every model below, through one OpenAI-compatible endpoint (and the Anthropic API for Claude Code).
-        It holds what you pay, plus a bonus on larger amounts.</p>
-      <label class="auto-row hint">Currency <select id="buy-currency" aria-label="Payment currency"><option value="eur">EUR €</option><option value="usd">USD $</option><option value="cny">CNY ¥</option></select></label>
-      <div id="amounts" class="amounts"></div>
-      <p id="err" class="hint" aria-live="polite" hidden></p>
-      <p class="hint">You pay on the next page, by Lightning invoice or Cashu token. Keep that page: it is your receipt and shows your key.</p>
+    <section id="s1" class="step">
+      <div class="step-head">
+        <p class="step-no">Step 1 of 4</p>
+        <h2>Which models do you want?</h2>
+        <p class="lede">One key works with all <span class="nmodels">59</span> models, so you can't pick wrong. Tick what you plan to use and step 2 shows how far each amount goes.</p>
+      </div>
+      <div class="step-body">
+        <div id="picks" class="picks"><p class="hint">Loading models…</p></div>
+        <p id="picks-note" class="hint"></p>
+        <details class="allmodels">
+          <summary>All <span class="nmodels">59</span> models &amp; prices</summary>
+          <section class="models">
+            <p class="hint"><span class="unit"></span> per 1M tokens. Tick any model to add it to your picks.
+              <span class="badge anthropic">Claude Code</span> = also speaks the Anthropic API. "fast ×2": service_tier fast/priority costs double.
+              <span class="badge">Claude Code only</span> = that route accepts Claude Code clients only.</p>
+            <div id="models"></div>
+          </section>
+        </details>
+        <a class="next" href="#s2">Next: choose an amount ↓</a>
+      </div>
     </section>
 
-    <section class="steps-wrap">
-      <h2>How it works</h2>
-      <ol class="steps">
-        <li><b>Pick an amount</b><span>€1 to €500. The key holds what you pay, plus up to 10% bonus.</span></li>
-        <li><b>Pay in bitcoin</b><span>Lightning or Cashu ecash. No account, no email, no KYC.</span></li>
-        <li><b>Copy your key</b><span>It works in Claude Code and any OpenAI-compatible app. That page stays your receipt.</span></li>
-      </ol>
+    <section id="s2" class="step">
+      <div class="step-head">
+        <p class="step-no">Step 2 of 4</p>
+        <h2>How much on the key?</h2>
+        <p class="lede">The key holds what you pay, plus a bonus on larger amounts. Start small: you can top up the same key later.</p>
+        <label class="auto-row hint">Currency <select id="buy-currency" aria-label="Payment currency"><option value="eur">EUR €</option><option value="usd">USD $</option><option value="cny">CNY ¥</option></select></label>
+      </div>
+      <div class="step-body">
+        <div id="amounts" class="amountcards" role="group" aria-label="Amount"></div>
+        <p id="amount-msg" class="hint" aria-live="polite" hidden></p>
+        <div id="estimate" class="calc"></div>
+        <a class="next" href="#s3">Next: choose your app ↓</a>
+      </div>
     </section>
 
+    <section id="s3" class="step">
+      <div class="step-head">
+        <p class="step-no">Step 3 of 4</p>
+        <h2>Where will you use it?</h2>
+        <p class="lede">This is the setup you'll paste after paying — your key page shows it again with your real key filled in.</p>
+      </div>
+      <div class="step-body">
+        <div id="uses" class="uses" role="radiogroup" aria-label="Where you will use the key"></div>
+        <p id="use-warn" class="warn" hidden></p>
+        <p id="setup-hint" class="hint"></p>
+        <textarea id="setup" rows="7" readonly spellcheck="false" aria-label="Setup preview"></textarea>
+        <div class="setup-row"><button id="setup-copy" type="button">Copy</button>
+          <span class="hint"><code>sk-your-key</code> becomes your key after payment. Base URL for anything else: <code>https://sats4tokens.bhbtc.xyz/v1</code></span></div>
+        <a class="next" href="#s4">Next: pay ↓</a>
+      </div>
+    </section>
+
+    <section id="s4" class="step">
+      <div class="step-head">
+        <p class="step-no">Step 4 of 4</p>
+        <h2>Pay, then paste</h2>
+        <p class="lede">No account, no email. The next page is your receipt and shows your key — keep it.</p>
+      </div>
+      <div class="step-body">
+        <dl id="summary" class="summary"></dl>
+        <button id="pay-btn" type="button" class="primary paybtn" disabled>Loading…</button>
+        <p id="pay-msg" class="bad" aria-live="polite" hidden></p>
+        <ol class="after">
+          <li><b>Pay</b> the invoice on the next page with any wallet: <span id="methods">Lightning or a Cashu ecash token</span>.</li>
+          <li><b>Your key appears</b> on that page seconds after payment. Bookmark it: it is your receipt, shows usage and lets you top up.</li>
+          <li><b>Copy the setup</b> from step 3, now with your real key, and paste it. Done.</li>
+        </ol>
+        <p class="hint">Stuck, or paid but no key? DM <a href="https://x.com/sats4tokens">@sats4tokens</a> or open a
+          <a href="https://github.com/beihaili/sats4tokens/issues">GitHub issue</a> — never post your order link publicly.</p>
+      </div>
+    </section>
 
     <section id="compare" class="card" hidden>
       <h2>Same models, fewer sats</h2>
@@ -73,20 +135,6 @@
       </table></div>
       <p class="hint" id="cmp-note"></p>
     </section>
-    <section class="quickstart">
-      <h2>Run Claude Code on it</h2>
-      <p class="lede">Buy a key, then paste this in a terminal (swap in your own key):</p>
-      <textarea id="cc-cmd" rows="7" readonly spellcheck="false">export ANTHROPIC_BASE_URL=https://sats4tokens.bhbtc.xyz
-export ANTHROPIC_AUTH_TOKEN=sk-your-key
-export ANTHROPIC_MODEL=claude-opus-4-8
-export CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096
-claude</textarea>
-      <button id="cc-copy" class="primary">Copy</button>
-      <p class="hint">Already use Claude Code? That is the whole setup. Any other OpenAI-compatible app uses
-        <code>https://sats4tokens.bhbtc.xyz/v1</code> — <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/user-guide.md">guide</a>.
-        Or <a href="/claude-code-bitcoin">watch the 12-second demo</a>.</p>
-    </section>
-
     <section class="about">
       <h2>Who runs this</h2>
       <p>Sats4Tokens is the bitcoin checkout of the BHBTC relay, an AI API relay (its regular console, with an account and
@@ -99,43 +147,27 @@ claude</textarea>
         <li><b>For bots and agents:</b> buy, pay and fetch the key over plain HTTP, see the <a href="https://github.com/beihaili/sats4tokens/blob/main/docs/api.md">API</a>.</li>
       </ul>
     </section>
-    <section class="card models">
-      <h2>Models &amp; prices</h2>
-      <p class="hint"><span class="unit"></span> per 1M tokens. One key works for every model below — search or filter, tick models to see what a key buys. <span class="badge anthropic">Claude Code</span> = also speaks the Anthropic API. "fast ×2": service_tier fast/priority costs double. <span class="badge">Claude Code only</span> = that route accepts Claude Code clients only.</p>
-      <div id="models"><p class="hint">Loading…</p></div>
-    </section>
   </main>
+  <!-- pinned order bar: always shows what you are buying and the button to pay for it -->
+  <div id="bar" class="paybar" hidden>
+    <div id="bar-text" class="bar-text"></div>
+    <button id="bar-btn" type="button" class="primary">Pay →</button>
+  </div>
   <script type="module">
-    import { renderModels } from '/models.js?v=9';
-    import { mountShop } from '/shop.js?v=2';
+    import { mountHome } from '/home.js?v=1';
     const $ = (s) => document.querySelector(s);
     // funnel: which post brought this visitor (?ref=x, kept for this browser's later purchases), one beacon per load
-    const ref = new URLSearchParams(location.search).get('ref') || localStorage.getItem('s4t-ref') || '';
-    if (ref) localStorage.setItem('s4t-ref', ref);
-    const first = !localStorage.getItem('s4t-seen');
-    localStorage.setItem('s4t-seen', '1');
+    let ref = new URLSearchParams(location.search).get('ref') || '';
+    let first = true;
+    try {
+      ref ||= localStorage.getItem('s4t-ref') || '';
+      if (ref) localStorage.setItem('s4t-ref', ref);
+      first = !localStorage.getItem('s4t-seen');
+      localStorage.setItem('s4t-seen', '1');
+    } catch {}
     fetch('/api/hit', { method: 'POST', body: JSON.stringify({ ref, first }), keepalive: true }).catch(() => {});
     void showCompare();
-    renderModels($('#models'), { calc: { amounts: ['1', '10', '100', '500'] } });
-    mountShop({ select: $('#buy-currency'), buttons: $('#amounts'), message: $('#err'), ref, onShop(shop) {
-      if (shop.bitcoinEnabled) {
-        $('.hero .lede').textContent = $('.hero .lede').textContent.replace('Lightning or Cashu', 'Lightning, Cashu or on-chain BTC');
-        $('.buy > p.hint:last-child').textContent = 'Choose your payment method on the next page. Keep that page: it is your receipt and shows your key.';
-      }
-    } });
-
-    // the quick-start command: copy it, confirm in place (clipboard is https-only, so keep a fallback)
-    $('#cc-copy').onclick = async (e) => {
-      const box = $('#cc-cmd');
-      try {
-        await navigator.clipboard.writeText(box.value);
-      } catch {
-        box.select();
-        document.execCommand('copy');
-      }
-      e.target.textContent = 'Copied ✓';
-      setTimeout(() => (e.target.textContent = 'Copy'), 1600);
-    };
+    void mountHome({ ref });
 
     // price check: ours live (EUR → USD at today's rate) next to list price and ppq.ai, both checked by hand
     async function showCompare() {
