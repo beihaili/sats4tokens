@@ -139,6 +139,19 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 … claude`. The output cap is required: new-api pre-reserves quota for
   max_tokens, and Claude Code's default asked for 1.26 units → 403 on a 1-unit key (then $1 = 1 unit; now €1 = 7.5
   units). One Claude Code turn ≈ 0.1 unit ≈ €0.013 (cache write).
+- **Trial keys for bitcoin holders** (code 2026-11-08, not deployed; `src/btcproof.ts`, `web/claim.html|js` at `/claim`):
+  off unless `PROOF_SNAPSHOT_HEIGHT` (+ `PROOF_MIN_SATS` 1e6, `PROOF_GRANT_USD` 1, `PROOF_MAX_CLAIMS` 50, `PROOF_PER_DAY` 20,
+  `PROOF_ESPLORA` mempool.space). `POST /api/proof/challenge {address}` → one-line message with an HMAC nonce + expiry
+  (stateless, 30 min); `POST /api/proof/claim` → `checkChallenge` → limits → `verifyMessage` (BIP-137 any header, the
+  recovered key matched as P2PKH / P2SH-P2WPKH / P2WPKH; BIP-322 simple P2WPKH + P2TR key path, sighashes hand-built
+  with @noble + @scure/base, checked against the BIP-322 vectors and bitcoinjs-message) → Esplora `/address/:a/utxo`
+  (one lookup at a time) → `heldSince(snapshot)` ≥ min → `makeKey` under `submitSerial` (pool `fits`, limits re-checked,
+  order PAID `via:'proof'` sats 0, `ref = proof-<ref>`, claim pushed, one save) → the notify loop makes the key as usual.
+  `LedgerData.proof {secret, claims: [{tag, at}]}`: tag = HMAC(secret, address), never the address. Checkout shows
+  "Free trial". Tests `test/btcproof.test.ts` (12). Local check: `proof-local` in `../.claude/launch.json` =
+  `scripts/fake-proof.mjs` (fake new-api + explorer) + gateway on :8097; sign challenges with `scripts/proof-signer.ts
+  sign 1 <message>` (deterministic throwaway keys, wallet 1 eligible, 2 got its coins after the snapshot). Verified
+  2026-11-08 in the browser: wrong key → 400, right key → /pay/ shows the key, repeat → 409, late coins → 403, P2WSH → 400.
 - **Upstream network** (`src/upstreams.ts`, `web/network.html|js`): `GET /network` page + `GET /api/network`.
   Sats4Tokens as one node, upstream providers (letters A, B, … = one per registrable domain, ordered by first channel
   id) and their channels (A1, A2, …) fanned out above it. `anonymize()` builds the snapshot from new-api channels +

@@ -116,6 +116,13 @@ services:
       KEY_BONUS: "${KEY_BONUS:-}"
       # how often keys with NWC auto top-up get their balance checked
       AUTO_TOPUP_EVERY_S: "${AUTO_TOPUP_EVERY_S:-60}"
+      # /claim trial keys for bitcoin holders (btcproof.ts); empty snapshot height = off
+      PROOF_SNAPSHOT_HEIGHT: "${PROOF_SNAPSHOT_HEIGHT:-}"
+      PROOF_MIN_SATS: "${PROOF_MIN_SATS:-1000000}"
+      PROOF_GRANT_USD: "${PROOF_GRANT_USD:-1}"
+      PROOF_MAX_CLAIMS: "${PROOF_MAX_CLAIMS:-50}"
+      PROOF_PER_DAY: "${PROOF_PER_DAY:-20}"
+      PROOF_ESPLORA: "${PROOF_ESPLORA:-https://mempool.space/api}"
       BTC_RPC_URL: "${BTC_RPC_URL:-}"
       BTC_RPC_USER: "${BTC_RPC_USER:-}"
       BTC_RPC_PASSWORD: "${BTC_RPC_PASSWORD:-}"

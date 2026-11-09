@@ -51,6 +51,7 @@ import { Funnel, cleanRef } from './funnel.ts';
 import { bitcoinFromEnv, recordBitcoin } from './bitcoin.ts';
 import { railsFromEnv } from './chain.ts';
 import { StableWatcher, publicStable, quoteStable } from './stable.ts';
+import { ProofDesk, Esplora, ClaimError, proofFromEnv } from './btcproof.ts';
 
 const PORT = Number(process.env.PORT ?? 8090);
 const PID = process.env.EPAY_PID ?? '1001';
@@ -93,6 +94,26 @@ const ledger = new Ledger(path.join(DATA_DIR, 'ledger.json'));
 const gw = await Gateway.open(ledger, MINT_URL, loadSeed(DATA_DIR));
 // homepage views per day and ref, joined with the ledger's orders on the admin page (written every minute)
 const funnel = new Funnel(path.join(DATA_DIR, 'funnel.json'));
+// Trial keys for bitcoin holders (optional, PROOF_SNAPSHOT_HEIGHT turns it on; needs the key shop): sign a message with
+// an address that held PROOF_MIN_SATS at the snapshot block and still does → one free key per address (btcproof.ts)
+const PROOF = proofFromEnv(process.env);
+const desk = PROOF && shop ? new ProofDesk({
+  settings: PROOF,
+  data: () => ledger.data,
+  save: () => ledger.save(),
+  esplora: new Esplora(PROOF.esplora),
+  now: () => Date.now(),
+  usdPerFiat: () => usdPerFiat(fiat()),
+  // same pool rule as a bought key; the order and its claim are saved in one write
+  makeKey: (money, commit) => submitSerial(async () => {
+    if (!fits(money, money, undefined, await poolLeft())) return 'trial keys are paused right now: try again later';
+    const order = makeKeyOrder(money, { fiat: fiat(), btcPrice: 0, now: Date.now(), ttlMs: TTL_MS });
+    commit(order);
+    ledger.data.orders.push(order);
+    ledger.save();
+    return order;
+  }),
+}) : undefined;
 
 // ------------------------------------------------------------------ helpers
 
@@ -310,12 +331,37 @@ async function autotopup(req: http.IncomingMessage, res: http.ServerResponse): P
   return view();
 }
 
+/**
+ * Trial keys for bitcoin holders: GET /api/proof (rules, keys left), POST /api/proof/challenge {address} → the message to
+ * sign, POST /api/proof/claim {address, message, signature, ref} → {id} of a paid key order (its /pay/ page shows the key).
+ * Addresses never reach the log or the ledger (only a keyed hash, to refuse a second claim).
+ */
+async function proof(req: http.IncomingMessage, res: http.ServerResponse, p: string): Promise<void> {
+  if (!desk) return send(res, p === '/api/proof' ? 200 : 404, p === '/api/proof' ? { enabled: false } : { error: 'trial keys are off' });
+  if (p === '/api/proof') return send(res, 200, desk.info());
+  if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
+  const b = JSON.parse((await readBody(req)) || '{}') as Record<string, unknown>;
+  try {
+    if (p === '/api/proof/challenge') return send(res, 200, desk.challenge(b.address));
+    if (p === '/api/proof/claim') {
+      const o = await desk.claim(b);
+      console.log(`🎁 ${o.id.slice(0, 10)}…: trial key for a bitcoin holder (${desk.info().total - desk.info().left}/${desk.info().total} claimed)`);
+      return send(res, 200, { id: o.id });
+    }
+  } catch (e) {
+    if (e instanceof ClaimError) return send(res, e.status, { error: e.message });
+    throw e;
+  }
+  return send(res, 404, { error: 'not found' });
+}
+
 async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://x');
   const p = url.pathname;
   if (p === '/submit.php') return submit(req, res, url);
   if (p === '/api/buy') return buy(req, res);
   if (p === '/api/autotopup') return autotopup(req, res);
+  if (p === '/api/proof' || p.startsWith('/api/proof/')) return proof(req, res, p);
   if (p === '/api/shop') {
     // sats: today's price of each amount, for the buy buttons (an order locks its own price when it's made)
     // at most 1.5s: the buy page waits for this, and the price feeds can be slow (then no sats on the buttons)
@@ -477,6 +523,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       fiat: fiat(), pool: pool && { ...pool, pending, reserve: POOL_RESERVE, alert: POOL_ALERT },
       funnel: funnel.report(ledger.data.orders, 14, Date.now()),
       methods: funnel.methods(ledger.data.orders, 14, Date.now()),
+      proof: desk?.info(), // trial keys for bitcoin holders: rules and keys left (no addresses: the ledger has none)
       // rails without RPC URLs (a provider key may sit in the URL); unmatched = confirmed transfers no order claimed
       stable: RAILS.length || ledger.data.stable ? {
         lateHours: STABLE_LATE_MS / 3600_000,
@@ -492,6 +539,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     : p === '/' ? 'index.html'
     : p === '/network' ? 'network.html'
     : p === '/claude-code-bitcoin' ? 'claude-code-bitcoin.html'
+    : p === '/claim' ? 'claim.html'
     : p);
   if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     return send(res, 404, 'not found', 'text/plain');

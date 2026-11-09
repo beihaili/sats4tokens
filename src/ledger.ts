@@ -22,7 +22,8 @@ export type OrderState = 'PENDING' | 'SETTLING' | 'PAID' | 'EXPIRED';
 export type MintVia = 'lightning' | 'cashu';
 /** Paid on chain: a rail id from chain.ts, e.g. 'tron-usdt', 'base-usdc', 'solana-usdc'. */
 export type StableVia = `${string}-usdt` | `${string}-usdc`;
-export type Via = MintVia | StableVia | 'bitcoin';
+/** 'proof': a free trial key for a signed bitcoin address (btcproof.ts), nothing received. */
+export type Via = MintVia | StableVia | 'bitcoin' | 'proof';
 
 export interface Settle {
   via: MintVia;
@@ -126,6 +127,9 @@ export interface LedgerData {
     cursors: Record<string, number>; // EVM rails: next block to scan
     unmatched: StablePayment[]; // confirmed transfers no order could claim (wrong network, odd amount): a human sorts them out
   };
+  // trial keys for bitcoin holders (btcproof.ts): `secret` keys the challenge HMAC and the address tags; claims hold
+  // addressTag() only (never the address), so the ledger can't say which address got which key
+  proof?: { secret: string; claims: { tag: string; at: number }[] };
 }
 
 export const emptyLedger = (): LedgerData => ({ version: 1, nextCounter: 1, orders: [], proofs: [] });

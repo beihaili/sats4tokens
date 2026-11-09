@@ -118,6 +118,29 @@ and first visits per UTC day and `ref` (from `?ref=` in the link, kept in the br
 is counted for the same channel; `POST /api/buy` also takes `ref`). No IP, no cookie, nothing per person. Requests with
 a bot-like user agent are ignored.
 
+### Trial keys for bitcoin holders (optional)
+
+Off unless the operator sets `PROOF_SNAPSHOT_HEIGHT` (see [self-hosting](self-hosting.md#trial-keys-for-bitcoin-holders-optional)).
+The `/claim` page uses these three:
+
+- `GET /api/proof` → `{enabled: false}`, or `{enabled, snapshot, minSats, grantUsd, total, left, leftToday}`.
+- `POST /api/proof/challenge {address}` → `{address, message, expiresAt}`. `address` comes back normalized (bech32 in
+  lowercase). The message is one ASCII line, valid 30 minutes:
+  `Sats4Tokens trial key for <address> nonce <16 hex> expires 2026-11-08T12:30Z`. The nonce is an HMAC: the
+  gateway keeps no state per challenge. Supported: `1…`, `3…` (P2SH-P2WPKH), `bc1q…` (P2WPKH), `bc1p…` (P2TR);
+  multisig / script addresses get 400.
+- `POST /api/proof/claim {address, message, signature, ref?}` → `{id}` of a key order that is already `PAID`
+  (`paid.via = "proof"`, `sats: 0`, `ref = "proof-<ref>"`); open `/pay/<id>` for the key. `signature` is base64, either
+  BIP-137 ("Bitcoin Signed Message": Bitcoin Core, Electrum, Sparrow, hardware wallets; the recovered key may match the
+  address as P2PKH, P2SH-P2WPKH or P2WPKH whatever the header says) or BIP-322 simple (P2WPKH, P2TR key path). Then the
+  address's UTXOs are read from an Esplora API: only coins confirmed at or before `snapshot` and still unspent count,
+  so moving coins to a new address after the snapshot doesn't make it eligible. Errors: 400 bad / expired message or
+  signature, 403 not enough held at the snapshot, 409 address already claimed, 410 all keys gone, 429 today's keys
+  gone, 502 explorer unreachable, 503 snapshot not reached yet or pool too low.
+
+The ledger stores an HMAC of each claimed address (keyed with a random secret in the ledger), never the address or
+the signature. The key's value is `PROOF_GRANT_USD` converted to the shop's `FIAT`.
+
 ### `GET /api/network`
 
 Data for the `/network` page; 404 `network view not enabled` unless `UPSTREAMS_FILE` is set. Returns
@@ -243,6 +266,7 @@ IPs or channels.
 |---|---|
 | `GET /` | key shop: guided buy flow (models → amount with estimates → app setup → pay) |
 | `GET /pay/:id` | checkout: ⚡ invoice + QR, 🥜 paste / scan a token, then the key, snippets, usage and "Top up this key" (a key top-up shows only the amount added and the new balance) |
+| `GET /claim` | trial key for bitcoin holders: address → message to sign → signature → key (only if `PROOF_SNAPSHOT_HEIGHT` is set) |
 | `GET /network` | upstream network: anonymized providers (A, B, …) and channels, routing per model, latest real calls (only if `UPSTREAMS_FILE` is set) |
 | `GET /admin.html#key=<ADMIN_KEY>` | operator page: balance, orders, withdraw |
 
@@ -267,7 +291,8 @@ Absent if new-api didn't answer within 5 seconds. Top-ups with `topup.needsRefun
 quote was made; Cashu leaves no trace before it pays). `stable` (when stablecoins are on): `{lateHours, rails: [{id,
 net, token, address, confirmations, explorer, rpcHost, lastScan, lastError, failures}], unmatched: [{rail, tx, units,
 decimals, at, from}]}` (no RPC URLs: they may hold a provider key). Orders carry their `stable` record; the page
-lists held, overpaid and unmatched ones under **Needs a human**.
+lists held, overpaid and unmatched ones under **Needs a human**. `proof` (when trial keys are on) = what
+`GET /api/proof` shows; trial key orders have `paid.via = "proof"` and a `proof-…` ref.
 
 ### `POST /admin/withdraw?key=…`
 
