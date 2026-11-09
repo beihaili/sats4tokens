@@ -10,7 +10,7 @@ test('three currencies lock account principal, settle BTC, and top up the same k
  const child=spawn(process.execPath,['test/fixtures/shop/server.ts'],{
   env:{...process.env,PORT:'0',EPAY_KEY:'synthetic',NEWAPI_USER_ID:'1',NEWAPI_TOKEN:'synthetic',
    DATA_DIR:dir,FIAT:'eur',BTC_PRICE:'100000',USD_PER_EUR:'1.2',USD_PER_CNY:'0.15',
-   BTC_RPC_USER:'test',BTC_RPC_PASSWORD:'test',KEY_BONUS:'5:5,10:10'},
+   BTC_RPC_USER:'test',BTC_RPC_PASSWORD:'test',KEY_BONUS:'5:5,10:10',SUPPORT_URL:'https://t.me/example'},
   stdio:['ignore','pipe','pipe'],
  });
  let output='';child.stdout.on('data',x=>output+=x);child.stderr.on('data',x=>output+=x);
@@ -32,10 +32,12 @@ test('three currencies lock account principal, settle BTC, and top up the same k
    const shop=(await request('/api/shop?currency='+currency)).body;
    assert.deepEqual(shop.amounts,['1','10','100','500']);
    assert.deepEqual(shop.bonus,{'10':5,'100':10,'500':10});
+   assert.equal(shop.support,'https://t.me/example');
   }
   const made=(await request('/api/buy',{money:100,currency:'cny'})).body;
   let o=await order(made.id);
   assert.equal(o.money,'12.5');assert.equal(o.fiat,'eur');assert.equal(o.bonus,10);
+  assert.equal(o.support,'https://t.me/example');
   assert.equal(o.purchase.amount,'100');assert.equal(o.sats,12500);
   const [a,b]=await Promise.all([request('/api/order/'+o.id+'/bitcoin',{}),request('/api/order/'+o.id+'/bitcoin',{})]);
   assert.equal(a.body.bitcoin.address,b.body.bitcoin.address);

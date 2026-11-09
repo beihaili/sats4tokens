@@ -65,6 +65,7 @@ customer ──► reverse proxy ──┬── /v1/*  ──► new-api :3000 
 | `PORT` | | default `8090` |
 | `ORDER_TTL_MIN` | | how long an unpaid order stays open, default `30` |
 | `CHECKOUT_TAB` | | tab the checkout opens on: `ln` (default) or `cashu` |
+| `SUPPORT_URL` | | where buyers ask for help (an `https://` link, e.g. a Telegram group): one line on the checkout, key and home pages; empty = none |
 | `WITHDRAW_TOKEN_OVER_HTTP` | | `1` = the admin page shows the withdrawn token for copying. Only if you reach the admin page over https or an ssh tunnel |
 | `BTC_PRICE` | | fixed BTC price in `FIAT` (offline tests); otherwise CoinGecko → Coinbase → mempool.space |
 

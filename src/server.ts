@@ -2,7 +2,7 @@
 //
 //   GET|POST /submit.php             new-api redirects the customer here (signed EPay params)
 //   GET      /                       key shop: buy an AI API key with bitcoin, no account (web/index.html)
-//   GET      /api/shop               key shop settings {enabled, amounts, fiat, sats, bonus, soldOut}
+//   GET      /api/shop               key shop settings {enabled, amounts, fiat, sats, bonus, soldOut, support}
 //   POST     /api/buy                {money} → new key order {id}; once paid, its page shows the key
 //                                    {money, key} → top-up of a key sold here (its page never shows the key)
 //   POST     /api/autotopup          {key, nwc?, money, below, perDay} → auto top-up over Nostr Wallet Connect on
@@ -63,6 +63,9 @@ const TTL_MS = Number(process.env.ORDER_TTL_MIN ?? 30) * 60_000;
 // Tab the checkout opens on. Opening ⚡ creates an invoice, and testnut pays its own invoices after ~2s,
 // so on testnut use 'cashu' or every order is paid "by lightning" before anyone can paste a token.
 const CHECKOUT_TAB = process.env.CHECKOUT_TAB === 'cashu' ? 'cashu' : 'ln';
+// Where buyers ask for help (e.g. a Telegram group link): one line on the checkout and key pages and on the homepage.
+// https only, empty = no help line. It's the operator's link, so it lives in .env, not in this repo.
+const SUPPORT_URL = /^https:\/\/[^\s"'<>]+$/.test(process.env.SUPPORT_URL ?? '') ? process.env.SUPPORT_URL! : '';
 // Withdrawn tokens are bearer money. By default they stay in a file on the gateway's disk; set this only
 // when the admin page is reached over https (or the mint is a test mint), so the page can show and copy it.
 const TOKEN_OVER_HTTP = process.env.WITHDRAW_TOKEN_OVER_HTTP === '1';
@@ -178,6 +181,7 @@ function publicOrder(o: Order) {
     id: o.id,
     name: o.name,
     money: o.money,
+    support: SUPPORT_URL || undefined, // the operator's help link (SUPPORT_URL)
     purchase: o.purchase,
     fiat: o.fiat,
     sats: o.sats,
@@ -373,7 +377,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     const amounts = tiers.filter(a => fits(a, accountPrincipal(a, rate), bonuses[a], left));
     const sats = price ? Object.fromEntries(amounts.map(a => [a, satsFor(accountPrincipal(a, rate), price)])) : undefined;
     return send(res, 200, { enabled: !!shop, amounts, tiers, fiat: selected, accountFiat: fiat(), accountRate: rate, sats,
-      bitcoinEnabled: !!bitcoin, bonus: bonuses, autoBonus: legacyBonus, soldOut: !!shop && amounts.length === 0 });
+      bitcoinEnabled: !!bitcoin, bonus: bonuses, autoBonus: legacyBonus, soldOut: !!shop && amounts.length === 0,
+      support: SUPPORT_URL || undefined });
   }
   if (p === '/api/models') {
     if (!shop) return send(res, 404, { error: 'key shop not enabled' });
