@@ -24,6 +24,9 @@
     .claim #error, .claim #wallet-msg { margin: 10px 0 0; }
     .claim #unisat-btn { margin-top: 4px; }
     .claim .or { margin: 14px 0 6px; }
+    .claim .uses { display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 8px; }
+    .claim .uses button { font-size: 15px; padding: 9px 6px; }
+    @media (max-width: 480px) { .claim .uses { grid-template-columns: 1fr 1fr; } }
   </style>
 </head>
 <body>
@@ -34,6 +37,12 @@
     </header>
 
     <section id="rules" class="card rules">loading…</section>
+
+    <section id="use-card" class="card" hidden>
+      <h2>Where will you use the key?</h2>
+      <nav class="tabs uses" id="uses" role="radiogroup"></nav>
+      <p class="hint" id="use-hint"></p>
+    </section>
 
     <section id="s1" class="card" hidden>
       <h2><span class="step-n">1</span>Your bitcoin address</h2>
@@ -78,6 +87,6 @@
     </section>
     <p class="hint"><a href="/">← Buy a key with sats instead</a></p>
   </main>
-  <script type="module" src="/claim.js?v=3"></script>
+  <script type="module" src="/claim.js?v=4"></script>
 </body>
 </html>

@@ -130,12 +130,12 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   button once the hero scrolls away, hidden while `#pay-btn` is on screen. Paying saves `{use, model}` to localStorage
   `s4t-plan`; the key page's **Set it up** tabs (`showSetup` in checkout.js, same `setupFor()`) open on that client with
   that model. Codex snippet appends a `[model_providers.sats4tokens]` table (`wire_api = "responses"`) to
-  `~/.codex/config.toml` only if absent, then `codex -c model_provider=sats4tokens -m gpt-5.5`. `web/claude-code-bitcoin.html` (served at
+  `~/.codex/config.toml` only if absent, then `codex -c model_provider=sats4tokens -m <picked GPT, else gpt-6-astra>`. `web/claude-code-bitcoin.html` (served at
   `/claude-code-bitcoin`) is the ad landing page; its 11s `web/demo.mp4` + `demo-poster.jpg` are recorded with
   `../gallery/record.mjs` against `mock-server.mjs` (fake order/key, no real credentials). Key page shows `#low` ("Running low" / "used up" → "Top it up ↓") when ≤10% of the key is left.
   Static files are sent `cache-control: no-cache`, but Cloudflare (stable URL) rewrites the browser TTL to 4h: after changing
   `web/*.js|css`, bump the `?v=` in the HTML/`import` URLs or browsers keep the old file. The **Claude Code** setup (`setupFor('claude-code')`): `export ANTHROPIC_BASE_URL=<root, no /v1>
-  ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=<picked Claude, else claude-opus-4-8> ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
+  ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=<picked Claude, else claude-opus-5-5> ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
   CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 … claude`. The output cap is required: new-api pre-reserves quota for
   max_tokens, and Claude Code's default asked for 1.26 units → 403 on a 1-unit key (then $1 = 1 unit; now €1 = 7.5
   units). One Claude Code turn ≈ 0.1 unit ≈ €0.013 (cache write).
@@ -152,7 +152,13 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   `unisat`: a named element would shadow `window.unisat`): `requestAccounts` → challenge → `signMessage(msg,
   'bip322-simple')` for bc1q/bc1p, `'ecdsa'` (BIP-137) for 1…/3… → claim; code 4001 = "You cancelled". No wallet
   library on the page; the gateway re-checks everything. `scripts/fake-proof.mjs` `/wallet` plays UniSat locally (both
-  signature types; snippet in its header). Tests `test/btcproof.test.ts` (12). Local check: `proof-local` in `../.claude/launch.json` =
+  signature types; snippet in its header). **"Where will you use the key?"** card (2026-11-09): the 4 `USES` of setup.js;
+  on claim it saves `s4t-plan {use, model}` like the homepage, so the key page opens on that client with its default model.
+  Tests `test/btcproof.test.ts` (12).
+- **Default models** (operator's choice 2026-11-09, `web/setup.js`): `CC_DEFAULT` claude-opus-5-5, `CODEX_DEFAULT`
+  gpt-6-astra, `CHAT_DEFAULT` deepseek-flash (Haiku slot stays claude-opus-4-6). The homepage ticks these three by default
+  (`PICKS` cards: gpt-6-astra and deepseek-flash replace gpt-5.5 and deepseek-v4-pro); `models.js` `DEFAULT_PICKS` and the
+  landing page snippet follow. Codex with gpt-6-astra over `/v1/responses` not yet run with a real key. Local check: `proof-local` in `../.claude/launch.json` =
   `scripts/fake-proof.mjs` (fake new-api + explorer) + gateway on :8097; sign challenges with `scripts/proof-signer.ts
   sign 1 <message>` (deterministic throwaway keys, wallet 1 eligible, 2 got its coins after the snapshot). Verified
   2026-11-08 in the browser: wrong key → 400, right key → /pay/ shows the key, repeat → 409, late coins → 403, P2WSH → 400.
