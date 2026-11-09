@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <title>Trial key for bitcoin holders · Sats4Tokens</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Sign a message with an address that holds 0.01 BTC and get a free AI API key. No account, no KYC.">
+  <link rel="stylesheet" href="/style.css?v=ux-20261108">
+  <style>
+    .claim ol.steps { padding-left: 1.2em; margin: 0; }
+    .claim ol.steps li { margin: .2em 0; }
+    .claim .rules b { font-variant-numeric: tabular-nums; }
+    .claim details { margin-top: 10px; font-size: 15px; }
+    .claim details summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+    .claim details li { margin: .3em 0; }
+    .claim textarea { resize: vertical; }
+    .claim .msg { background: var(--bg); }
+    .claim .step-n { display: inline-block; width: 1.6em; height: 1.6em; line-height: 1.6em; text-align: center; border-radius: 50%;
+      background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; margin-right: .4em; }
+    .claim .row { display: flex; gap: 8px; align-items: center; }
+    .claim .row input { flex: 1; min-width: 0; }
+    .claim #error { margin: 10px 0 0; }
+  </style>
+</head>
+<body>
+  <main class="checkout claim">
+    <header>
+      <h1>🎁 Trial key for bitcoin holders</h1>
+      <p class="tag">Sign a message with an address that holds 0.01 BTC, get a free AI API key. No account, no KYC.</p>
+    </header>
+
+    <section id="rules" class="card rules">loading…</section>
+
+    <section id="s1" class="card" hidden>
+      <h2><span class="step-n">1</span>Your bitcoin address</h2>
+      <div class="row">
+        <input id="addr" placeholder="bc1q…, bc1p…, 1… or 3…" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button id="get">Get message</button>
+      </div>
+      <p class="hint">Single-key addresses only (no multisig). Use an address you're fine with us looking up: see "What we see" below.</p>
+    </section>
+
+    <section id="s2" class="card" hidden>
+      <h2><span class="step-n">2</span>Sign this message</h2>
+      <textarea id="msg" class="msg" rows="3" readonly></textarea>
+      <div class="row"><button id="copy-msg">Copy message</button><span id="exp" class="hint"></span></div>
+      <details>
+        <summary>How to sign it in your wallet</summary>
+        <ul>
+          <li><b>Sparrow</b>: Tools → Sign/Verify Message → pick the address, paste the message, Sign. Works with hardware wallets connected to Sparrow.</li>
+          <li><b>Electrum</b>: Addresses tab → right-click the address → Sign/verify message.</li>
+          <li><b>Bitcoin Core</b>: <span class="mono">signmessage "address" "message"</span> (legacy <span class="mono">1…</span> addresses only).</li>
+          <li><b>Taproot (<span class="mono">bc1p…</span>)</b>: needs a wallet that signs BIP-322 messages.</li>
+        </ul>
+        Copy the message exactly: one line, no extra spaces. The signature is a line of base64.
+      </details>
+      <h2 style="margin-top:16px"><span class="step-n">3</span>Paste the signature</h2>
+      <textarea id="sig" rows="3" placeholder="H… or AkgwRQ…" spellcheck="false"></textarea>
+      <button id="claim" class="primary">Get my trial key</button>
+      <p id="error" class="bad" hidden></p>
+    </section>
+
+    <section class="card">
+      <h2>What we see</h2>
+      <ul class="hint">
+        <li>Signing proves to us that you control this address. It doesn't move coins and can't spend them.</li>
+        <li>We look up the address's coins on a public block explorer (mempool.space), so that service sees our lookup.</li>
+        <li>We keep only a keyed hash of the address, to refuse a second claim. We don't keep the address or the signature.</li>
+        <li>Like any API relay, we can see the requests you send with the key. The key isn't linked to any name or email.</li>
+      </ul>
+    </section>
+    <p class="hint"><a href="/">← Buy a key with sats instead</a></p>
+  </main>
+  <script type="module" src="/claim.js?v=1"></script>
+</body>
+</html>

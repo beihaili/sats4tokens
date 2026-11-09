@@ -22,6 +22,10 @@ function render(o) {
     $('#order .muted:last-child').textContent = 'Pay ' + paid + ' · Account credit ' + money(credit(o), o.fiat) +
       (o.bonus ? ' (includes ' + o.bonus + '% bonus)' : '');
   }
+  if (o.paid?.via === 'proof') { // trial key for a signed bitcoin address: nothing was paid
+    $('#order .amount').innerHTML = 'Free <small>trial</small>';
+    $('#order .muted:last-child').textContent = 'Key credit ' + money(credit(o), o.fiat);
+  }
   $('#mint').textContent = o.mint;
 
   if (o.state === 'PAID' && o.kind === 'keytopup') {
@@ -208,6 +212,7 @@ $('#copy-amount').addEventListener('click', () => {
 
 /** "1,234 sat received via lightning." or "5.42 USDT received on Tron (TRC-20)." plus what a stablecoin payment's size meant. */
 function paidText(o) {
+  if (o.paid.via === 'proof') return 'Free trial key for a bitcoin holder: nothing to pay.';
   if (!o.paid.amount) return `${o.paid.sats.toLocaleString()} sat received via ${o.paid.via}.`;
   const s = o.stable ?? {};
   const net = s.quotes?.find((q) => q.rail === o.paid.via)?.net ?? o.paid.via;

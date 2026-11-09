@@ -175,6 +175,26 @@ when someone pays too little, too much or on the wrong network: [how it works](h
 admin page lists everything that needs a human: console top-ups paid short (**held**, not credited), overpayments,
 and transfers no order could claim (**unmatched**). Refunds are manual, from your own wallet.
 
+## Trial keys for bitcoin holders (optional)
+
+`/claim` gives one small free key per bitcoin address that held at least `PROOF_MIN_SATS` at a block you pick and still
+holds those coins: the visitor signs a message with the address (BIP-137 or BIP-322), the gateway checks the signature
+and reads the address's UTXOs from an Esplora API. Trial keys come out of the same pool as sold keys (same reserve rule).
+
+| env | default | meaning |
+|---|---|---|
+| `PROOF_SNAPSHOT_HEIGHT` | | turns it on. Block height: only coins confirmed at or before it count. Pick the tip when you announce the campaign, so coins can't be moved around to claim twice |
+| `PROOF_MIN_SATS` | `1000000` | sats the address must hold in those coins (0.01 BTC) |
+| `PROOF_GRANT_USD` | `1` | key value in USD, converted to `FIAT` when the key is made (max 10) |
+| `PROOF_MAX_CLAIMS` | `50` | keys in total; then `/claim` says they're gone |
+| `PROOF_PER_DAY` | `20` | keys per rolling 24 h |
+| `PROOF_ESPLORA` | `https://mempool.space/api` | Esplora API for tip height and UTXOs; your own mempool/electrs instance keeps lookups off third parties |
+
+Limits worth knowing: one person with several funded addresses gets several keys (the caps bound the cost); multisig
+and script addresses can't sign a message, so they can't claim; addresses with more than ~500 UTXOs may be refused by
+the public explorer. The ledger keeps only an HMAC of each claimed address. Raising `PROOF_MAX_CLAIMS` or moving the
+snapshot later is safe; moving it earlier makes fewer addresses eligible.
+
 ## Money: seed, data directory, mints
 
 `DATA_DIR` holds `seed.hex` (the wallet seed), `ledger.json` (orders and the ecash proofs you own) and
