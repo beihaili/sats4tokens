@@ -241,7 +241,7 @@ IPs or channels.
 
 | path | page |
 |---|---|
-| `GET /` | key shop: amounts, model list with a cost calculator |
+| `GET /` | key shop: guided buy flow (models → amount with estimates → app setup → pay) |
 | `GET /pay/:id` | checkout: ⚡ invoice + QR, 🥜 paste / scan a token, then the key, snippets, usage and "Top up this key" (a key top-up shows only the amount added and the new balance) |
 | `GET /network` | upstream network: anonymized providers (A, B, …) and channels, routing per model, latest real calls (only if `UPSTREAMS_FILE` is set) |
 | `GET /admin.html#key=<ADMIN_KEY>` | operator page: balance, orders, withdraw |

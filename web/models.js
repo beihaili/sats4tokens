@@ -24,30 +24,47 @@ const CLAUDE_CODE_ONLY = new Set(['claude-opus-4-6', 'claude-opus-4-7', 'claude-
 const CHAT_IN = 2000;
 const CHAT_OUT = 500;
 
-/**
- * Render the price table into `box`. With `calc: {amounts}` (buy page) each row gets a checkbox and a
- * calculator above the table shows, for every ticked model, what one key of the chosen amount buys.
- */
-export async function renderModels(box, { calc } = {}) {
+/** How many typical chat calls (2K in + 500 out), or images for per-call models, `credit` buys on model `m`. */
+export const callsFor = (m, credit) =>
+  Math.floor(m.perCall !== undefined ? credit / m.perCall : credit / ((CHAT_IN * m.input + CHAT_OUT * m.output) / 1e6));
+/** 1234567 → "1.23M" */
+export const compactNum = (n) => compact.format(n);
+
+/** GET /api/models + /api/shop (account currency); null when the model list is unavailable. */
+export async function loadModels() {
   const [r, shop] = await Promise.all([fetch('/api/models'), fetch('/api/shop').then((x) => x.json())]);
-  if (!r.ok) {
-    box.closest('section').hidden = true;
-    return;
+  if (!r.ok) return null;
+  return { list: await r.json(), shop };
+}
+
+/**
+ * Render the price table into `box`. With `calc: {amounts}` (old buy page) each row gets a checkbox and a
+ * calculator above the table shows, for every ticked model, what one key of the chosen amount buys.
+ * With `pick: {picked: Set, onChange}` (guided homepage) the checkboxes read and write that set instead, no calculator;
+ * the returned `sync()` re-reads the set after someone else changed it. `data` = a `loadModels()` result to reuse.
+ */
+export async function renderModels(box, { calc, pick, data } = {}) {
+  data ??= await loadModels();
+  const section = box.closest('section');
+  if (!data) {
+    section.hidden = true;
+    return { sync() {} };
   }
-  FIAT = shop.fiat;
+  const { list, shop } = data;
+  FIAT = shop.accountFiat ?? shop.fiat;
   BONUS = shop.bonus ?? {};
   // the section's hint says "<span class="unit"></span> per 1M tokens"
-  for (const u of box.closest('section').querySelectorAll('.unit')) u.textContent = FIAT.toUpperCase();
-  const list = await r.json();
-  const picked = new Set(DEFAULT_PICKS.filter((n) => list.some((m) => m.model === n)));
+  for (const u of section.querySelectorAll('.unit')) u.textContent = FIAT.toUpperCase();
+  const picked = pick?.picked ?? new Set(DEFAULT_PICKS.filter((n) => list.some((m) => m.model === n)));
+  const ticks = !!(calc || pick);
   let amount = Number(calc?.amounts?.[0] ?? 1);
 
   const calcBox = el('div', { className: 'calc' });
   const draw = () => drawCalc(calcBox, list, picked, amount, calc.amounts, (a) => ((amount = a), draw()));
 
   const table = el('table', { className: 'calls prices' });
-  const cols = calc ? 5 : 4;
-  table.innerHTML = `<thead><tr>${calc ? '<th class="pick"></th>' : ''}<th class="name">Model</th><th>Input</th><th>Output</th><th class="cached">Cached</th></tr></thead>`;
+  const cols = ticks ? 5 : 4;
+  table.innerHTML = `<thead><tr>${ticks ? '<th class="pick"></th>' : ''}<th class="name">Model</th><th>Input</th><th>Output</th><th class="cached">Cached</th></tr></thead>`;
   const tbody = el('tbody');
   const rows = []; // { tr, head?, vendor, model?, cc, cb? } — the toolbar below filters these
   for (const v of [...new Set(list.map((m) => m.vendor))]) {
@@ -63,12 +80,12 @@ export async function renderModels(box, { calc } = {}) {
     for (const m of list.filter((x) => x.vendor === v)) {
       const tr = el('tr');
       const row = { tr, vendor: v, model: m.model, cc: m.endpoints.includes('anthropic') };
-      if (calc) {
-        const cb = el('input', { type: 'checkbox', checked: picked.has(m.model), ariaLabel: `compare ${m.model}` });
+      if (ticks) {
+        const cb = el('input', { type: 'checkbox', checked: picked.has(m.model), ariaLabel: `pick ${m.model}` });
         cb.onchange = () => {
           cb.checked ? picked.add(m.model) : picked.delete(m.model);
           tr.classList.toggle('picked', cb.checked);
-          draw();
+          changed();
         };
         tr.classList.toggle('picked', cb.checked);
         // the whole row toggles, easier on a phone. (Block body: an onclick returning false would cancel the tick.)
@@ -110,18 +127,19 @@ export async function renderModels(box, { calc } = {}) {
   chips.append(chipAll, chipCC);
   tools.append(search, count, chips);
   let onlyCC = false;
-  if (calc) {
+  const changed = () => (calc ? draw() : pick?.onChange?.());
+  if (ticks) {
     const bulk = el('span', { className: 'mbulk' });
     const pickShown = el('button', { type: 'button', className: 'link', textContent: 'Select all shown' });
     const pickNone = el('button', { type: 'button', className: 'link', textContent: 'Clear' });
     pickShown.onclick = () => {
       for (const r of rows) if (!r.head && !r.tr.hidden) { picked.add(r.model); r.cb.checked = true; r.tr.classList.add('picked'); }
-      draw();
+      changed();
     };
     pickNone.onclick = () => {
       picked.clear();
       for (const r of rows) if (r.cb) { r.cb.checked = false; r.tr.classList.remove('picked'); }
-      draw();
+      changed();
     };
     bulk.append(pickShown, pickNone);
     tools.append(bulk);
@@ -152,6 +170,11 @@ export async function renderModels(box, { calc } = {}) {
   } else {
     box.replaceChildren(tools, wrap);
   }
+  return {
+    sync() {
+      for (const r of rows) if (r.cb) { r.cb.checked = picked.has(r.model); r.tr.classList.toggle('picked', r.cb.checked); }
+    },
+  };
 }
 
 /** The calculator: amount buttons + one row per ticked model (all-input, all-output, typical chat calls). */

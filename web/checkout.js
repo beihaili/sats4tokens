@@ -1,7 +1,8 @@
 // Checkout page: polls /api/order/:id, shows the lightning invoice, takes a pasted cashu token, or shows the address and
 // exact amount for a USDT/USDC transfer on the network the buyer picks.
-import { renderModels, money } from '/models.js?v=9';
-import { mountShop } from '/shop.js?v=2';
+import { renderModels, money } from '/models.js?v=10';
+import { mountShop } from '/shop.js?v=3';
+import { USES, setupFor, loadPlan, copyText } from '/setup.js?v=1';
 const id = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -47,16 +48,12 @@ function render(o) {
     if (o.apiKey && $('#key').hidden) {
       $('#key').hidden = false;
       startUsage();
-      // Claude Code speaks the Anthropic API: root URL (it adds /v1/messages). new-api reserves quota for
-      // max_tokens up front, so cap the output or a small key is refused before the first call.
-      const root = o.apiKey.baseUrl.replace(/\/v1$/, '');
-      $('#claude').value = `ANTHROPIC_BASE_URL=${root} \\\n  ANTHROPIC_AUTH_TOKEN=${o.apiKey.key} \\\n  ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6 \\\n  CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\\n  claude`;
+      showSetup(o.apiKey);
       $('#prices').hidden = false;
       renderModels($('#models'));
       $('#env').value = `OPENAI_BASE_URL=${o.apiKey.baseUrl}\nOPENAI_API_KEY=${o.apiKey.key}`;
       showTopup(o.apiKey.key);
       setupAuto(o.apiKey.key, o.auto, o.fiat);
-      $('#curl').value = `curl ${o.apiKey.baseUrl}/chat/completions \\\n  -H "Authorization: Bearer ${o.apiKey.key}" \\\n  -H "content-type: application/json" \\\n  -d '{"model":"deepseek-flash","messages":[{"role":"user","content":"hi"}]}'`;
     }
     renderTopups(o.topups ?? []);
     renderAuto(o.auto);
@@ -175,7 +172,32 @@ async function copyBox(box) {
 $('#btc-copy-address').addEventListener('click', () => copyBox($('#btc-address')));
 $('#btc-copy-amount').addEventListener('click', () => copyBox($('#btc-amount')));
 $('#copyenv').addEventListener('click', () => copyBox($('#env')));
-$('#copyclaude').addEventListener('click', () => copyBox($('#claude')));
+$('#copysetup').addEventListener('click', async (e) => {
+  await copyText($('#setup'));
+  e.target.textContent = 'Copied ✓';
+  setTimeout(() => (e.target.textContent = 'Copy setup'), 1600);
+});
+
+/** The key's setup snippets, one tab per client; opens on the client picked on the homepage (if this browser bought it). */
+function showSetup(apiKey) {
+  const plan = loadPlan();
+  let use = USES.some((u) => u.id === plan.use) ? plan.use : 'claude-code';
+  const draw = () => {
+    // the homepage's model only for the client it was chosen for; other tabs use their defaults
+    const s = setupFor(use, { base: apiKey.baseUrl, key: apiKey.key, model: use === plan.use ? plan.model : undefined });
+    $('#setup-hint').textContent = s.hint;
+    $('#setup').value = s.text;
+    $('#setup').rows = s.rows;
+    for (const b of $('#setup-tabs').children) b.classList.toggle('on', b.dataset.use === use);
+  };
+  $('#setup-tabs').replaceChildren(...USES.map((u) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', textContent: u.name, title: u.sub });
+    b.dataset.use = u.id;
+    b.onclick = () => ((use = u.id), draw());
+    return b;
+  }));
+  draw();
+}
 $('#copy-addr').addEventListener('click', () => copyBox($('#stable-addr')));
 $('#copy-amount').addEventListener('click', () => {
   // the amount is shown big, not in a box: copy it through a throwaway one

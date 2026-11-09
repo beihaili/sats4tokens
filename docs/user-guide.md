@@ -6,14 +6,19 @@ No signup, no email, no card. The key holds exactly what you paid and never expi
 Live shop: <https://sats4tokens.bhbtc.xyz/> (mainnet, real sats). Other shops run the same software
 on their own domain; replace the URL below with theirs.
 
-## 1. Pick an amount
+## 1. Pick models, an amount and your app
 
-Open the shop and choose **1, 10, 100 or 500** in EUR, USD or CNY (EUR by default). The price in sats is fixed the moment you click
-(spot price, rounded up) and the order is valid for **30 minutes**. Larger amounts come with a bonus, shown on the
-button (10 +5%, 100/500 +10%; 1 has no bonus): the key holds that much more, at no extra cost. The same bonus applies to top-ups.
+The shop walks you through four steps; each has a default, so you can also go straight to **Pay**:
 
-The bottom of the page lists every model the key can call, with its price per 1M input /
-output tokens. Tick a few models to see roughly how many tokens or chat calls each amount buys.
+1. **Models.** Tick the models you plan to use (**All models & prices** lists every one, with its price per 1M
+   input / output tokens). This only sizes the key: every key works with every model.
+2. **Amount.** **1, 10, 100 or 500** in EUR, USD or CNY (EUR by default). Each amount shows roughly how many chat calls
+   it buys on the models you ticked. Larger amounts come with a bonus (10 +5%, 100/500 +10%; 1 has no bonus): the key
+   holds that much more, at no extra cost. The same bonus applies to top-ups.
+3. **Your app.** Claude Code, Codex CLI, another OpenAI-compatible app, or your own code. You see the setup you will
+   paste, with a placeholder key; the key page opens on the same setup with your real key.
+4. **Pay.** The button (also in the bar pinned to the bottom of the screen) creates the order. The price in sats is
+   fixed the moment you click (spot price, rounded up) and the order is valid for **30 minutes**.
 
 You land on the checkout page, `/pay/CK…`.
 
@@ -60,8 +65,8 @@ Shown only when the shop has turned it on. Pick the network you send from (for e
 
 ## 3. Use the key
 
-The paid page shows the key, the endpoint (e.g. `https://sats4tokens.bhbtc.xyz/v1`) and
-ready-to-copy snippets.
+The paid page shows the key, the endpoint (e.g. `https://sats4tokens.bhbtc.xyz/v1`) and, under **Set it up**,
+a ready-to-copy setup for Claude Code, Codex CLI, another app or your own code (it opens on the one you picked in the shop).
 
 **Environment variables** (most OpenAI-compatible tools read them):
 
@@ -91,17 +96,29 @@ print(r.choices[0].message.content)
 
 Use any model name from the list on the page.
 
-**Claude Code**: copy the one-line command from the key page. It looks like this:
+**Claude Code**: copy the Claude Code setup from the key page and paste it in a terminal. It looks like this:
 
 ```sh
-ANTHROPIC_BASE_URL=https://sats4tokens.bhbtc.xyz ANTHROPIC_AUTH_TOKEN=sk-... \
-ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6 \
-CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 claude
+export ANTHROPIC_BASE_URL=https://sats4tokens.bhbtc.xyz
+export ANTHROPIC_AUTH_TOKEN=sk-...
+export ANTHROPIC_MODEL=claude-opus-4-8
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+claude
 ```
 
 Note the base URL has **no `/v1`** here. Keep `CLAUDE_CODE_MAX_OUTPUT_TOKENS`: the relay reserves
 quota for the maximum output up front, and Claude Code's default can ask for more than a small key holds
 (you would get `403` / insufficient quota). One Claude Code turn costs a few cents at most.
+
+**Codex CLI**: the Codex setup on the key page adds a `sats4tokens` provider (Responses API, base URL with `/v1`)
+to `~/.codex/config.toml` once and starts Codex with it:
+
+```sh
+export SATS4TOKENS_API_KEY=sk-...
+codex -c model_provider=sats4tokens -m gpt-5.5
+```
 
 ## 4. Check what's left
 

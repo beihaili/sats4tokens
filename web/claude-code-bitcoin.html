@@ -14,7 +14,7 @@
   <meta property="og:url" content="https://sats4tokens.bhbtc.xyz/claude-code-bitcoin">
   <link rel="canonical" href="https://sats4tokens.bhbtc.xyz/claude-code-bitcoin">
   <meta property="og:image" content="https://sats4tokens.bhbtc.xyz/og-card.png">
-  <link rel="stylesheet" href="/style.css?v=ux-20261105">
+  <link rel="stylesheet" href="/style.css?v=ux-20261108">
   <style>
     .landing .demo { margin: 30px auto 0; max-width: 320px; }
     .landing .demo video { width: 100%; height: auto; display: block; border-radius: 18px; border: 1px solid var(--line); background: #111; }
@@ -129,7 +129,7 @@ claude</textarea>
       email is stored.</p>
   </main>
   <script type="module">
-    import { mountShop } from '/shop.js?v=2';
+    import { mountShop } from '/shop.js?v=3';
     const $ = (s) => document.querySelector(s);
     const ref = new URLSearchParams(location.search).get('ref') || 'landing-cc';
     fetch('/api/hit', { method: 'POST', body: JSON.stringify({ ref, first: !localStorage.getItem('s4t-seen') }), keepalive: true }).catch(() => {});

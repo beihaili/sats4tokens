@@ -1,4 +1,13 @@
-import { money, bonusText } from './models.js?v=7';
+import { money, bonusText } from './models.js?v=10';
+
+/** Create a key (or key top-up) order and go to its checkout page. Throws the gateway's error message. */
+export async function buy({ money, currency, key, ref }) {
+  const r = await fetch('/api/buy', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ money, currency, key, ref }) });
+  const order = await r.json();
+  if (!r.ok) throw new Error(order.error);
+  location.href = '/pay/' + order.id;
+}
 
 // A currency switch invalidates every button from the previous quote, including in-flight renders.
 export function mountShop({ select, buttons, message, key, ref, onShop }) {
@@ -38,11 +47,7 @@ export function mountShop({ select, buttons, message, key, ref, onShop }) {
           select.disabled = true;
           for (const button of buttons.children) button.disabled = true;
           try {
-            const r = await fetch('/api/buy', { method: 'POST', headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ money: amount, currency, key, ref }) });
-            const order = await r.json();
-            if (!r.ok) throw new Error(order.error);
-            location.href = '/pay/' + order.id;
+            await buy({ money: amount, currency, key, ref });
           } catch (e) {
             say(e.message);
             select.disabled = false;

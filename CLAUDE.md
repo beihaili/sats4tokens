@@ -52,10 +52,10 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   `Authorization` + `New-Api-User`.
   `GET /api/models` → `KeyShop.models()` (5-min cache): new-api `/api/pricing` filtered to the pool user's group;
   prices are the base-tier coefficients of `billing_expr` (`p`/`c`/`cr` = units per 1M input/output/cached tokens, × price → FIAT; verified
-  against a real charge), `quota_type 1` = per call. `web/models.js` renders it (grouped by vendor) at the bottom of `/`
-  and of the key page. On `/` (`renderModels(el, {calc: {amounts}})`) rows have checkboxes and a calculator shows, per ticked
-  model, tokens for 1/2/5/10 (FIAT) if all input / all output, and chat calls (2K in + 500 out); images per call for per-call models.
-  Phones (<480px) hide the cached column.
+  against a real charge), `quota_type 1` = per call. `web/models.js` renders it (grouped by vendor) in step 1 of `/`
+  (`renderModels(el, {pick: {picked, onChange}})`: checkboxes share the homepage's picked set; `sync()` re-reads it) and at
+  the bottom of the key page. `{calc: {amounts}}` (the older per-amount calculator) still works but no page uses it.
+  `callsFor(m, credit)` = chat calls (2K in + 500 out) or images a credit buys. Phones (<480px) hide the cached column.
   **Model aliases**: `MODEL_ALIAS_SUFFIX` (regex, server `.env` only, so upstream-named suffixes stay out of the repo)
   → `aliasesOf()`: a name matching it whose base name is also listed is hidden from `/api/models` and `/network`
   (routes dropped, node model lists and live calls mapped to the base name). Still callable with a key. Variants
@@ -120,14 +120,22 @@ Server/ops details (live deployment, server paths, tunnel, EUR settings) are in 
   sections split by space and hairlines, buy buttons dark with amount / sats / bonus, orange on hover. System font, tabular figures.
   Homepage (`web/index.html`): og/twitter meta (`og:image` = `/og-card.png`, 1200×630 from `../gallery/og-card.html`;
   absolute URLs on our domain, self-hosters change them), nav (🛰 /network, 📖 user guide, GitHub) and a "Who runs this"
-  card (BHBTC relay, privacy, exactly-once, agents). Since 2026-11-05 it also has a 3-step "How it works" under the buy
-  buttons, a copyable Claude Code quick start (placeholder key, `#cc-cmd`), and the models table has search / All / Claude
-  Code filters plus "Select all shown / Clear" for the calculator. `web/claude-code-bitcoin.html` (served at
+  card (BHBTC relay, privacy, exactly-once, agents). **Guided buy flow** (2026-11-08, `web/home.js`): the hero ends with a
+  4-step overview (`.flow`) and "Get a key ↓"; then #s1 pick models (8 curated cards `PICKS` + the full table in a
+  `<details>`, both bound to one `state.picked` Set; models ticked in the table get a card too) → #s2 amount cards (select,
+  don't buy; each shows sats, bonus and "≈ N chats" for the picked models, a per-model table under them; defaults to the
+  smallest amount on sale; currency switch keeps the amount) → #s3 where you use it (`web/setup.js` `USES`: claude-code /
+  codex / app / code; preview snippet with `sk-your-key`; auto-suggested from the picked models until the buyer clicks one;
+  warns on Claude-Code-only routes) → #s4 summary + Pay (`buy()` from shop.js). A pinned `#bar` shows the order and a Pay
+  button once the hero scrolls away, hidden while `#pay-btn` is on screen. Paying saves `{use, model}` to localStorage
+  `s4t-plan`; the key page's **Set it up** tabs (`showSetup` in checkout.js, same `setupFor()`) open on that client with
+  that model. Codex snippet appends a `[model_providers.sats4tokens]` table (`wire_api = "responses"`) to
+  `~/.codex/config.toml` only if absent, then `codex -c model_provider=sats4tokens -m gpt-5.5`. `web/claude-code-bitcoin.html` (served at
   `/claude-code-bitcoin`) is the ad landing page; its 11s `web/demo.mp4` + `demo-poster.jpg` are recorded with
   `../gallery/record.mjs` against `mock-server.mjs` (fake order/key, no real credentials). Key page shows `#low` ("Running low" / "used up" → "Top it up ↓") when ≤10% of the key is left.
   Static files are sent `cache-control: no-cache`, but Cloudflare (stable URL) rewrites the browser TTL to 4h: after changing
-  `web/*.js|css`, bump the `?v=` in the HTML/`import` URLs or browsers keep the old file. The key page also has a **Claude Code** one-liner: `ANTHROPIC_BASE_URL=<root, no /v1>
-  ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=claude-opus-4-8 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
+  `web/*.js|css`, bump the `?v=` in the HTML/`import` URLs or browsers keep the old file. The **Claude Code** setup (`setupFor('claude-code')`): `export ANTHROPIC_BASE_URL=<root, no /v1>
+  ANTHROPIC_AUTH_TOKEN=<key> ANTHROPIC_MODEL=<picked Claude, else claude-opus-4-8> ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-6
   CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096 … claude`. The output cap is required: new-api pre-reserves quota for
   max_tokens, and Claude Code's default asked for 1.26 units → 403 on a 1-unit key (then $1 = 1 unit; now €1 = 7.5
   units). One Claude Code turn ≈ 0.1 unit ≈ €0.013 (cache write).
