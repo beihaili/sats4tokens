@@ -116,7 +116,8 @@ per 1M input / output tokens.
 `{"ref": "hn", "first": true}` → 204. The homepage sends this once per load, for the funnel on the admin page: views
 and first visits per UTC day and `ref` (from `?ref=` in the link, kept in the browser's localStorage so a later purchase
 is counted for the same channel; `POST /api/buy` also takes `ref`). No IP, no cookie, nothing per person. Requests with
-a bot-like user agent are ignored.
+a bot-like user agent are ignored. The `/claim` page sends `"page": "claim"` too: its views count under `proof-<ref>`,
+the same row as the trial keys claimed from that link.
 
 ### Trial keys for bitcoin holders (optional)
 

@@ -9,7 +9,7 @@
 //                                    {key, off: true} → turn it off; {key} → its status (never the connection string)
 //   GET      /api/models             key shop: models a key can call + prices (FIAT per 1M tokens, from new-api)
 //   GET      /api/compare            homepage price check: our live price vs list price and ppq.ai (USD per 1M tokens)
-//   POST     /api/hit                homepage beacon {ref, first} for the funnel counts (no IP, no cookie)
+//   POST     /api/hit                page beacon {ref, first, page?} for the funnel counts (no IP, no cookie)
 //   GET      /pay/:id                checkout page (web/checkout.html)
 //   GET      /api/order/:id          order status for the checkout page (polled)
 //   POST     /api/order/:id/invoice  create the lightning invoice (lazily, when the customer picks ⚡)
@@ -400,8 +400,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (p === '/api/hit') {
     if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
-    const b = JSON.parse((await readBody(req)) || '{}') as { ref?: unknown; first?: unknown };
-    if (!/bot|crawl|spider|preview|headless/i.test(req.headers['user-agent'] ?? '')) funnel.hit(cleanRef(b.ref), b.first === true, Date.now());
+    const b = JSON.parse((await readBody(req)) || '{}') as { ref?: unknown; first?: unknown; page?: unknown };
+    // /claim counts under 'proof-<ref>', the same row as the trial keys it hands out (views → claims per channel)
+    const ref = (b.page === 'claim' ? 'proof-' : '') + cleanRef(b.ref);
+    if (!/bot|crawl|spider|preview|headless/i.test(req.headers['user-agent'] ?? '')) funnel.hit(ref, b.first === true, Date.now());
     return send(res, 204, '');
   }
 
