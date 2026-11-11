@@ -278,7 +278,7 @@ Both need `?key=<ADMIN_KEY>`; a wrong key gets `403 forbidden`.
 
 ```json
 { "balance": 3476, "nextCounter": 120, "mint": "https://mint.example.com", "tokenOverHttp": false, "fiat": "eur",
-  "pool": { "quota": 133.2, "owed": 21.5, "available": 111.7, "pending": 2, "reserve": 10, "alert": 30 },
+  "pool": { "quota": 250, "owed": 40, "available": 210, "pending": 2, "reserve": 10, "alert": 30 },
   "orders": [ … ] }
 ```
 

@@ -17,7 +17,7 @@ const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumSignif
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 
 // ticked on first load (when they exist): one of each kind, from strongest to cheapest
-const DEFAULT_PICKS = ['claude-opus-5-5', 'gpt-6.1-sol', 'gpt-6-astra', 'glm-5.3', 'kimi-k3', 'deepseek-v4-pro'];
+const DEFAULT_PICKS = ['claude-opus-5-5', 'gpt-6-astra', 'deepseek-flash']; // same defaults as setup.js
 // upstream routes that only accept Claude Code clients (a plain SDK call gets 403); the list is in the UI only
 const CLAUDE_CODE_ONLY = new Set(['claude-opus-4-6', 'claude-opus-4-7', 'claude-opus-4-8']);
 // a "typical chat call" for the calls column: 2K tokens in (question + context), 500 out (answer)

@@ -9,10 +9,12 @@ export const USES = [
   { id: 'code', name: 'My own code', sub: 'curl, Python, Node — the OpenAI API' },
 ];
 
-// Claude Code defaults: these routes are the cheapest Claude on the shop and accept Claude Code clients.
-export const CC_DEFAULT = 'claude-opus-4-8';
+// Defaults when the buyer picked nothing for that client (operator's choice, 2026-11-09): newest Claude Opus for Claude
+// Code, newest GPT for Codex, the cheapest strong chat model for everything else. The Haiku slot stays on a cheap
+// Claude-Code-only route (background calls).
+export const CC_DEFAULT = 'claude-opus-5-5';
 const CC_SMALL = 'claude-opus-4-6';
-export const CODEX_DEFAULT = 'gpt-5.5';
+export const CODEX_DEFAULT = 'gpt-6-astra';
 export const CHAT_DEFAULT = 'deepseek-flash';
 
 /** Read the plan the homepage saved: {use, model}; {} when none or storage is blocked. */

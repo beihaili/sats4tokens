@@ -1,4 +1,4 @@
-import { money, bonusText } from './models.js?v=10';
+import { money, bonusText } from './models.js?v=11';
 
 /** Create a key (or key top-up) order and go to its checkout page. Throws the gateway's error message. */
 export async function buy({ money, currency, key, ref }) {

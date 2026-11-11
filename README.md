@@ -191,7 +191,6 @@ src/price.ts     fiat → BTC with fallbacks
 src/upstreams.ts anonymized upstream network for the /network page (no provider names or hosts)
 web/             key shop, mobile checkout page, upstream network page, operator page
 examples/        agent-buy-key.ts: buy and pay for a key from a script
-deploy/demo/     our live EU relay stack (own new-api + gateway, channels copied from the main relay)
 docs/            user guide, self-hosting, HTTP API, internals; slides (PDF) and screenshots (mock orders)
 ```
 

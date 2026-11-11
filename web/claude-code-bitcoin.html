@@ -78,7 +78,7 @@
       <p class="lede">After you pay, paste this in a terminal (swap in your own key):</p>
       <textarea id="cc-cmd" rows="7" readonly spellcheck="false">export ANTHROPIC_BASE_URL=https://sats4tokens.bhbtc.xyz
 export ANTHROPIC_AUTH_TOKEN=sk-your-key
-export ANTHROPIC_MODEL=claude-opus-4-8
+export ANTHROPIC_MODEL=claude-opus-5-5
 export CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096
 claude</textarea>
       <button id="cc-copy" class="primary">Copy</button>
@@ -118,8 +118,8 @@ claude</textarea>
       </details>
       <details>
         <summary>Which models can I use?</summary>
-        <p>All of them — the full list with live prices is on the <a href="/">shop page</a>. <code>claude-opus-4-8</code> is
-          a good default for Claude Code; <code>deepseek-flash</code> and <code>gemini-3.1-flash-lite</code> are the cheap
+        <p>All of them — the full list with live prices is on the <a href="/">shop page</a>. <code>claude-opus-5-5</code> is
+          the default for Claude Code (<code>claude-opus-4-8</code> costs less); <code>deepseek-flash</code> and <code>gemini-3.1-flash-lite</code> are the cheap
           workhorses for scripts and agents.</p>
       </details>
     </section>
@@ -129,7 +129,7 @@ claude</textarea>
       email is stored.</p>
   </main>
   <script type="module">
-    import { mountShop } from '/shop.js?v=3';
+    import { mountShop } from '/shop.js?v=4';
     const $ = (s) => document.querySelector(s);
     const ref = new URLSearchParams(location.search).get('ref') || 'landing-cc';
     fetch('/api/hit', { method: 'POST', body: JSON.stringify({ ref, first: !localStorage.getItem('s4t-seen') }), keepalive: true }).catch(() => {});

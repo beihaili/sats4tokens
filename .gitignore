@@ -12,3 +12,7 @@ withdrawals/
 public/
 .env.*
 CLAUDE.local.md
+
+# internals live in the private ops repo (../ops/INTERNALS.md); CLAUDE.md here is a local symlink
+CLAUDE.md
+__pycache__/

@@ -1,8 +1,8 @@
 // Checkout page: polls /api/order/:id, shows the lightning invoice, takes a pasted cashu token, or shows the address and
 // exact amount for a USDT/USDC transfer on the network the buyer picks.
-import { renderModels, money } from '/models.js?v=10';
-import { mountShop } from '/shop.js?v=3';
-import { USES, setupFor, loadPlan, copyText } from '/setup.js?v=1';
+import { renderModels, money } from '/models.js?v=11';
+import { mountShop } from '/shop.js?v=4';
+import { USES, setupFor, loadPlan, copyText } from '/setup.js?v=2';
 const id = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);

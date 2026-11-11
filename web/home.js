@@ -1,9 +1,9 @@
 // Guided homepage: 1 pick models → 2 choose an amount → 3 choose where you use it → 4 pay. Every step has a sensible
 // default, so a buyer who agrees with them can pay at once; a pinned bar at the bottom always shows the current
 // order and its Pay button, so the button is never "somewhere up the page".
-import { loadModels, renderModels, money, bonusText, callsFor, compactNum } from '/models.js?v=10';
-import { buy } from '/shop.js?v=3';
-import { USES, setupFor, savePlan, copyText, CC_DEFAULT, CODEX_DEFAULT, CHAT_DEFAULT } from '/setup.js?v=1';
+import { loadModels, renderModels, money, bonusText, callsFor, compactNum } from '/models.js?v=11';
+import { buy } from '/shop.js?v=4';
+import { USES, setupFor, savePlan, copyText, CC_DEFAULT, CODEX_DEFAULT, CHAT_DEFAULT } from '/setup.js?v=2';
 
 const $ = (s) => document.querySelector(s);
 const el = (tag, props = {}, ...kids) => {
@@ -19,9 +19,9 @@ const PICKS = [
   ['claude-opus-5-5', 'Newest Claude Opus'],
   ['claude-opus-4-8', 'Lowest-cost Claude'],
   ['claude-sonnet-5-5', 'Claude Sonnet'],
-  ['gpt-5.5', 'GPT for Codex'],
+  ['gpt-6-astra', 'Newest GPT (Codex)'],
   ['gpt-6.1-sol', 'Low-cost GPT'],
-  ['deepseek-v4-pro', 'DeepSeek, low cost'],
+  ['deepseek-flash', 'DeepSeek Flash, lowest cost'],
   ['kimi-k3', 'Kimi by Moonshot'],
   ['gemini-3.1-pro', 'Gemini by Google'],
 ];
@@ -65,8 +65,9 @@ export async function mountHome({ ref }) {
     acctFiat = data.shop.accountFiat ?? data.shop.fiat;
     for (const u of document.querySelectorAll('.unit')) u.textContent = acctFiat.toUpperCase();
     for (const n of document.querySelectorAll('.nmodels')) n.textContent = String(models.length);
-    if (byId.has('claude-opus-5-5')) state.picked.add('claude-opus-5-5');
-    else if (models[0]) state.picked.add(models[0].model);
+    // default picks (operator's choice): newest Claude Opus, newest GPT, the cheapest strong chat model
+    for (const id of [CC_DEFAULT, CODEX_DEFAULT, CHAT_DEFAULT]) if (byId.has(id)) state.picked.add(id);
+    if (!state.picked.size && models[0]) state.picked.add(models[0].model);
     table = await renderModels($('#models'), { data, pick: { picked: state.picked, onChange: () => changed() } });
   } else {
     $('#picks').replaceChildren(el('p', { className: 'hint', textContent: 'The model list is not available right now — every key still works with all models.' }));

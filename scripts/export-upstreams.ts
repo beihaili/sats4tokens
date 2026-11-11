@@ -1,5 +1,5 @@
 // Anonymized upstream snapshot for the /network page. Runs on the server (inside the gateway container, which
-// has node), fed by deploy/demo/export-upstreams.sh:
+// has node), fed by an export of new-api's channels and abilities tables:
 //
 //   {"channels":[{id,status,host,priority,weight,latencyMs}], "abilities":[{group,model,channel,enabled}]}  (stdin)
 //   node scripts/export-upstreams.ts [group=default] > upstreams.json
