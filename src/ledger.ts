@@ -280,6 +280,14 @@ export function makeTopupOrder(parent: Order, money: string, o: { fiat: string; 
   };
 }
 
+/**
+ * Top-ups of key `tokenId` bought by hand (not auto top-up, which has its own caps) that still wait for payment: the shop
+ * hands one of them back instead of making a new invoice for every retry (server.ts buy).
+ */
+export function openTopups(data: LedgerData, tokenId: number, now: number): Order[] {
+  return data.orders.filter((o) => o.kind === 'keytopup' && o.topup?.tokenId === tokenId && !o.topup.auto && o.state === 'PENDING' && o.expiresAt > now);
+}
+
 /** The key order that sold `key` ("sk-…", with or without the prefix), if it was sold here. */
 export function findKeyOrder(data: LedgerData, key: string): Order | undefined {
   const k = 'sk-' + key.trim().replace(/^sk-/, '');
