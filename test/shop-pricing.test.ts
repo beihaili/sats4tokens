@@ -45,6 +45,15 @@ test('three currencies lock account principal, settle BTC, and top up the same k
   o=await wait(async()=>{const v=await order(made.id);return v.apiKey&&v;});
   const key=o.apiKey.key;
   const top=(await request('/api/buy',{money:10,currency:'usd',key})).body;
+  // a retry gets the same unpaid top-up back; a key holds at most 3 unpaid ones
+  const again=await request('/api/buy',{money:10,currency:'usd',key});
+  assert.equal(again.status,200);assert.equal(again.body.id,top.id);assert.equal(again.body.reused,true);
+  const other1=(await request('/api/buy',{money:1,currency:'usd',key})).body;
+  const other2=(await request('/api/buy',{money:10,currency:'eur',key})).body;
+  assert.notEqual(other1.id,top.id);assert.notEqual(other2.id,top.id);assert.notEqual(other1.id,other2.id);
+  const capped=await request('/api/buy',{money:100,currency:'usd',key});
+  assert.equal(capped.status,429);assert.match(capped.body.error,/3 unpaid top-ups/);
+  assert.equal((await request('/api/buy',{money:1,currency:'usd',key})).body.id,other1.id); // still reused at the cap
   let t=await order(top.id);
   assert.equal(t.bonus,5);assert.ok(Math.abs(Number(t.money)-8.33333333)<1e-8);
   const quoted=(await request('/api/order/'+top.id+'/bitcoin',{})).body;

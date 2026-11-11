@@ -47,7 +47,7 @@ test('capProblem: per top-up, per day (maybe-paid counts), interval', () => {
 });
 
 // A fake shop with the real endpoints' shapes. `mintPays` = what the mint sees after the wallet's call.
-function fakeShop(opts: { knownKey?: boolean; sats?: number } = {}) {
+function fakeShop(opts: { knownKey?: boolean; sats?: number; openCap?: boolean } = {}) {
   const orders = new Map<string, any>();
   const calls: string[] = [];
   let n = 0;
@@ -63,6 +63,7 @@ function fakeShop(opts: { knownKey?: boolean; sats?: number } = {}) {
     if (u.pathname === '/api/shop') return json(200, { enabled: true, amounts: ['1', '2', '5', '10'], fiat: 'eur' });
     if (u.pathname === '/api/buy') {
       if (opts.knownKey === false) return json(404, { error: 'unknown key' });
+      if (opts.openCap) return json(429, { error: 'This key already has 3 unpaid top-ups. Pay one of them, or wait until they expire (30 minutes).' });
       const id = 'CK' + String(++n).padStart(32, '0');
       orders.set(id, { id, state: 'PENDING', sats: opts.sats ?? 1337, topup: { key: 'sk-…aaaa' } });
       return json(200, { id });
@@ -139,6 +140,7 @@ test('topup: unknown key and over-limit stop before paying', async () => {
   const c = cfg();
   c.wallet = { name: 'fake', async payInvoice() { throw new Error('must not pay'); } };
   await assert.rejects(topup(c, 2, deps(fakeShop({ knownKey: false }).fetch)), (e) => e instanceof Stop && /unknown key/.test(e.message));
+  await assert.rejects(topup(c, 2, deps(fakeShop({ openCap: true }).fetch)), (e) => e instanceof Stop && /3 unpaid top-ups/.test(e.message) && /Nothing was paid/.test(e.message));
   await assert.rejects(topup(c, 5, deps(fakeShop().fetch)), (e) => e instanceof Stop && /per-top-up/.test(e.message));
   await assert.rejects(topup(c, 3, deps(fakeShop().fetch)), (e) => e instanceof Stop && /can't be bought/.test(e.message));
 });
