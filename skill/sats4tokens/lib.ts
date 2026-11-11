@@ -176,6 +176,8 @@ export async function topup(c: Config, money: number, d: Deps): Promise<{ added:
     const r = await api('/api/buy', { money: String(money), key: c.key });
     if (r.status === 404) throw new Stop('this key was not sold by this shop (unknown key): it is not a used-up key, it is wrong');
     if (r.status === 503) throw new Stop('the shop is sold out right now');
+    // the key already holds the shop's maximum of unpaid top-ups (someone, maybe an earlier run, keeps making them)
+    if (r.status === 429) throw new Stop(`${r.body?.error ?? 'too many unpaid top-ups'} Nothing was paid.`);
     if (r.status !== 200 || !r.body?.id) throw new Error(`/api/buy: ${r.body?.error ?? r.status}`);
     a = { id: r.body.id, money, createdAt: d.now() };
     if (cap) {

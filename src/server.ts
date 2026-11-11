@@ -5,11 +5,12 @@
 //   GET      /api/shop               key shop settings {enabled, amounts, fiat, sats, bonus, soldOut, support}
 //   POST     /api/buy                {money} → new key order {id}; once paid, its page shows the key
 //                                    {money, key} → top-up of a key sold here (its page never shows the key)
+//                                    (an unpaid one of the same amount is handed back {id, reused}; at most 3 open: 429)
 //   POST     /api/autotopup          {key, nwc?, money, below, perDay} → auto top-up over Nostr Wallet Connect on
 //                                    {key, off: true} → turn it off; {key} → its status (never the connection string)
 //   GET      /api/models             key shop: models a key can call + prices (FIAT per 1M tokens, from new-api)
 //   GET      /api/compare            homepage price check: our live price vs list price and ppq.ai (USD per 1M tokens)
-//   POST     /api/hit                homepage beacon {ref, first} for the funnel counts (no IP, no cookie)
+//   POST     /api/hit                page beacon {ref, first, page?} for the funnel counts (no IP, no cookie)
 //   GET      /pay/:id                checkout page (web/checkout.html)
 //   GET      /api/order/:id          order status for the checkout page (polled)
 //   POST     /api/order/:id/invoice  create the lightning invoice (lazily, when the customer picks ⚡)
@@ -34,7 +35,7 @@ import path from 'node:path';
 import QRCode from 'qrcode';
 import { signed, type Params } from './epay.ts';
 import {
-  Ledger, checkSubmit, makeOrder, makeKeyOrder, makeTopupOrder, findKeyOrder, topupBlocked, pendingMoney, moneyLabel, satsFor,
+  Ledger, checkSubmit, makeOrder, makeKeyOrder, makeTopupOrder, findKeyOrder, openTopups, topupBlocked, pendingMoney, moneyLabel, satsFor,
   parseBonusTiers, creditOf,
   notifyParams, dueForNotify, notifyBackoffMs, type Order,
 } from './ledger.ts';
@@ -60,6 +61,8 @@ const MERCHANTS = merchantsFromEnv(process.env);
 const MINT_URL = process.env.MINT_URL ?? 'https://testnut.cashu.space';
 const DATA_DIR = process.env.DATA_DIR ?? 'data';
 const TTL_MS = Number(process.env.ORDER_TTL_MIN ?? 30) * 60_000;
+// unpaid hand-made top-ups one key may hold at once (2026-11-11: one key made 68 unpaid €2 top-ups in 40 minutes)
+const MAX_OPEN_TOPUPS = 3;
 // Tab the checkout opens on. Opening ⚡ creates an invoice, and testnut pays its own invoices after ~2s,
 // so on testnut use 'cashu' or every order is paid "by lightning" before anyone can paste a token.
 const CHECKOUT_TAB = process.env.CHECKOUT_TAB === 'cashu' ? 'cashu' : 'ln';
@@ -264,6 +267,17 @@ async function buy(req: http.IncomingMessage, res: http.ServerResponse): Promise
   if (!legacy && !tiers.includes(String(money))) return send(res, 400, { error: 'amount must be one of ' + tiers.join(', ') });
   const parent = key === undefined ? undefined : findKeyOrder(ledger.data, String(key));
   if (key !== undefined && !parent) return send(res, 404, { error: 'unknown key' });
+  if (parent?.apiKey) {
+    // a retry (a buyer clicking again, an agent looping) gets the same unpaid top-up back instead of a new invoice each
+    // time, and a key can't hold more than MAX_OPEN_TOPUPS of them. Not atomic with the order made below: two requests
+    // landing together may still make two, which the cap bounds.
+    const open = openTopups(ledger.data, parent.apiKey.tokenId, Date.now());
+    const same = open.find((o) => (o.purchase?.currency ?? fiat()) === selected && Number(o.purchase?.amount ?? o.money) === Number(money));
+    if (same) return send(res, 200, { id: same.id, reused: true });
+    if (open.length >= MAX_OPEN_TOPUPS) {
+      return send(res, 429, { error: `This key already has ${open.length} unpaid top-ups. Pay one of them, or wait until they expire (${TTL_MS / 60_000} minutes).` });
+    }
+  }
   const order = await newShopOrder(String(money), parent, cleanRef(ref), selected);
   if (typeof order === 'string') return send(res, 503, { error: order });
   return send(res, 200, { id: order.id });
@@ -400,8 +414,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (p === '/api/hit') {
     if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
-    const b = JSON.parse((await readBody(req)) || '{}') as { ref?: unknown; first?: unknown };
-    if (!/bot|crawl|spider|preview|headless/i.test(req.headers['user-agent'] ?? '')) funnel.hit(cleanRef(b.ref), b.first === true, Date.now());
+    const b = JSON.parse((await readBody(req)) || '{}') as { ref?: unknown; first?: unknown; page?: unknown };
+    // /claim counts under 'proof-<ref>', the same row as the trial keys it hands out (views → claims per channel)
+    const ref = (b.page === 'claim' ? 'proof-' : '') + cleanRef(b.ref);
+    if (!/bot|crawl|spider|preview|headless/i.test(req.headers['user-agent'] ?? '')) funnel.hit(ref, b.first === true, Date.now());
     return send(res, 204, '');
   }
 

@@ -34,6 +34,13 @@ try {
   ref ||= localStorage.getItem('s4t-ref') || '';
   if (ref) localStorage.setItem('s4t-ref', ref);
 } catch { /* storage blocked: no ref */ }
+// one beacon per load, counted as 'proof-<ref>' next to the trial keys claimed from that channel
+let first = true;
+try {
+  first = !localStorage.getItem('s4t-seen-claim');
+  localStorage.setItem('s4t-seen-claim', '1');
+} catch { /* storage blocked: every load counts as a first visit */ }
+fetch('/api/hit', { method: 'POST', body: JSON.stringify({ ref, first, page: 'claim' }), keepalive: true }).catch(() => {});
 
 let issued; // {address, message, expiresAt}
 
