@@ -148,3 +148,17 @@ test('Ledger.save is atomic and private (0600), reload round-trips', () => {
   assert.ok(again.order(l.data.orders[0].id));
   fs.rmSync(dir, { recursive: true });
 });
+
+test('openTopups: unpaid hand-made top-ups of one key only', async () => {
+  const { openTopups } = await import('../src/ledger.ts');
+  const now = 1_000_000;
+  const t = (tokenId: number, state: string, expiresAt: number, auto = false) =>
+    ({ kind: 'keytopup', state, expiresAt, topup: { of: 'k', tokenId, keyHint: 'x', ...(auto ? { auto: {} } : {}) } }) as any;
+  const data = { orders: [
+    t(17, 'PENDING', now + 1), t(17, 'PENDING', now - 1), t(17, 'PAID', now + 1), t(17, 'SETTLING', now + 1),
+    t(17, 'PENDING', now + 1, true), t(19, 'PENDING', now + 1), { kind: 'key', state: 'PENDING', expiresAt: now + 1 },
+  ] } as any;
+  const open = openTopups(data, 17, now);
+  assert.equal(open.length, 1);
+  assert.equal(open[0], data.orders[0]);
+});
